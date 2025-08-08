@@ -84,9 +84,78 @@ public class CommandManager implements CommandExecutor {
             case "invitations":
             case "invites":
                 return handleViewInvitations(player, args);
+            case "privacy":
+                return handlePrivacy(player, args);
             default:
                 return false;
         }
+    }
+
+    private boolean handlePrivacy(Player player, String[] args) {
+        UUID uuid = player.getUniqueId();
+        String factionName = playerFactions.get(uuid);
+        if (factionName == null) {
+            player.sendMessage(ChatColor.RED + "You are not in a faction.");
+            return true;
+        }
+
+        Faction faction = factions.get(factionName);
+        Rank playerRank = faction.members.get(uuid);
+        if (playerRank != Rank.OWNER && playerRank != Rank.ADMIN) {
+            player.sendMessage(ChatColor.RED + "You lack permission to change faction privacy settings.");
+            return true;
+        }
+
+        if (args.length < 2) {
+            // Show current status
+            player.sendMessage(ChatColor.YELLOW + "Faction Privacy: " +
+                    (faction.isPublic ? ChatColor.GREEN + "Public" : ChatColor.RED + "Private"));
+            player.sendMessage(ChatColor.GRAY + "Usage: /f privacy <public|private>");
+            return true;
+        }
+
+        String setting = args[1].toLowerCase();
+        if (setting.equals("public")) {
+            if (faction.isPublic) {
+                player.sendMessage(ChatColor.YELLOW + "Faction is already public.");
+                return true;
+            }
+            faction.isPublic = true;
+            player.sendMessage(ChatColor.GREEN + "Faction is now public! Anyone can join without an invitation.");
+
+            // Notify other online faction members
+            for (UUID memberUUID : faction.members.keySet()) {
+                Player member = Bukkit.getPlayer(memberUUID);
+                if (member != null && !member.equals(player)) {
+                    member.sendMessage(ChatColor.GREEN + player.getName() + " made the faction public!");
+                }
+            }
+
+        } else if (setting.equals("private")) {
+            if (!faction.isPublic) {
+                player.sendMessage(ChatColor.YELLOW + "Faction is already private.");
+                return true;
+            }
+            faction.isPublic = false;
+            player.sendMessage(ChatColor.GREEN + "Faction is now private! Only invited players can join.");
+
+            // Notify other online faction members
+            for (UUID memberUUID : faction.members.keySet()) {
+                Player member = Bukkit.getPlayer(memberUUID);
+                if (member != null && !member.equals(player)) {
+                    member.sendMessage(ChatColor.YELLOW + player.getName() + " made the faction private!");
+                }
+            }
+
+        } else {
+            player.sendMessage(ChatColor.RED + "Invalid option. Use 'public' or 'private'.");
+            player.sendMessage(ChatColor.GRAY + "Usage: /f privacy <public|private>");
+            return true;
+        }
+
+        // Save data
+        plugin.getDataManager().saveFactionData();
+        return true;
     }
 
     private boolean handleMenu(Player player, String[] args) {

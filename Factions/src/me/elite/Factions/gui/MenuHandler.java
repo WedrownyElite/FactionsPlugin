@@ -123,8 +123,7 @@ public class MenuHandler {
         ItemMeta joinMeta = joinFaction.getItemMeta();
         joinMeta.setDisplayName(ChatColor.BLUE + "Browse Factions");
         joinMeta.setLore(Arrays.asList(
-                ChatColor.GRAY + "View factions accepting members",
-                ChatColor.RED + "Coming Soon!"
+                ChatColor.GRAY + "View factions accepting members"
         ));
         joinFaction.setItemMeta(joinMeta);
         menu.setItem(5, joinFaction);
@@ -137,9 +136,203 @@ public class MenuHandler {
     }
 
     /**
-     * Menu for players with a faction
+     * Open the faction browser menu
      */
-    private void openFactionMenu(Player player, String factionName) {
+    public void openFactionBrowser(Player player) {
+        openFactionBrowser(player, 0, 0); // Start at page 0 for both sections
+    }
+
+    private void openFactionBrowser(Player player, int publicPage, int invitePage) {
+        Inventory menu = Bukkit.createInventory(null, 63, ChatColor.DARK_GRAY + "Browse Factions"); // 7 rows
+
+        // Fill with black glass panes
+        ItemStack blackGlass = new ItemStack(Material.BLACK_STAINED_GLASS_PANE);
+        ItemMeta glassMeta = blackGlass.getItemMeta();
+        glassMeta.setDisplayName(" ");
+        blackGlass.setItemMeta(glassMeta);
+
+        for (int i = 0; i < 63; i++) {
+            menu.setItem(i, blackGlass);
+        }
+
+        // Row 1: Public factions header
+        ItemStack publicHeader = createCustomHead("eyJ0ZXh0dXJlcyI6eyJTS0lOIjp7InVybCI6Imh0dHA6Ly90ZXh0dXJlcy5taW5lY3JhZnQubmV0L3RleHR1cmUvZmM2MjExMGQ4MTg4NDQxZDIxNzk0NDM0ZjY3ZDEyYTAyMWI3NDAyYzhkYWE0MmQ0ZmVhMzIzZTdlMTllMGJiNyJ9fX0=");
+        ItemMeta publicHeaderMeta = publicHeader.getItemMeta();
+        publicHeaderMeta.setDisplayName(ChatColor.GREEN + "" + ChatColor.BOLD + "PUBLIC FACTIONS");
+        publicHeaderMeta.setLore(Arrays.asList(
+                ChatColor.GRAY + "These factions are open to everyone",
+                ChatColor.GRAY + "Click on any faction to join!"
+        ));
+        publicHeader.setItemMeta(publicHeaderMeta);
+        menu.setItem(0, publicHeader);
+
+        // Get public factions
+        List<String> publicFactions = new ArrayList<>();
+        for (Map.Entry<String, Faction> entry : factions.entrySet()) {
+            if (entry.getValue().isPublic) {
+                publicFactions.add(entry.getKey());
+            }
+        }
+
+        // Public factions section (rows 2-3, slots 9-26)
+        int publicSlotsPerPage = 18; // 2 rows * 9 slots
+        int publicStartIndex = publicPage * publicSlotsPerPage;
+        int publicSlot = 9; // Start of row 2
+
+        for (int i = publicStartIndex; i < Math.min(publicStartIndex + publicSlotsPerPage, publicFactions.size()); i++) {
+            String factionName = publicFactions.get(i);
+            Faction faction = factions.get(factionName);
+            ItemStack factionHead = createFactionHead(factionName, faction, true);
+            menu.setItem(publicSlot, factionHead);
+            publicSlot++;
+            if (publicSlot == 18) publicSlot = 18; // Skip to next row
+            if (publicSlot >= 27) break; // Don't go beyond allocated space
+        }
+
+        // Row 4: Invitations header and navigation
+        ItemStack inviteHeader = createCustomHead("eyJ0ZXh0dXJlcyI6eyJTS0lOIjp7InVybCI6Imh0dHA6Ly90ZXh0dXJlcy5taW5lY3JhZnQubmV0L3RleHR1cmUvMzQ1ZmQxNzRmMjUwMzdiN2Y5ZWNhNzMzY2ZkMDQ2YThiNjM1MTEyMDI2NDg1MzcwNWJjYWE1YjYzZTE3YzE3In19fQ==");
+        ItemMeta inviteHeaderMeta = inviteHeader.getItemMeta();
+        inviteHeaderMeta.setDisplayName(ChatColor.YELLOW + "" + ChatColor.BOLD + "YOUR INVITATIONS");
+        inviteHeaderMeta.setLore(Arrays.asList(
+                ChatColor.GRAY + "Factions that have invited you",
+                ChatColor.GRAY + "Click on any faction to join!"
+        ));
+        inviteHeader.setItemMeta(inviteHeaderMeta);
+        menu.setItem(27, inviteHeader);
+
+        // Public faction navigation (in row 4)
+        boolean hasMorePublicFactions = (publicStartIndex + publicSlotsPerPage) < publicFactions.size();
+        boolean hasPublicPreviousPage = publicPage > 0;
+
+        if (hasPublicPreviousPage) {
+            ItemStack leftArrow = createCustomHead("eyJ0ZXh0dXJlcyI6eyJTS0lOIjp7InVybCI6Imh0dHA6Ly90ZXh0dXJlcy5taW5lY3JhZnQubmV0L3RleHR1cmUvZGUxZGZjMTFhODM3MTExZDIyYjAwMWExNDQ2MWY5YTdmYzA5MzUyMmY4OGM1OGZhZWZkNmFkZWZmY2Q0ZTlhYiJ9fX0=");
+            ItemMeta leftMeta = leftArrow.getItemMeta();
+            leftMeta.setDisplayName(ChatColor.GRAY + "← Previous Public Factions");
+            leftMeta.setLore(Arrays.asList(ChatColor.DARK_GRAY + "Page " + publicPage + " of " + ((publicFactions.size() - 1) / publicSlotsPerPage + 1)));
+            leftArrow.setItemMeta(leftMeta);
+            menu.setItem(34, leftArrow);
+        }
+
+        if (hasMorePublicFactions) {
+            ItemStack rightArrow = createCustomHead("eyJ0ZXh0dXJlcyI6eyJTS0lOIjp7InVybCI6Imh0dHA6Ly90ZXh0dXJlcy5taW5lY3JhZnQubmV0L3RleHR1cmUvN2M2OWQ0MTA3NmE4ZGVhNGYwNmQzZjFhOWFjNDdjYzk5Njk4OGI3NGEwOTEzYWIyYWMxYTc0Y2FmNzA4MTkxOCJ9fX0=");
+            ItemMeta rightMeta = rightArrow.getItemMeta();
+            rightMeta.setDisplayName(ChatColor.GRAY + "Next Public Factions →");
+            rightMeta.setLore(Arrays.asList(ChatColor.DARK_GRAY + "Page " + (publicPage + 2) + " of " + ((publicFactions.size() - 1) / publicSlotsPerPage + 1)));
+            rightArrow.setItemMeta(rightMeta);
+            menu.setItem(35, rightArrow);
+        }
+
+        // Get player invitations
+        Set<String> playerInvites = playerInvitations.get(player.getUniqueId());
+        List<String> invitedFactions = playerInvites != null ? new ArrayList<>(playerInvites) : new ArrayList<>();
+
+        // Invitations section (rows 5-6, slots 36-53)
+        int inviteSlotsPerPage = 18; // 2 rows * 9 slots
+        int inviteStartIndex = invitePage * inviteSlotsPerPage;
+        int inviteSlot = 36; // Start of row 5
+
+        for (int i = inviteStartIndex; i < Math.min(inviteStartIndex + inviteSlotsPerPage, invitedFactions.size()); i++) {
+            String factionName = invitedFactions.get(i);
+            Faction faction = factions.get(factionName);
+            if (faction != null) {
+                ItemStack factionHead = createFactionHead(factionName, faction, false);
+                menu.setItem(inviteSlot, factionHead);
+                inviteSlot++;
+                if (inviteSlot == 45) inviteSlot = 45; // Skip to next row
+                if (inviteSlot >= 54) break; // Don't go beyond allocated space
+            }
+        }
+
+        // Row 7: Bottom navigation
+        ItemStack backButton = createBackButton();
+        menu.setItem(54, backButton);
+
+        // Invitation navigation (in row 7)
+        boolean hasMoreInvitations = (inviteStartIndex + inviteSlotsPerPage) < invitedFactions.size();
+        boolean hasInvitePreviousPage = invitePage > 0;
+
+        if (hasInvitePreviousPage) {
+            ItemStack leftArrow = createCustomHead("eyJ0ZXh0dXJlcyI6eyJTS0lOIjp7InVybCI6Imh0dHA6Ly90ZXh0dXJlcy5taW5lY3JhZnQubmV0L3RleHR1cmUvZGUxZGZjMTFhODM3MTExZDIyYjAwMWExNDQ2MWY5YTdmYzA5MzUyMmY4OGM1OGZhZWZkNmFkZWZmY2Q0ZTlhYiJ9fX0=");
+            ItemMeta leftMeta = leftArrow.getItemMeta();
+            leftMeta.setDisplayName(ChatColor.GRAY + "← Previous Invitations");
+            leftMeta.setLore(Arrays.asList(ChatColor.DARK_GRAY + "Page " + invitePage + " of " + ((invitedFactions.size() - 1) / inviteSlotsPerPage + 1)));
+            leftArrow.setItemMeta(leftMeta);
+            menu.setItem(61, leftArrow);
+        }
+
+        if (hasMoreInvitations) {
+            ItemStack rightArrow = createCustomHead("eyJ0ZXh0dXJlcyI6eyJTS0lOIjp7InVybCI6Imh0dHA6Ly90ZXh0dXJlcy5taW5lY3JhZnQubmV0L3RleHR1cmUvN2M2OWQ0MTA3NmE4ZGVhNGYwNmQzZjFhOWFjNDdjYzk5Njk4OGI3NGEwOTEzYWIyYWMxYTc0Y2FmNzA4MTkxOCJ9fX0=");
+            ItemMeta rightMeta = rightArrow.getItemMeta();
+            rightMeta.setDisplayName(ChatColor.GRAY + "Next Invitations →");
+            rightMeta.setLore(Arrays.asList(ChatColor.DARK_GRAY + "Page " + (invitePage + 2) + " of " + ((invitedFactions.size() - 1) / inviteSlotsPerPage + 1)));
+            rightArrow.setItemMeta(rightMeta);
+            menu.setItem(62, rightArrow);
+        }
+
+        player.openInventory(menu);
+    }
+
+    /**
+     * Create a custom player head with base64 texture
+     */
+    private ItemStack createCustomHead(String texture) {
+        ItemStack head = new ItemStack(Material.PLAYER_HEAD);
+        SkullMeta skullMeta = (SkullMeta) head.getItemMeta();
+
+        try {
+            GameProfile profile = new GameProfile(UUID.randomUUID(), null);
+            profile.getProperties().put("textures", new Property("textures", texture));
+
+            Field profileField = skullMeta.getClass().getDeclaredField("profile");
+            profileField.setAccessible(true);
+            profileField.set(skullMeta, profile);
+        } catch (Exception e) {
+            plugin.getLogger().warning("Failed to set custom head texture: " + e.getMessage());
+        }
+
+        head.setItemMeta(skullMeta);
+        return head;
+    }
+
+    /**
+     * Create a faction head item
+     */
+    private ItemStack createFactionHead(String factionName, Faction faction, boolean isPublic) {
+        ItemStack head = new ItemStack(Material.PLAYER_HEAD);
+        SkullMeta skullMeta = (SkullMeta) head.getItemMeta();
+
+        // Set the head to the faction owner's head
+        OfflinePlayer owner = Bukkit.getOfflinePlayer(faction.owner);
+        skullMeta.setOwningPlayer(owner);
+
+        // Set display name and lore
+        skullMeta.setDisplayName(ChatColor.YELLOW + factionName);
+
+        List<String> lore = new ArrayList<>();
+        lore.add(ChatColor.GRAY + "Owner: " + ChatColor.WHITE + (owner.getName() != null ? owner.getName() : "Unknown"));
+        lore.add(ChatColor.GRAY + "Members: " + ChatColor.WHITE + faction.members.size());
+        if (!faction.description.isEmpty()) {
+            lore.add(ChatColor.GRAY + "Description: " + ChatColor.WHITE + faction.description);
+        }
+        lore.add("");
+        if (isPublic) {
+            lore.add(ChatColor.GREEN + "✓ Public Faction");
+            lore.add(ChatColor.YELLOW + "Click to join!");
+        } else {
+            lore.add(ChatColor.BLUE + "✉ You're invited!");
+            lore.add(ChatColor.YELLOW + "Click to join!");
+        }
+
+        skullMeta.setLore(lore);
+        head.setItemMeta(skullMeta);
+
+        return head;
+    }
+
+    /**
+     * Menu for players with a faction - CHANGED TO PUBLIC
+     */
+    public void openFactionMenu(Player player, String factionName) {
         Inventory menu = Bukkit.createInventory(null, 54, ChatColor.DARK_GRAY + "Faction: " + factionName);
 
         // Fill with black glass panes
@@ -474,7 +667,7 @@ public class MenuHandler {
             player.closeInventory();
             plugin.getFactionCreationManager().openSignGUIForFactionCreation(player);
         } else if (displayName.equals(ChatColor.BLUE + "Browse Factions")) {
-            player.sendMessage(ChatColor.RED + "This feature is coming soon!");
+            openFactionBrowser(player);
         } else if (displayName.equals(ChatColor.GRAY + "← Back")) {
             // Close GUI for no-faction menu
             player.closeInventory();

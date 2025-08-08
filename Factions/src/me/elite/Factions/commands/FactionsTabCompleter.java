@@ -22,7 +22,7 @@ public class FactionsTabCompleter implements TabCompleter {
             List<String> commands = new ArrayList<>();
 
             // Basic commands everyone can see
-            commands.addAll(Arrays.asList("create", "claim", "promote", "demote", "desc", "map", "unclaim", "unclaimall", "invite", "kick", "menu", "join", "leave", "disband", "invitations"));
+            commands.addAll(Arrays.asList("create", "claim", "promote", "demote", "desc", "map", "unclaim", "unclaimall", "invite", "kick", "menu", "join", "leave", "disband", "invitations", "privacy"));
 
             // Admin commands - only show if player has permission or is op
             if (sender.isOp() || sender.hasPermission("factions.adminclaim")) {
@@ -146,6 +146,9 @@ public class FactionsTabCompleter implements TabCompleter {
                         }
                     }
                     return Collections.emptyList();
+
+                case "privacy":
+                    return Arrays.asList("public", "private");
 
                 default:
                     return Collections.emptyList();
