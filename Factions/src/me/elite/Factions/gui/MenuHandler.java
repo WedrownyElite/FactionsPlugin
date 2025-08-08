@@ -331,10 +331,10 @@ public class MenuHandler {
             menu.setItem(45 + i, blackGlass);
         }
 
-        // Header icon - top left (mailbox)
+        // Header icon - top left (mailbox) - FIXED: Use different color to prevent click conflicts
         ItemStack headerIcon = createCustomHead("eyJ0ZXh0dXJlcyI6eyJTS0lOIjp7InVybCI6Imh0dHA6Ly90ZXh0dXJlcy5taW5lY3JhZnQubmV0L3RleHR1cmUvMzQ1ZmQxNzRmMjUwMzdiN2Y5ZWNhNzMzY2ZkMDQ2YThiNjM1MTEyMDI2NDg1MzcwNWJjYWE1YjYzZTE3YzE3In19fQ==");
         ItemMeta headerMeta = headerIcon.getItemMeta();
-        headerMeta.setDisplayName(ChatColor.YELLOW + "" + ChatColor.BOLD + "YOUR INVITATIONS");
+        headerMeta.setDisplayName(ChatColor.AQUA + "" + ChatColor.BOLD + "YOUR INVITATIONS"); // Changed from YELLOW to AQUA
         headerMeta.setLore(Arrays.asList(
                 ChatColor.GRAY + "Factions that invited you",
                 ChatColor.GRAY + "Click any faction to join!"
@@ -1000,6 +1000,9 @@ public class MenuHandler {
         } else if (displayName.equals(ChatColor.GRAY + "Next Page →")) {
             int currentPage = getCurrentPageFromInvitationsBrowser(player);
             openInvitationsBrowser(player, currentPage + 1);
+        } else if (displayName.equals(ChatColor.AQUA + "" + ChatColor.BOLD + "YOUR INVITATIONS")) {
+            // Header icon clicked - do nothing (this fixes the bug)
+            return;
         } else if (displayName.startsWith(ChatColor.YELLOW.toString())) {
             // Faction head clicked - join faction
             String factionName = ChatColor.stripColor(displayName);

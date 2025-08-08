@@ -101,7 +101,7 @@ public class CommandManager implements CommandExecutor {
             return true;
         }
 
-        int count = 40; // Default to 40 factions
+        int count = 80; // Changed from 40 to 80
         if (args.length >= 2) {
             try {
                 count = Integer.parseInt(args[1]);
