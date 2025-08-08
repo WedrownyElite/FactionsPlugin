@@ -44,6 +44,12 @@ public class FactionsTabCompleter implements TabCompleter {
                 commands.add("adminjoin");
             }
 
+            // Test commands - only for ops
+            if (sender.isOp()) {
+                commands.add("createtestfactions");
+                commands.add("removetestfactions");
+            }
+
             return commands;
         }
 
@@ -121,6 +127,7 @@ public class FactionsTabCompleter implements TabCompleter {
                         }
                     }
                     return Collections.emptyList();
+
                 case "join":
                     if (sender instanceof Player) {
                         Player player = (Player) sender;
@@ -149,6 +156,12 @@ public class FactionsTabCompleter implements TabCompleter {
 
                 case "privacy":
                     return Arrays.asList("public", "private");
+
+                case "createtestfactions":
+                    if (sender.isOp()) {
+                        return Arrays.asList("10", "20", "40", "50", "100");
+                    }
+                    return Collections.emptyList();
 
                 default:
                     return Collections.emptyList();

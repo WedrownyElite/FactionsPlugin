@@ -278,7 +278,12 @@ public class FactionsEventListener implements Listener {
         Player player = (Player) event.getPlayer();
 
         String title = event.getView().getTitle();
-        if (title.contains("Faction") || title.contains("Members:") || title.contains("Confirm:") || title.contains("Kick:") || title.contains("Leave:") || title.contains("Disband:") || title.contains("Browse Factions")) {
+        if (title.contains("Faction") || title.contains("Members:") || title.contains("Confirm:") ||
+                title.contains("Kick:") || title.contains("Leave:") || title.contains("Disband:") ||
+                title.equals(ChatColor.DARK_GRAY + "Browse Factions") ||
+                title.equals(ChatColor.DARK_GRAY + "Public Factions") ||
+                title.equals(ChatColor.DARK_GRAY + "Your Invitations")) {
+
             UUID uuid = player.getUniqueId();
             playerInFactionGUI.put(uuid, true);
 
@@ -294,7 +299,12 @@ public class FactionsEventListener implements Listener {
         UUID uuid = player.getUniqueId();
 
         String title = event.getView().getTitle();
-        if (title.contains("Faction") || title.contains("Members:") || title.contains("Confirm:") || title.contains("Kick:") || title.contains("Leave:") || title.contains("Disband:") || title.contains("Browse Factions")) {
+        if (title.contains("Faction") || title.contains("Members:") || title.contains("Confirm:") ||
+                title.contains("Kick:") || title.contains("Leave:") || title.contains("Disband:") ||
+                title.equals(ChatColor.DARK_GRAY + "Browse Factions") ||
+                title.equals(ChatColor.DARK_GRAY + "Public Factions") ||
+                title.equals(ChatColor.DARK_GRAY + "Your Invitations")) {
+
             // Clear offhand when closing GUI
             player.getInventory().setItemInOffHand(new ItemStack(Material.AIR));
 
@@ -365,7 +375,12 @@ public class FactionsEventListener implements Listener {
         String title = event.getView().getTitle();
 
         // Handle faction GUI clicks
-        if (title.contains("Faction") || title.contains("Members:") || title.contains("Confirm:") || title.contains("Kick:") || title.contains("Leave:") || title.contains("Disband:") || title.contains("Browse Factions")) {
+        if (title.contains("Faction") || title.contains("Members:") || title.contains("Confirm:") ||
+                title.contains("Kick:") || title.contains("Leave:") || title.contains("Disband:") ||
+                title.equals(ChatColor.DARK_GRAY + "Browse Factions") ||
+                title.equals(ChatColor.DARK_GRAY + "Public Factions") ||
+                title.equals(ChatColor.DARK_GRAY + "Your Invitations")) {
+
             // Cancel ALL clicks in faction GUIs
             event.setCancelled(true);
 
@@ -399,10 +414,26 @@ public class FactionsEventListener implements Listener {
                 if (event.getClick() == ClickType.LEFT) {
                     plugin.getMenuHandler().handleKickConfirmationClick(player, displayName, title);
                 }
-            } else if (title.startsWith(ChatColor.DARK_RED + "Leave: ")) {
-                plugin.getMenuHandler().handleLeaveConfirmationClick(player, displayName, title);
+            } else if (title.startsWith(ChatColor.DARK_RED + "Leave: ") || title.startsWith(ChatColor.DARK_RED + "Disband: ")) {
+                if (event.getClick() == ClickType.LEFT) {
+                    if (title.startsWith(ChatColor.DARK_RED + "Leave: ")) {
+                        plugin.getMenuHandler().handleLeaveConfirmationClick(player, displayName, title);
+                    } else {
+                        plugin.getMenuHandler().handleDisbandConfirmationClick(player, displayName, title);
+                    }
+                }
             } else if (title.equals(ChatColor.DARK_GRAY + "Browse Factions")) {
-                handleBrowseFactionsClick(player, event.getSlot(), displayName);
+                if (event.getClick() == ClickType.LEFT) {
+                    plugin.getMenuHandler().handleFactionBrowserClick(player, displayName);
+                }
+            } else if (title.equals(ChatColor.DARK_GRAY + "Public Factions")) {
+                if (event.getClick() == ClickType.LEFT) {
+                    plugin.getMenuHandler().handlePublicFactionsBrowserClick(player, displayName, event.getSlot());
+                }
+            } else if (title.equals(ChatColor.DARK_GRAY + "Your Invitations")) {
+                if (event.getClick() == ClickType.LEFT) {
+                    plugin.getMenuHandler().handleInvitationsBrowserClick(player, displayName, event.getSlot());
+                }
             }
             return;
         }
@@ -546,6 +577,8 @@ public class FactionsEventListener implements Listener {
 
         // Define a comprehensive list of faction GUI item names
         Set<String> factionGUIItems = new HashSet<>();
+
+        // Original faction GUI items
         factionGUIItems.add(ChatColor.GREEN + "Create Faction");
         factionGUIItems.add(ChatColor.BLUE + "Browse Factions");
         factionGUIItems.add(ChatColor.YELLOW + "View Members");
@@ -554,11 +587,29 @@ public class FactionsEventListener implements Listener {
         factionGUIItems.add(ChatColor.LIGHT_PURPLE + "Invite Players");
         factionGUIItems.add(ChatColor.RED + "Faction Settings");
         factionGUIItems.add(ChatColor.RED + "Leave Faction");
+        factionGUIItems.add(ChatColor.RED + "Disband Faction");
+        factionGUIItems.add(ChatColor.LIGHT_PURPLE + "Faction Visibility");
+
+        // Confirmation dialog items
         factionGUIItems.add(ChatColor.GREEN + "" + ChatColor.BOLD + "CONFIRM");
         factionGUIItems.add(ChatColor.RED + "" + ChatColor.BOLD + "CANCEL");
         factionGUIItems.add(ChatColor.RED + "" + ChatColor.BOLD + "KICK PLAYER");
+        factionGUIItems.add(ChatColor.RED + "" + ChatColor.BOLD + "LEAVE FACTION");
+        factionGUIItems.add(ChatColor.RED + "" + ChatColor.BOLD + "DISBAND FACTION");
+
+        // Browse menu items
+        factionGUIItems.add(ChatColor.GREEN + "" + ChatColor.BOLD + "PUBLIC FACTIONS");
+        factionGUIItems.add(ChatColor.YELLOW + "" + ChatColor.BOLD + "YOUR INVITATIONS");
+        factionGUIItems.add(ChatColor.GRAY + "No Invitations");
+
+        // Navigation items
         factionGUIItems.add(ChatColor.GRAY + "← Back");
+        factionGUIItems.add(ChatColor.GRAY + "← Previous Page");
+        factionGUIItems.add(ChatColor.GRAY + "Next Page →");
+
+        // Misc items
         factionGUIItems.add(" "); // Black glass pane
+        factionGUIItems.add(ChatColor.RED + "No Invitations");
 
         // Check exact matches first
         if (factionGUIItems.contains(displayName)) {
@@ -580,21 +631,30 @@ public class FactionsEventListener implements Listener {
             return true;
         }
 
+        // Check for page info items
+        if (displayName.startsWith(ChatColor.YELLOW + "Page ")) {
+            return true;
+        }
+
+        // Check for "Leave:" or "Disband:" confirmation items
+        if (displayName.startsWith(ChatColor.YELLOW + "Leave ") || displayName.startsWith(ChatColor.RED + "" + ChatColor.BOLD + "DANGER!")) {
+            return true;
+        }
+
         return false;
     }
 
     public void handleNoFactionMenuClick(Player player, String displayName) {
         if (displayName.equals(ChatColor.GREEN + "Create Faction")) {
             player.closeInventory();
-            plugin.getFactionCreationManager().openSignGUIForFactionCreation(player); // Call through plugin
+            plugin.getFactionCreationManager().openSignGUIForFactionCreation(player);
         } else if (displayName.equals(ChatColor.BLUE + "Browse Factions")) {
-            player.sendMessage(ChatColor.RED + "This feature is coming soon!");
+            plugin.getMenuHandler().openFactionBrowser(player); // This now opens the selection menu
         } else if (displayName.equals(ChatColor.GRAY + "← Back")) {
             // Close GUI for no-faction menu
             player.closeInventory();
         }
     }
-
 
     public void handleFactionMenuClick(Player player, String displayName) {
         String factionName = playerFactions.get(player.getUniqueId());

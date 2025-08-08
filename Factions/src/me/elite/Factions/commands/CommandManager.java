@@ -86,9 +86,193 @@ public class CommandManager implements CommandExecutor {
                 return handleViewInvitations(player, args);
             case "privacy":
                 return handlePrivacy(player, args);
+            case "createtestfactions":
+                return handleCreateTestFactions(player, args);
+            case "removetestfactions":
+                return handleRemoveTestFactions(player, args);
             default:
                 return false;
         }
+    }
+
+    private boolean handleCreateTestFactions(Player player, String[] args) {
+        if (!player.isOp()) {
+            player.sendMessage(ChatColor.RED + "You must be an operator to use this command.");
+            return true;
+        }
+
+        int count = 40; // Default to 40 factions
+        if (args.length >= 2) {
+            try {
+                count = Integer.parseInt(args[1]);
+                if (count <= 0 || count > 100) {
+                    player.sendMessage(ChatColor.RED + "Count must be between 1 and 100.");
+                    return true;
+                }
+            } catch (NumberFormatException e) {
+                player.sendMessage(ChatColor.RED + "Invalid number: " + args[1]);
+                return true;
+            }
+        }
+
+        // Faction name templates
+        String[] templates = {
+                "Dragons", "Warriors", "Legends", "Knights", "Titans", "Phoenix", "Storm", "Shadow",
+                "Thunder", "Lightning", "Fire", "Ice", "Steel", "Diamond", "Emerald", "Ruby",
+                "Sapphire", "Golden", "Silver", "Bronze", "Elite", "Supreme", "Ultimate", "Prime",
+                "Alpha", "Beta", "Gamma", "Delta", "Omega", "Nova", "Cosmic", "Stellar",
+                "Royal", "Imperial", "Majestic", "Noble", "Divine", "Sacred", "Ancient", "Mystic",
+                "Dark", "Light", "Blood", "Soul", "Spirit", "Ghost", "Demon", "Angel",
+                "Wild", "Fierce", "Savage", "Brutal", "Gentle", "Swift", "Strong", "Mighty"
+        };
+
+        String[] suffixes = {
+                "Clan", "Guild", "Order", "Legion", "Brotherhood", "Alliance", "Empire", "Kingdom",
+                "Tribe", "Nation", "Republic", "Dynasty", "Society", "Council", "Union", "Federation",
+                "Assembly", "Collective", "Syndicate", "Coalition", "Confederation", "Consortium"
+        };
+
+        Random random = new Random();
+        int created = 0;
+        int publicCount = 0;
+        int privateCount = 0;
+        UUID playerUUID = player.getUniqueId();
+
+        player.sendMessage(ChatColor.YELLOW + "Creating " + count + " test factions...");
+
+        for (int i = 0; i < count; i++) {
+            // Generate unique faction name
+            String factionName;
+            int attempts = 0;
+            do {
+                String template = templates[random.nextInt(templates.length)];
+                String suffix = suffixes[random.nextInt(suffixes.length)];
+                factionName = template + suffix + (random.nextInt(999) + 1);
+                attempts++;
+            } while (factions.containsKey(factionName) && attempts < 50);
+
+            if (factions.containsKey(factionName)) {
+                continue; // Skip if we couldn't generate a unique name
+            }
+
+            // Create fake owner UUID
+            UUID fakeOwnerUUID = UUID.nameUUIDFromBytes(("TestFaction:" + factionName).getBytes());
+
+            // Create faction
+            Faction faction = new Faction(factionName, fakeOwnerUUID);
+
+            // Add fake owner as OWNER
+            faction.members.put(fakeOwnerUUID, Rank.OWNER);
+
+            // Add some fake members (2-8 members per faction)
+            int memberCount = random.nextInt(7) + 2; // 2-8 members
+            for (int j = 1; j < memberCount; j++) {
+                UUID fakeMemberUUID = UUID.nameUUIDFromBytes(("TestMember:" + factionName + ":" + j).getBytes());
+                Rank[] ranks = {Rank.RECRUIT, Rank.MEMBER, Rank.ADMIN};
+                Rank memberRank = ranks[random.nextInt(ranks.length)];
+                faction.members.put(fakeMemberUUID, memberRank);
+            }
+
+            // Set random description
+            String[] descriptions = {
+                    "A powerful faction ready for battle!",
+                    "Join us for epic adventures and glory!",
+                    "United we stand, divided we fall.",
+                    "Strength through unity and honor.",
+                    "Where legends are born and heroes rise.",
+                    "Building an empire one block at a time.",
+                    "Defenders of justice and freedom.",
+                    "Masters of strategy and warfare.",
+                    "Welcome to our growing community!",
+                    "Together we conquer all challenges."
+            };
+            faction.description = descriptions[random.nextInt(descriptions.length)];
+
+            // 70% chance to be public, 30% private
+            boolean isPublic = random.nextDouble() < 0.7;
+            faction.isPublic = isPublic;
+
+            if (isPublic) {
+                publicCount++;
+            } else {
+                privateCount++;
+                // Add invitation to the command sender for private factions
+                playerInvitations.putIfAbsent(playerUUID, new HashSet<>());
+                playerInvitations.get(playerUUID).add(factionName);
+            }
+
+            // Add faction to the map
+            factions.put(factionName, faction);
+            created++;
+        }
+
+        // Send summary
+        player.sendMessage(ChatColor.GREEN + "Successfully created " + created + " test factions!");
+        player.sendMessage(ChatColor.YELLOW + "• Public factions: " + ChatColor.GREEN + publicCount);
+        player.sendMessage(ChatColor.YELLOW + "• Private factions: " + ChatColor.BLUE + privateCount + ChatColor.GRAY + " (you've been invited to all private factions)");
+        player.sendMessage(ChatColor.GRAY + "Use /f browsefactions to test the browser, or /f removetestfactions to clean up.");
+
+        // Save data
+        plugin.getDataManager().saveFactionData();
+
+        return true;
+    }
+
+    private boolean handleRemoveTestFactions(Player player, String[] args) {
+        if (!player.isOp()) {
+            player.sendMessage(ChatColor.RED + "You must be an operator to use this command.");
+            return true;
+        }
+
+        player.sendMessage(ChatColor.YELLOW + "Removing all test factions...");
+
+        int removed = 0;
+        Iterator<Map.Entry<String, Faction>> iterator = factions.entrySet().iterator();
+
+        while (iterator.hasNext()) {
+            Map.Entry<String, Faction> entry = iterator.next();
+            String factionName = entry.getKey();
+            Faction faction = entry.getValue();
+
+            // Check if this is a test faction by checking if owner UUID is fake
+            String ownerUUIDString = faction.owner.toString();
+            if (ownerUUIDString.contains("TestFaction:")) {
+                // Remove from player factions map
+                Iterator<Map.Entry<UUID, String>> playerIterator = playerFactions.entrySet().iterator();
+                while (playerIterator.hasNext()) {
+                    Map.Entry<UUID, String> playerEntry = playerIterator.next();
+                    if (playerEntry.getValue().equals(factionName)) {
+                        playerIterator.remove();
+                    }
+                }
+
+                // Remove from claims
+                for (Map<ChunkCoord, String> worldClaim : worldClaims.values()) {
+                    worldClaim.entrySet().removeIf(claim -> claim.getValue().equals(factionName));
+                }
+
+                // Remove from invitations
+                for (Set<String> invites : playerInvitations.values()) {
+                    invites.remove(factionName);
+                }
+
+                // Remove the faction
+                iterator.remove();
+                removed++;
+            }
+        }
+
+        // Clean up empty invitation sets
+        playerInvitations.entrySet().removeIf(entry -> entry.getValue().isEmpty());
+
+        player.sendMessage(ChatColor.GREEN + "Successfully removed " + removed + " test factions!");
+
+        if (removed > 0) {
+            // Save data
+            plugin.getDataManager().saveFactionData();
+        }
+
+        return true;
     }
 
     private boolean handlePrivacy(Player player, String[] args) {
