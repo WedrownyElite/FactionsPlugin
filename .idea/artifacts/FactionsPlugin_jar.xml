@@ -1,0 +1,10 @@
+<component name="ArtifactManager">
+  <artifact type="jar" name="FactionsPlugin:jar">
+    <output-path>$PROJECT_DIR$/../../Test/plugins</output-path>
+    <root id="archive" name="FactionsPlugin.jar">
+      <element id="module-output" name="FactionsPlugin" />
+      <element id="extracted-dir" path="$PROJECT_DIR$/../APIs/json-20210307.jar" path-in-jar="/" />
+      <element id="extracted-dir" path="$PROJECT_DIR$/../APIs/spigot-1.16.5.jar" path-in-jar="/" />
+    </root>
+  </artifact>
+</component>

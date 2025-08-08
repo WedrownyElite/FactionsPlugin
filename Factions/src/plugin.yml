@@ -1,0 +1,96 @@
+name: Factions
+main: me.elite.Factions.FactionsPlugin
+version: 1.0
+api-version: 1.16
+commands:
+  f:
+    description: Main factions command
+    usage: /<command> <subcommand> [args]
+    aliases: [faction]
+
+permissions:
+  factions.adminclaim:
+    description: Allows claiming chunks for special factions
+    default: op
+  factions.adminunclaim:
+    description: Allows unclaiming any chunk
+    default: op
+  factions.adminunclaimall:
+    description: Allows unclaiming all chunks from any faction
+    default: op
+  factions.loadall:
+    description: Allows loading wilderness for all worlds
+    default: op
+  factions.load:
+    description: Allows loading wilderness for specific worlds
+    default: op
+
+  # Global bypass permissions
+  factions.bypass.*:
+    description: Bypass all faction protections everywhere
+    default: op
+
+  # Spawn bypass permissions
+  factions.bypass.spawn.*:
+    description: Bypass all protections in Spawn
+    default: false
+  factions.bypass.spawn.break:
+    description: Break blocks in Spawn
+    default: false
+  factions.bypass.spawn.place:
+    description: Place blocks in Spawn
+    default: false
+  factions.bypass.spawn.interact:
+    description: Interact with blocks in Spawn
+    default: false
+  factions.bypass.spawn.pvp:
+    description: Enable PvP in Spawn
+    default: false
+  factions.bypass.spawn.damage_mobs:
+    description: Damage mobs in Spawn
+    default: false
+
+  # Warzone bypass permissions
+  factions.bypass.warzone.*:
+    description: Bypass all protections in Warzone
+    default: false
+  factions.bypass.warzone.break:
+    description: Break blocks in Warzone
+    default: false
+  factions.bypass.warzone.place:
+    description: Place blocks in Warzone
+    default: false
+  factions.bypass.warzone.interact:
+    description: Interact with blocks in Warzone
+    default: false
+  factions.bypass.warzone.pvp_disable:
+    description: Disable PvP for yourself in Warzone
+    default: false
+  factions.bypass.warzone.damage_mobs:
+    description: Damage mobs in Warzone
+    default: false
+
+  # Wilderness bypass permissions (usually not needed since wilderness allows everything)
+  factions.bypass.wilderness.*:
+    description: Bypass all protections in Wilderness
+    default: false
+
+  # Global action bypass permissions (work in any faction)
+  factions.bypass.*.break:
+    description: Break blocks in any faction territory
+    default: false
+  factions.bypass.*.place:
+    description: Place blocks in any faction territory
+    default: false
+  factions.bypass.*.interact:
+    description: Interact with blocks in any faction territory
+    default: false
+  factions.bypass.*.pvp:
+    description: Enable PvP in any faction territory
+    default: false
+  factions.bypass.*.damage_mobs:
+    description: Damage mobs in any faction territory
+    default: false
+    factions.adminjoin:
+      description: Allows force-joining players to factions
+      default: op
