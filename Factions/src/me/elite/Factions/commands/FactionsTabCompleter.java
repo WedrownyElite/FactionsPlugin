@@ -22,7 +22,7 @@ public class FactionsTabCompleter implements TabCompleter {
             List<String> commands = new ArrayList<>();
 
             // Basic commands everyone can see
-            commands.addAll(Arrays.asList("create", "claim", "promote", "demote", "desc", "map", "unclaim", "unclaimall", "invite", "kick", "menu", "join", "leave", "disband", "invitations", "privacy", "ally", "truce", "enemy", "neutral"));
+            commands.addAll(Arrays.asList("create", "claim", "promote", "demote", "desc", "map", "unclaim", "unclaimall", "invite", "kick", "menu", "join", "leave", "disband", "invitations", "privacy", "ally", "truce", "enemy", "neutral", "confirm", "cancel"));
 
             // Admin commands - only show if player has permission or is op
             if (sender.isOp() || sender.hasPermission("factions.adminclaim")) {
@@ -57,6 +57,24 @@ public class FactionsTabCompleter implements TabCompleter {
             String subCommand = args[0].toLowerCase();
 
             switch (subCommand) {
+                case "confirm":
+                    // Show the player's faction name for confirm command
+                    if (sender instanceof Player) {
+                        Player player = (Player) sender;
+                        FactionsPlugin plugin = (FactionsPlugin) Bukkit.getPluginManager().getPlugin("Factions");
+                        if (plugin != null) {
+                            String factionName = plugin.getPlayerFactions().get(player.getUniqueId());
+                            if (factionName != null) {
+                                return Arrays.asList(factionName);
+                            }
+                        }
+                    }
+                    return Collections.emptyList();
+
+                case "cancel":
+                    // No tab completion needed for cancel
+                    return Collections.emptyList();
+
                 case "promote":
                 case "demote":
                     // Show players in the same faction

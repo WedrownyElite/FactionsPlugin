@@ -25,6 +25,7 @@ public class CommandManager implements CommandExecutor {
     private final Map<UUID, String> playerFactions;
     private final Map<String, Map<ChunkCoord, String>> worldClaims;
     private final Map<UUID, Set<String>> playerInvitations;
+    private final Map<UUID, String> pendingOwnershipTransfers = new HashMap<>();
 
     public CommandManager(FactionsPlugin plugin) {
         this.plugin = plugin;
@@ -101,6 +102,10 @@ public class CommandManager implements CommandExecutor {
                 return handleAlly(player, args);
             case "truce":
                 return handleTruce(player, args);
+            case "confirm":
+                return handleConfirmOwnership(player, args);
+            case "cancel":
+                return handleCancelOwnership(player, args);
             default:
                 return false;
         }
@@ -146,162 +151,6 @@ public class CommandManager implements CommandExecutor {
 
         if (targetFaction.equals(factionName)) {
             player.sendMessage(ChatColor.RED + "You cannot set relations with your own faction.");
-            return true;
-        }
-
-        boolean success = plugin.getRelationManager().setDirectRelation(factionName, targetFaction, relation, uuid);
-        if (success) {
-            player.sendMessage(ChatColor.GREEN + "Relation with " + targetFaction + " set to: " +
-                    plugin.getRelationManager().getRelationColor(relation) + relation.getDisplayName());
-
-            // Save data
-            plugin.getDataManager().saveFactionData();
-        } else {
-            player.sendMessage(ChatColor.RED + "Failed to set relation.");
-        }
-
-        return true;
-    }
-
-    private boolean handleRelationsInfo(Player player, String[] args) {
-        UUID uuid = player.getUniqueId();
-        String factionName = playerFactions.get(uuid);
-
-        if (factionName == null) {
-            player.sendMessage(ChatColor.RED + "You are not in a faction.");
-            return true;
-        }
-
-        player.sendMessage(ChatColor.YELLOW + "═══════════════════════════════════");
-        player.sendMessage(ChatColor.GREEN + "" + ChatColor.BOLD + factionName + " RELATIONS");
-        player.sendMessage(ChatColor.YELLOW + "═══════════════════════════════════");
-
-        // Show current relations
-        Map<String, Relation> relations = plugin.getRelationManager().getFactionRelations(factionName);
-
-        if (relations.isEmpty()) {
-            player.sendMessage(ChatColor.GRAY + "No special relations with other factions.");
-            player.sendMessage(ChatColor.GRAY + "All other factions are " + ChatColor.WHITE + "Neutral" + ChatColor.GRAY + " by default.");
-        } else {
-            // Group by relation type
-            Map<Relation, List<String>> grouped = new HashMap<>();
-            for (Map.Entry<String, Relation> entry : relations.entrySet()) {
-                grouped.computeIfAbsent(entry.getValue(), k -> new ArrayList<>()).add(entry.getKey());
-            }
-
-            // Display each relation type
-            for (Relation relationType : Arrays.asList(Relation.ALLY, Relation.TRUCE, Relation.ENEMY, Relation.NEUTRAL)) {
-                List<String> factionsWithRelation = grouped.get(relationType);
-                if (factionsWithRelation == null || factionsWithRelation.isEmpty()) continue;
-
-                ChatColor color = plugin.getRelationManager().getRelationColor(relationType);
-                player.sendMessage(color + "" + ChatColor.BOLD + relationType.getDisplayName() + " (" + factionsWithRelation.size() + "):");
-
-                for (String targetFaction : factionsWithRelation) {
-                    Faction f = factions.get(targetFaction);
-                    int memberCount = f != null ? f.members.size() : 0;
-                    player.sendMessage(ChatColor.GRAY + "  • " + color + targetFaction + ChatColor.GRAY + " (" + memberCount + " members)");
-                }
-            }
-        }
-
-        // Show pending outgoing requests
-        List<RelationRequest> outgoingRequests = new ArrayList<>();
-        for (List<RelationRequest> requests : plugin.getRelationManager().getAllPendingRequests().values()) {
-            for (RelationRequest request : requests) {
-                if (request.fromFaction.equals(factionName)) {
-                    outgoingRequests.add(request);
-                }
-            }
-        }
-
-        if (!outgoingRequests.isEmpty()) {
-            player.sendMessage("");
-            player.sendMessage(ChatColor.YELLOW + "" + ChatColor.BOLD + "OUTGOING REQUESTS:");
-            for (RelationRequest request : outgoingRequests) {
-                ChatColor color = plugin.getRelationManager().getRelationColor(request.requestedRelation);
-                long timeSince = System.currentTimeMillis() - request.timestamp;
-                String timeString = formatTimeString(timeSince);
-                player.sendMessage(ChatColor.GRAY + "  • " + color + request.requestedRelation.getDisplayName() +
-                        ChatColor.GRAY + " to " + ChatColor.WHITE + request.toFaction +
-                        ChatColor.GRAY + " (" + timeString + " ago)");
-            }
-        }
-
-        // Show pending incoming requests
-        List<RelationRequest> incomingRequests = plugin.getRelationManager().getPendingRequests(factionName);
-        if (!incomingRequests.isEmpty()) {
-            player.sendMessage("");
-            player.sendMessage(ChatColor.YELLOW + "" + ChatColor.BOLD + "INCOMING REQUESTS:");
-            for (RelationRequest request : incomingRequests) {
-                ChatColor color = plugin.getRelationManager().getRelationColor(request.requestedRelation);
-                long timeSince = System.currentTimeMillis() - request.timestamp;
-                String timeString = formatTimeString(timeSince);
-                Player requester = Bukkit.getOfflinePlayer(request.requestedBy).getPlayer();
-                String requesterName = requester != null ? requester.getName() : "Unknown";
-                player.sendMessage(ChatColor.GRAY + "  • " + color + request.requestedRelation.getDisplayName() +
-                        ChatColor.GRAY + " from " + ChatColor.WHITE + request.fromFaction +
-                        ChatColor.GRAY + " by " + requesterName + " (" + timeString + " ago)");
-            }
-
-            Faction faction = factions.get(factionName);
-            Rank playerRank = faction.members.get(uuid);
-            if (faction.hasPermission(playerRank, FactionPermission.SET_RELATIONS)) {
-                player.sendMessage(ChatColor.GRAY + "Use " + ChatColor.YELLOW + "/f menu" + ChatColor.GRAY + " to manage incoming requests.");
-            }
-        }
-
-        player.sendMessage(ChatColor.YELLOW + "═══════════════════════════════════");
-        return true;
-    }
-
-    private boolean handleRelation(Player player, String[] args) {
-        UUID uuid = player.getUniqueId();
-        String factionName = playerFactions.get(uuid);
-
-        if (factionName == null) {
-            player.sendMessage(ChatColor.RED + "You are not in a faction.");
-            return true;
-        }
-
-        if (args.length < 3) {
-            player.sendMessage(ChatColor.RED + "Usage: /f relation <FactionName> <neutral|enemy>");
-            return true;
-        }
-
-        Faction faction = factions.get(factionName);
-        Rank playerRank = faction.members.get(uuid);
-
-        // Check permission
-        if (!faction.hasPermission(playerRank, FactionPermission.SET_RELATIONS)) {
-            player.sendMessage(ChatColor.RED + "You lack permission to set faction relations.");
-            return true;
-        }
-
-        String targetFaction = args[1];
-        String relationStr = args[2].toLowerCase();
-
-        if (!factions.containsKey(targetFaction)) {
-            player.sendMessage(ChatColor.RED + "Faction '" + targetFaction + "' does not exist.");
-            return true;
-        }
-
-        if (targetFaction.equals(factionName)) {
-            player.sendMessage(ChatColor.RED + "You cannot set relations with your own faction.");
-            return true;
-        }
-
-        Relation relation;
-        try {
-            relation = Relation.valueOf(relationStr.toUpperCase());
-        } catch (IllegalArgumentException e) {
-            player.sendMessage(ChatColor.RED + "Invalid relation. Use: neutral, enemy");
-            return true;
-        }
-
-        // Only allow NEUTRAL and ENEMY for direct setting
-        if (relation != Relation.NEUTRAL && relation != Relation.ENEMY) {
-            player.sendMessage(ChatColor.RED + "Use /f ally or /f truce for those relations.");
             return true;
         }
 
@@ -567,7 +416,7 @@ public class CommandManager implements CommandExecutor {
 
         Faction faction = factions.get(factionName);
         Rank playerRank = faction.members.get(uuid);
-        if (playerRank != Rank.OWNER && playerRank != Rank.ADMIN) {
+        if (playerRank != Rank.OWNER && !faction.hasPermission(playerRank, FactionPermission.OPEN_CLOSE)) {
             player.sendMessage(ChatColor.RED + "You lack permission to change faction privacy settings.");
             return true;
         }
@@ -689,33 +538,308 @@ public class CommandManager implements CommandExecutor {
     private boolean handlePromoteDemote(Player player, String[] args) {
         if (args.length < 2) return false;
         UUID uuid = player.getUniqueId();
+        boolean isPromotion = args[0].equalsIgnoreCase("promote");
 
         String targetName = args[1];
         Player target = Bukkit.getPlayerExact(targetName);
         if (target == null) {
-            player.sendMessage("Player not found.");
+            player.sendMessage(ChatColor.RED + "Player not found or not online.");
             return true;
         }
 
         UUID targetUUID = target.getUniqueId();
         String factionName = playerFactions.get(uuid);
+
+        // Check if both players are in the same faction
         if (factionName == null || !factionName.equals(playerFactions.get(targetUUID))) {
-            player.sendMessage("You must be in the same faction.");
+            player.sendMessage(ChatColor.RED + "You must be in the same faction as " + targetName + ".");
             return true;
         }
 
-        Faction f = factions.get(factionName);
-        Rank playerRank = f.members.get(uuid);
-        if (playerRank != Rank.OWNER && playerRank != Rank.ADMIN) {
-            player.sendMessage("You lack permission.");
+        // Can't promote/demote yourself
+        if (uuid.equals(targetUUID)) {
+            player.sendMessage(ChatColor.RED + "You cannot " + (isPromotion ? "promote" : "demote") + " yourself.");
             return true;
         }
 
-        Rank current = f.members.getOrDefault(targetUUID, Rank.RECRUIT);
-        Rank updated = args[0].equalsIgnoreCase("promote") ? current.promote() : current.demote();
-        f.members.put(targetUUID, updated);
-        player.sendMessage("Updated " + targetName + " to " + updated.name());
+        Faction faction = factions.get(factionName);
+        Rank playerRank = faction.members.get(uuid);
+        Rank targetRank = faction.members.getOrDefault(targetUUID, Rank.RECRUIT);
+
+        // Check if player has the required permission
+        FactionPermission requiredPermission = isPromotion ? FactionPermission.PROMOTE_MEMBERS : FactionPermission.DEMOTE_MEMBERS;
+
+        if (playerRank != Rank.OWNER && !faction.hasPermission(playerRank, requiredPermission)) {
+            player.sendMessage(ChatColor.RED + "You lack permission to " + (isPromotion ? "promote" : "demote") + " members.");
+            return true;
+        }
+
+        // Special case: Owner trying to promote ADMIN to OWNER (ownership transfer)
+        if (playerRank == Rank.OWNER && isPromotion && targetRank == Rank.ADMIN) {
+            Rank newRank = targetRank.promote(); // This would be OWNER
+            if (newRank == Rank.OWNER) {
+                // Initiate ownership transfer confirmation
+                pendingOwnershipTransfers.put(uuid, targetName);
+
+                player.sendMessage(ChatColor.YELLOW + "═══════════════════════════════════");
+                player.sendMessage(ChatColor.RED + "" + ChatColor.BOLD + "⚠ OWNERSHIP TRANSFER WARNING ⚠");
+                player.sendMessage(ChatColor.YELLOW + "═══════════════════════════════════");
+                player.sendMessage(ChatColor.WHITE + "You are about to transfer ownership of");
+                player.sendMessage(ChatColor.WHITE + "" + ChatColor.BOLD + factionName + ChatColor.WHITE + " to " + ChatColor.YELLOW + targetName + ChatColor.WHITE + ".");
+                player.sendMessage("");
+                player.sendMessage(ChatColor.RED + "This will:");
+                player.sendMessage(ChatColor.RED + "• Make " + targetName + " the new OWNER");
+                player.sendMessage(ChatColor.RED + "• Demote you to ADMIN rank");
+                player.sendMessage(ChatColor.RED + "• Cannot be undone without their permission");
+                player.sendMessage("");
+                player.sendMessage(ChatColor.YELLOW + "Type " + ChatColor.GREEN + "/f confirm " + factionName +
+                        ChatColor.YELLOW + " to proceed");
+                player.sendMessage(ChatColor.YELLOW + "Type " + ChatColor.RED + "/f cancel" +
+                        ChatColor.YELLOW + " to cancel this transfer");
+                player.sendMessage(ChatColor.GRAY + "This confirmation will expire in 30 seconds");
+                player.sendMessage(ChatColor.YELLOW + "═══════════════════════════════════");
+
+                // Schedule expiration of the confirmation
+                Bukkit.getScheduler().runTaskLater(plugin, () -> {
+                    if (pendingOwnershipTransfers.containsKey(uuid)) {
+                        pendingOwnershipTransfers.remove(uuid);
+                        if (player.isOnline()) {
+                            player.sendMessage(ChatColor.RED + "Ownership transfer confirmation expired.");
+                        }
+                    }
+                }, 20L * 30); // 30 seconds
+
+                return true;
+            }
+        }
+
+        // Check rank hierarchy rules (updated to prevent promoting to same rank)
+        if (!canModifyRank(playerRank, targetRank, isPromotion)) {
+            if (isPromotion) {
+                if (targetRank.ordinal() >= playerRank.ordinal()) {
+                    player.sendMessage(ChatColor.RED + "You cannot promote " + targetName + " to or above your own rank (" +
+                            playerRank.name() + ").");
+                } else {
+                    // Calculate what rank they would be promoted to
+                    Rank wouldBe = targetRank.promote();
+                    if (wouldBe.ordinal() >= playerRank.ordinal()) {
+                        player.sendMessage(ChatColor.RED + "You cannot promote " + targetName + " to " + wouldBe.name() +
+                                " as it would be equal to your rank.");
+                    } else {
+                        player.sendMessage(ChatColor.RED + "You cannot promote " + targetName + " beyond " +
+                                getRankBelow(playerRank).name() + ".");
+                    }
+                }
+            } else {
+                if (targetRank.ordinal() >= playerRank.ordinal()) {
+                    player.sendMessage(ChatColor.RED + "You cannot demote " + targetName + " as they are the same rank or higher than you.");
+                } else {
+                    player.sendMessage(ChatColor.RED + "You cannot demote " + targetName + ".");
+                }
+            }
+            return true;
+        }
+
+        // Calculate the new rank
+        Rank newRank;
+        if (isPromotion) {
+            newRank = targetRank.promote();
+        } else {
+            newRank = targetRank.demote();
+        }
+
+        // Check if the rank actually changed (prevent unnecessary operations)
+        if (newRank == targetRank) {
+            if (isPromotion) {
+                player.sendMessage(ChatColor.YELLOW + targetName + " is already at the highest rank they can be promoted to.");
+            } else {
+                player.sendMessage(ChatColor.YELLOW + targetName + " is already at the lowest rank.");
+            }
+            return true;
+        }
+
+        // Apply the rank change
+        faction.members.put(targetUUID, newRank);
+
+        // Send success messages
+        player.sendMessage(ChatColor.GREEN + "Successfully " + (isPromotion ? "promoted" : "demoted") +
+                " " + targetName + " from " + ChatColor.WHITE + targetRank.name() +
+                ChatColor.GREEN + " to " + ChatColor.WHITE + newRank.name());
+
+        target.sendMessage(ChatColor.YELLOW + "You have been " + (isPromotion ? "promoted" : "demoted") +
+                " to " + ChatColor.WHITE + newRank.name() + ChatColor.YELLOW + " by " + player.getName() + "!");
+
+        // Notify other online faction members
+        for (UUID memberUUID : faction.members.keySet()) {
+            Player member = Bukkit.getPlayer(memberUUID);
+            if (member != null && !member.equals(player) && !member.equals(target)) {
+                member.sendMessage(ChatColor.GRAY + player.getName() + " " + (isPromotion ? "promoted" : "demoted") +
+                        " " + targetName + " to " + newRank.name() + ".");
+            }
+        }
+
+        // Save data
+        plugin.getDataManager().saveFactionData();
+
         return true;
+    }
+
+    /**
+     * Handle ownership transfer cancellation
+     */
+    private boolean handleCancelOwnership(Player player, String[] args) {
+        UUID uuid = player.getUniqueId();
+
+        String targetName = pendingOwnershipTransfers.get(uuid);
+        if (targetName == null) {
+            player.sendMessage(ChatColor.RED + "No pending ownership transfer found.");
+            return true;
+        }
+
+        // Remove the pending transfer
+        pendingOwnershipTransfers.remove(uuid);
+
+        player.sendMessage(ChatColor.YELLOW + "Ownership transfer to " + targetName + " has been cancelled.");
+
+        return true;
+    }
+
+    /**
+     * Handle ownership transfer confirmation
+     */
+    private boolean handleConfirmOwnership(Player player, String[] args) {
+        if (args.length < 2) {
+            player.sendMessage(ChatColor.RED + "Usage: /f confirm <FactionName>");
+            return true;
+        }
+
+        UUID uuid = player.getUniqueId();
+        String factionName = playerFactions.get(uuid);
+        String providedFactionName = args[1];
+
+        if (factionName == null) {
+            player.sendMessage(ChatColor.RED + "You are not in a faction.");
+            return true;
+        }
+
+        if (!factionName.equals(providedFactionName)) {
+            player.sendMessage(ChatColor.RED + "You must type your exact faction name: " + ChatColor.WHITE + factionName);
+            return true;
+        }
+
+        String targetName = pendingOwnershipTransfers.get(uuid);
+        if (targetName == null) {
+            player.sendMessage(ChatColor.RED + "No pending ownership transfer found or confirmation expired.");
+            return true;
+        }
+
+        // Remove the pending transfer
+        pendingOwnershipTransfers.remove(uuid);
+
+        Player target = Bukkit.getPlayerExact(targetName);
+        if (target == null) {
+            player.sendMessage(ChatColor.RED + "Target player " + targetName + " is no longer online.");
+            return true;
+        }
+
+        UUID targetUUID = target.getUniqueId();
+
+        // Verify target is still in the faction and is ADMIN
+        if (!factionName.equals(playerFactions.get(targetUUID))) {
+            player.sendMessage(ChatColor.RED + targetName + " is no longer in your faction.");
+            return true;
+        }
+
+        Faction faction = factions.get(factionName);
+        Rank playerRank = faction.members.get(uuid);
+        Rank targetRank = faction.members.get(targetUUID);
+
+        if (playerRank != Rank.OWNER) {
+            player.sendMessage(ChatColor.RED + "You are no longer the faction owner.");
+            return true;
+        }
+
+        if (targetRank != Rank.ADMIN) {
+            player.sendMessage(ChatColor.RED + targetName + " is no longer an Admin.");
+            return true;
+        }
+
+        // Perform the ownership transfer
+        faction.members.put(targetUUID, Rank.OWNER); // Promote target to OWNER
+        faction.members.put(uuid, Rank.ADMIN);       // Demote current owner to ADMIN
+        faction.owner = targetUUID;                  // Update faction owner field
+
+        // Send messages
+        player.sendMessage(ChatColor.GREEN + "═══════════════════════════════════");
+        player.sendMessage(ChatColor.GREEN + "" + ChatColor.BOLD + "OWNERSHIP TRANSFERRED");
+        player.sendMessage(ChatColor.GREEN + "═══════════════════════════════════");
+        player.sendMessage(ChatColor.WHITE + "You have transferred ownership of " + ChatColor.BOLD + factionName);
+        player.sendMessage(ChatColor.WHITE + "to " + ChatColor.YELLOW + targetName + ChatColor.WHITE + ".");
+        player.sendMessage(ChatColor.WHITE + "You are now an " + ChatColor.BLUE + "ADMIN" + ChatColor.WHITE + ".");
+        player.sendMessage(ChatColor.GREEN + "═══════════════════════════════════");
+
+        target.sendMessage(ChatColor.GREEN + "═══════════════════════════════════");
+        target.sendMessage(ChatColor.GREEN + "" + ChatColor.BOLD + "YOU ARE NOW THE OWNER!");
+        target.sendMessage(ChatColor.GREEN + "═══════════════════════════════════");
+        target.sendMessage(ChatColor.WHITE + player.getName() + " has transferred ownership");
+        target.sendMessage(ChatColor.WHITE + "of " + ChatColor.BOLD + factionName + ChatColor.WHITE + " to you!");
+        target.sendMessage(ChatColor.WHITE + "You now have full control of the faction.");
+        target.sendMessage(ChatColor.GREEN + "═══════════════════════════════════");
+
+        // Notify all other faction members
+        for (UUID memberUUID : faction.members.keySet()) {
+            Player member = Bukkit.getPlayer(memberUUID);
+            if (member != null && !member.equals(player) && !member.equals(target)) {
+                member.sendMessage(ChatColor.YELLOW + "═══ FACTION ANNOUNCEMENT ═══");
+                member.sendMessage(ChatColor.WHITE + player.getName() + " has transferred ownership");
+                member.sendMessage(ChatColor.WHITE + "of " + factionName + " to " + targetName + "!");
+                member.sendMessage(ChatColor.YELLOW + "════════════════════════════");
+            }
+        }
+
+        // Save data
+        plugin.getDataManager().saveFactionData();
+
+        return true;
+    }
+
+    /**
+     * Check if a player can modify (promote/demote) another player's rank
+     * Updated to prevent promoting to same rank unless you're owner doing ownership transfer
+     */
+    private boolean canModifyRank(Rank playerRank, Rank targetRank, boolean isPromotion) {
+        // Owners can do anything except the special ownership transfer case (handled separately)
+        if (playerRank == Rank.OWNER) {
+            return true;
+        }
+
+        if (isPromotion) {
+            // Can only promote players below your rank
+            if (targetRank.ordinal() >= playerRank.ordinal()) {
+                return false;
+            }
+
+            // UPDATED: Cannot promote someone to your same rank
+            Rank wouldBeRank = targetRank.promote();
+            if (wouldBeRank.ordinal() >= playerRank.ordinal()) {
+                return false;
+            }
+
+            return true;
+        } else {
+            // Can only demote players below your rank (same rank or higher cannot be demoted)
+            return targetRank.ordinal() < playerRank.ordinal();
+        }
+    }
+
+    /**
+     * Get the rank that is one level below the given rank
+     */
+    private Rank getRankBelow(Rank rank) {
+        if (rank.ordinal() == 0) {
+            return Rank.RECRUIT; // Already at the bottom
+        }
+        return Rank.values()[rank.ordinal() - 1];
     }
 
     private boolean handleDescription(Player player, String[] args) {
@@ -730,7 +854,7 @@ public class CommandManager implements CommandExecutor {
 
         Faction f = factions.get(factionName);
         Rank rank = f.members.get(uuid);
-        if (rank != Rank.OWNER && rank != Rank.ADMIN) {
+        if (rank != Rank.OWNER && !f.hasPermission(rank, FactionPermission.CHANGE_DESCRIPTION)) {
             player.sendMessage("You lack permission.");
             return true;
         }

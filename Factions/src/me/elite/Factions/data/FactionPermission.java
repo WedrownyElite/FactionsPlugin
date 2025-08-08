@@ -30,7 +30,7 @@ public enum FactionPermission {
     CHANGE_DESCRIPTION("Change Description"),
     FACTION_CHEST_ACCESS("Faction Chest Access"),
     FACTION_CHEST_LOGS("Faction Chest Logs"),
-    FLY("Fly (Ability to fly in faction land)"),
+    FLY("Fly in faction claims"),
     SET_DISCORD("Set Discord"),
     VIEW_DISCORD("View Discord"),
     SET_ANNOUNCEMENTS("Set Announcements"),

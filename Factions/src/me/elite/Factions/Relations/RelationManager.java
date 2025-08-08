@@ -124,16 +124,46 @@ public class RelationManager {
             return false;
         }
 
-        // Remove any existing requests from this faction to the target faction
-        List<RelationRequest> requests = pendingRequests.get(toFaction);
-        if (requests != null) {
-            requests.removeIf(existingRequest -> existingRequest.fromFaction.equals(fromFaction));
-            if (requests.isEmpty()) {
+        // NEW: Check if the relation already exists
+        Relation currentRelation = getRelation(fromFaction, toFaction);
+        if (currentRelation == relation) {
+            // Notify the player that the relation already exists
+            Player sender = Bukkit.getPlayer(playerUUID);
+            if (sender != null) {
+                sender.sendMessage(ChatColor.YELLOW + "You already have a " +
+                        getRelationColor(relation) + relation.getDisplayName() +
+                        ChatColor.YELLOW + " relation with " + toFaction + "!");
+            }
+            return false;
+        }
+
+        // NEW: Check if there's already a pending request for this relation
+        List<RelationRequest> existingRequests = pendingRequests.get(toFaction);
+        if (existingRequests != null) {
+            for (RelationRequest existingRequest : existingRequests) {
+                if (existingRequest.fromFaction.equals(fromFaction) &&
+                        existingRequest.requestedRelation == relation) {
+                    // Notify the player that a request is already pending
+                    Player sender = Bukkit.getPlayer(playerUUID);
+                    if (sender != null) {
+                        sender.sendMessage(ChatColor.YELLOW + "You already have a pending " +
+                                getRelationColor(relation) + relation.getDisplayName() +
+                                ChatColor.YELLOW + " request to " + toFaction + "!");
+                    }
+                    return false;
+                }
+            }
+        }
+
+        // Remove any existing requests from this faction to the target faction (for different relations)
+        if (existingRequests != null) {
+            existingRequests.removeIf(existingRequest -> existingRequest.fromFaction.equals(fromFaction));
+            if (existingRequests.isEmpty()) {
                 pendingRequests.remove(toFaction);
             }
         }
 
-        // Create and add the request
+        // Create and add the new request
         RelationRequest request = new RelationRequest(fromFaction, toFaction, relation, playerUUID);
         pendingRequests.computeIfAbsent(toFaction, k -> new ArrayList<>()).add(request);
 

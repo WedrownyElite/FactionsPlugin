@@ -114,7 +114,7 @@ public class MenuHandler {
         }
 
         // Create faction option
-        ItemStack createFaction = new ItemStack(Material.EMERALD_BLOCK);
+        ItemStack createFaction = new ItemStack(Material.WRITABLE_BOOK);
         ItemMeta createMeta = createFaction.getItemMeta();
         createMeta.setDisplayName(ChatColor.GREEN + "Create Faction");
         createMeta.setLore(Arrays.asList(
@@ -125,7 +125,7 @@ public class MenuHandler {
         menu.setItem(3, createFaction);
 
         // Join faction option (placeholder for now)
-        ItemStack joinFaction = new ItemStack(Material.DIAMOND_BLOCK);
+        ItemStack joinFaction = createCustomHead("eyJ0ZXh0dXJlcyI6eyJTS0lOIjp7InVybCI6Imh0dHA6Ly90ZXh0dXJlcy5taW5lY3JhZnQubmV0L3RleHR1cmUvZmM2MjExMGQ4MTg4NDQxZDIxNzk0NDM0ZjY3ZDEyYTAyMWI3NDAyYzhkYWE0MmQ0ZmVhMzIzZTdlMTllMGJiNyJ9fX0=");
         ItemMeta joinMeta = joinFaction.getItemMeta();
         joinMeta.setDisplayName(ChatColor.BLUE + "Browse Factions");
         joinMeta.setLore(Arrays.asList(
@@ -678,7 +678,7 @@ public class MenuHandler {
         // Public/Private toggle for admins and owners, view-only for members
         ItemStack publicPrivate = new ItemStack(Material.PAPER);
         ItemMeta publicMeta = publicPrivate.getItemMeta();
-        if (playerRank == Rank.OWNER || playerRank == Rank.ADMIN) {
+        if (playerRank == Rank.OWNER || faction.hasPermission(playerRank, FactionPermission.OPEN_CLOSE)) {
             publicMeta.setDisplayName(ChatColor.LIGHT_PURPLE + "Faction Visibility");
             publicMeta.setLore(Arrays.asList(
                     ChatColor.GRAY + "Current: " + (faction.isPublic ? ChatColor.GREEN + "Public" : ChatColor.RED + "Private"),
@@ -698,8 +698,8 @@ public class MenuHandler {
         publicPrivate.setItemMeta(publicMeta);
         menu.setItem(22, publicPrivate); // Center bottom row
 
-        // Admin and Owner options
-        if (playerRank == Rank.OWNER || playerRank == Rank.ADMIN || playerRank == Rank.MOD) {
+        // Check permissions for inviting
+        if (playerRank == Rank.OWNER || faction.hasPermission(playerRank, FactionPermission.INVITE_MEMBERS)) {
             // Invite players - Updated to actually work
             ItemStack invite = new ItemStack(Material.WRITABLE_BOOK);
             ItemMeta inviteMeta = invite.getItemMeta();
@@ -713,8 +713,8 @@ public class MenuHandler {
             menu.setItem(28, invite);
         }
 
-        // Settings for Admins and Owners only
-        if (playerRank == Rank.OWNER || playerRank == Rank.ADMIN) {
+        // Settings for Owners and perm enabled players
+        if (playerRank == Rank.OWNER || faction.hasPermission(playerRank, FactionPermission.MANAGE_PERMISSIONS)) {
             // Manage settings - Updated to work
             ItemStack settings = new ItemStack(Material.REDSTONE);
             ItemMeta settingsMeta = settings.getItemMeta();
@@ -730,8 +730,8 @@ public class MenuHandler {
             menu.setItem(34, settings);
         }
 
-        // Relation requests for admins and owners
-        if (playerRank == Rank.OWNER || playerRank == Rank.ADMIN) {
+        // Relation requests for owners and permission enabled players
+        if (playerRank == Rank.OWNER || faction.hasPermission(playerRank, FactionPermission.SET_RELATIONS)) {
             List<RelationRequest> requests = plugin.getRelationManager().getPendingRequests(factionName);
 
             ItemStack relationRequests = new ItemStack(Material.PAPER);
@@ -1000,7 +1000,7 @@ public class MenuHandler {
 
         if (relations.isEmpty()) {
             // No relations message
-            ItemStack noRelations = new ItemStack(Material.BARRIER);
+            ItemStack noRelations = new ItemStack(Material.RED_CONCRETE);
             ItemMeta noRelationsMeta = noRelations.getItemMeta();
             noRelationsMeta.setDisplayName(ChatColor.GRAY + "No Relations");
             noRelationsMeta.setLore(Arrays.asList(
@@ -1522,7 +1522,7 @@ public class MenuHandler {
 
         player.closeInventory();
         player.sendMessage(ChatColor.GREEN + "Successfully joined faction " + ChatColor.BOLD + factionName + ChatColor.GREEN + "!");
-        player.sendMessage(ChatColor.YELLOW + "Welcome to " + factionName + "! Use /f menu to access faction features.");
+        player.sendMessage(ChatColor.YELLOW + "Welcome to " + factionName + "! Use " + ChatColor.YELLOW + "/f menu" + ChatColor.YELLOW + " to access faction features.");
 
         // Notify other members
         for (UUID memberUUID : faction.members.keySet()) {
@@ -1534,16 +1534,6 @@ public class MenuHandler {
 
         // Save data
         plugin.getDataManager().saveFactionData();
-
-        // Open faction menu after a short delay
-        new BukkitRunnable() {
-            @Override
-            public void run() {
-                if (player.isOnline()) {
-                    openFactionsMenu(player);
-                }
-            }
-        }.runTaskLater(plugin, 40L); // 2 seconds
     }
 
     /**
@@ -1762,7 +1752,7 @@ public class MenuHandler {
     }
 
     /**
-     * Handle rank permissions GUI clicks
+     * Handle rank permissions GUI clicks with comprehensive permission checking
      */
     public void handleRankPermissionsClick(Player player, String displayName, String title) {
         String factionName = playerFactions.get(player.getUniqueId());
@@ -1774,30 +1764,168 @@ public class MenuHandler {
 
         // Extract rank from title
         String rankName = title.replace(ChatColor.DARK_GRAY + "", "").replace(" Permissions", "");
-        Rank rank;
+        Rank targetRank;
         try {
-            rank = Rank.valueOf(rankName);
+            targetRank = Rank.valueOf(rankName);
         } catch (IllegalArgumentException e) {
             player.sendMessage(ChatColor.RED + "Error: Invalid rank detected.");
             return;
         }
 
+        Faction faction = factions.get(factionName);
+        Rank playerRank = faction.members.get(player.getUniqueId());
+
+        // Check if player can modify permissions for this rank
+        if (!canModifyRankPermissions(player, playerRank, targetRank, faction)) {
+            return; // Error message already sent by the method
+        }
+
         // Find the permission that was clicked
         for (FactionPermission permission : FactionPermission.values()) {
             if (displayName.contains(permission.getDisplayName())) {
-                Faction faction = factions.get(factionName);
-                faction.togglePermission(rank, permission);
+
+                // Check if this permission is locked (visual indicator check)
+                if (displayName.contains("🔒")) {
+                    // This is a locked permission - explain why it can't be changed
+                    if (!faction.hasPermission(playerRank, permission)) {
+                        player.sendMessage(ChatColor.RED + "You cannot toggle " + permission.getDisplayName() +
+                                " because your rank (" + playerRank.name() + ") doesn't have this permission.");
+                    } else {
+                        player.sendMessage(ChatColor.RED + "You cannot modify permissions for this rank.");
+                    }
+                    return;
+                }
+
+                // Check if player can toggle this specific permission
+                if (!canTogglePermission(player, playerRank, targetRank, permission, faction)) {
+                    return; // Error message already sent by the method
+                }
+
+                // Toggle the permission
+                faction.togglePermission(targetRank, permission);
 
                 // Save data
                 plugin.getDataManager().saveFactionData();
 
                 // Reopen the menu to show updated permissions
-                openRankPermissionsGUI(player, factionName, rank);
+                openRankPermissionsGUI(player, factionName, targetRank);
 
-                player.sendMessage(ChatColor.GREEN + "Toggled " + permission.getDisplayName() +
-                        " for " + rank.name() + " rank!");
+                boolean hasPermission = faction.hasPermission(targetRank, permission);
+                player.sendMessage(ChatColor.GREEN + (hasPermission ? "Enabled" : "Disabled") +
+                        " " + permission.getDisplayName() + " for " + targetRank.name() + " rank!");
                 return;
             }
+        }
+    }
+
+    /**
+     * Check if a player can modify permissions for a specific rank
+     */
+    private boolean canModifyRankPermissions(Player player, Rank playerRank, Rank targetRank, Faction faction) {
+        // Check if player has permission to manage permissions at all
+        if (playerRank != Rank.OWNER && !faction.hasPermission(playerRank, FactionPermission.MANAGE_PERMISSIONS)) {
+            player.sendMessage(ChatColor.RED + "You lack permission to manage faction permissions.");
+            return false;
+        }
+
+        // Cannot modify permissions for your own rank or higher (unless you're owner)
+        if (playerRank != Rank.OWNER && targetRank.ordinal() >= playerRank.ordinal()) {
+            if (targetRank == playerRank) {
+                player.sendMessage(ChatColor.RED + "You cannot modify permissions for your own rank.");
+            } else {
+                player.sendMessage(ChatColor.RED + "You cannot modify permissions for ranks equal to or higher than yours.");
+            }
+            return false;
+        }
+
+        return true;
+    }
+
+    /**
+     * Check if a player can toggle a specific permission for a rank
+     */
+    private boolean canTogglePermission(Player player, Rank playerRank, Rank targetRank,
+                                        FactionPermission permission, Faction faction) {
+
+        // Owners can do anything
+        if (playerRank == Rank.OWNER) {
+            return true;
+        }
+
+        // If the player's rank doesn't have this permission, they cannot grant it to lower ranks
+        if (!faction.hasPermission(playerRank, permission)) {
+            player.sendMessage(ChatColor.RED + "You cannot toggle " + permission.getDisplayName() +
+                    " because your rank (" + playerRank.name() + ") doesn't have this permission.");
+            return false;
+        }
+
+        return true;
+    }
+
+    /**
+     * Check if a player can modify relation permissions
+     */
+    private boolean canModifyRelationPermissions(Player player, Rank playerRank, Faction faction) {
+        // Check if player has permission to manage permissions at all
+        if (playerRank != Rank.OWNER && !faction.hasPermission(playerRank, FactionPermission.MANAGE_PERMISSIONS)) {
+            player.sendMessage(ChatColor.RED + "You lack permission to manage faction permissions.");
+            return false;
+        }
+
+        return true;
+    }
+
+    /**
+     * Check if a player can toggle a specific relation permission
+     */
+    private boolean canToggleRelationPermission(Player player, Rank playerRank, Relation targetRelation,
+                                                RelationPermission permission, Faction faction) {
+
+        // Owners can do anything
+        if (playerRank == Rank.OWNER) {
+            return true;
+        }
+
+        // Get the equivalent faction permission for this relation permission
+        FactionPermission equivalentFactionPermission = getEquivalentFactionPermission(permission);
+
+        if (equivalentFactionPermission != null) {
+            // If the player's rank doesn't have the equivalent faction permission,
+            // they cannot grant the relation permission
+            if (!faction.hasPermission(playerRank, equivalentFactionPermission)) {
+                player.sendMessage(ChatColor.RED + "You cannot toggle " + permission.getDisplayName() +
+                        " because your rank (" + playerRank.name() + ") doesn't have the equivalent permission (" +
+                        equivalentFactionPermission.getDisplayName() + ").");
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    /**
+     * Get the equivalent faction permission for a relation permission
+     */
+    private FactionPermission getEquivalentFactionPermission(RelationPermission relationPermission) {
+        switch (relationPermission) {
+            case BREAK_BLOCKS:
+                return FactionPermission.BREAK_BLOCKS;
+            case PLACE_BLOCKS:
+                return FactionPermission.PLACE_BLOCKS;
+            case PLACE_SPAWNERS:
+                return FactionPermission.PLACE_SPAWNERS;
+            case BREAK_SPAWNERS:
+                return FactionPermission.BREAK_SPAWNERS;
+            case INTERACT:
+                return FactionPermission.INTERACT;
+            case CONTAINER_ACCESS:
+                return FactionPermission.CONTAINER_ACCESS;
+            case ENDER_CHEST_ACCESS:
+                return FactionPermission.ENDER_CHEST_ACCESS;
+            case FLY:
+                return FactionPermission.FLY;
+            default:
+                return null; // No direct equivalent
         }
     }
 
@@ -2026,18 +2154,15 @@ public class MenuHandler {
                 player.closeInventory();
                 player.sendMessage(ChatColor.GREEN + "Successfully created faction: " + ChatColor.BOLD + factionName);
                 player.sendMessage(ChatColor.YELLOW + "You are now the owner of " + factionName + "!");
+                player.sendMessage(ChatColor.GRAY + "Use " + ChatColor.YELLOW + "/f menu" + ChatColor.GRAY + " to access faction features.");
 
-                // Open the faction menu
-                new BukkitRunnable() {
-                    @Override
-                    public void run() {
-                        openFactionsMenu(player);
-                    }
-                }.runTaskLater(plugin, 20L); // Wait 1 second
+                // REMOVED: Automatic menu opening
+                // No longer automatically opens the faction menu
 
             } else if (factions.containsKey(factionName)) {
                 player.sendMessage(ChatColor.RED + "A faction with that name already exists!");
-                openFactionsMenu(player);
+                // Don't open any menu, just close the current one
+                player.closeInventory();
             }
 
             // Clean up
@@ -2049,7 +2174,8 @@ public class MenuHandler {
             plugin.getPendingFactionCreation().remove(uuid);
             plugin.getPendingFactionNames().remove(uuid);
             player.closeInventory();
-            openFactionsMenu(player);
+
+            player.sendMessage(ChatColor.YELLOW + "Faction creation cancelled.");
         }
     }
 
@@ -2342,7 +2468,7 @@ public class MenuHandler {
     }
 
     /**
-     * Open the main permissions GUI with rank and relation sections
+     * Open the main permissions GUI with rank and relation sections - Updated with visual indicators
      */
     public void openPermissionsGUI(Player player, String factionName) {
         Inventory menu = Bukkit.createInventory(null, 36, ChatColor.DARK_GRAY + "Faction Permissions");
@@ -2357,59 +2483,97 @@ public class MenuHandler {
             menu.setItem(i, blackGlass);
         }
 
+        Faction faction = factions.get(factionName);
+        Rank playerRank = faction.members.get(player.getUniqueId());
+
         // Left 2x2 Green Square - Individual Rank Permissions
-        // Top-left: ADMIN (slot 10)
-        createRankPermissionPane(menu, 11, Rank.ADMIN);
-        // Top-right: MOD (slot 11)
-        createRankPermissionPane(menu, 12, Rank.MOD);
-        // Bottom-left: MEMBER (slot 19)
-        createRankPermissionPane(menu, 20, Rank.MEMBER);
-        // Bottom-right: RECRUIT (slot 20)
-        createRankPermissionPane(menu, 21, Rank.RECRUIT);
+        createRankPermissionPane(menu, 11, Rank.ADMIN, player, playerRank, faction);
+        createRankPermissionPane(menu, 12, Rank.MOD, player, playerRank, faction);
+        createRankPermissionPane(menu, 20, Rank.MEMBER, player, playerRank, faction);
+        createRankPermissionPane(menu, 21, Rank.RECRUIT, player, playerRank, faction);
 
         // Right 2x2 Purple Square - Individual Relation Permissions
-        // Top-left: NEUTRAL (slot 14)
-        createRelationPermissionPane(menu, 14, Relation.NEUTRAL);
-        // Top-right: TRUCE (slot 15)
-        createRelationPermissionPane(menu, 15, Relation.TRUCE);
-        // Bottom-left: ALLY (slot 23)
-        createRelationPermissionPane(menu, 23, Relation.ALLY);
-        // Bottom-right: ENEMY (slot 24)
-        createRelationPermissionPane(menu, 24, Relation.ENEMY);
+        createRelationPermissionPane(menu, 14, Relation.NEUTRAL, player, playerRank, faction);
+        createRelationPermissionPane(menu, 15, Relation.TRUCE, player, playerRank, faction);
+        createRelationPermissionPane(menu, 23, Relation.ALLY, player, playerRank, faction);
+        createRelationPermissionPane(menu, 24, Relation.ENEMY, player, playerRank, faction);
 
         // Back button
         ItemStack backButton = createBackButton();
-        menu.setItem(27, backButton); // Bottom left
+        menu.setItem(27, backButton);
 
         player.openInventory(menu);
     }
 
-    private void createRankPermissionPane(Inventory menu, int slot, Rank rank) {
-        ItemStack greenGlass = new ItemStack(Material.GREEN_STAINED_GLASS_PANE);
-        ItemMeta greenMeta = greenGlass.getItemMeta();
-        greenMeta.setDisplayName(ChatColor.GREEN + "" + ChatColor.BOLD + rank.name());
-        greenMeta.setLore(Arrays.asList(
-                ChatColor.GRAY + "Click to manage permissions",
-                ChatColor.GRAY + "for " + rank.name() + " rank"
-        ));
-        greenGlass.setItemMeta(greenMeta);
-        menu.setItem(slot, greenGlass);
+    private void createRankPermissionPane(Inventory menu, int slot, Rank rank, Player player, Rank playerRank, Faction faction) {
+        boolean canModify = canModifyRankPermissionsCheck(playerRank, rank, faction);
+
+        ItemStack rankGlass = new ItemStack(canModify ? Material.GREEN_STAINED_GLASS_PANE : Material.RED_STAINED_GLASS_PANE);
+        ItemMeta rankMeta = rankGlass.getItemMeta();
+
+        if (canModify) {
+            rankMeta.setDisplayName(ChatColor.GREEN + "" + ChatColor.BOLD + rank.name());
+            rankMeta.setLore(Arrays.asList(
+                    ChatColor.GRAY + "Click to manage permissions",
+                    ChatColor.GRAY + "for " + rank.name() + " rank",
+                    "",
+                    ChatColor.GREEN + "✓ You can modify these permissions"
+            ));
+        } else {
+            rankMeta.setDisplayName(ChatColor.RED + "" + ChatColor.BOLD + rank.name() + " 🔒");
+
+            List<String> lore = new ArrayList<>();
+            lore.add(ChatColor.GRAY + "Permissions for " + rank.name() + " rank");
+            lore.add("");
+
+            if (playerRank != Rank.OWNER && !faction.hasPermission(playerRank, FactionPermission.MANAGE_PERMISSIONS)) {
+                lore.add(ChatColor.RED + "✗ You lack MANAGE_PERMISSIONS");
+            } else if (rank.ordinal() >= playerRank.ordinal()) {
+                if (rank == playerRank) {
+                    lore.add(ChatColor.RED + "✗ Cannot modify your own rank");
+                } else {
+                    lore.add(ChatColor.RED + "✗ Cannot modify higher ranks");
+                }
+            }
+
+            lore.add(ChatColor.DARK_RED + "🔒 Locked - Cannot modify");
+            rankMeta.setLore(lore);
+        }
+
+        rankGlass.setItemMeta(rankMeta);
+        menu.setItem(slot, rankGlass);
     }
 
-    private void createRelationPermissionPane(Inventory menu, int slot, Relation relation) {
-        ItemStack purpleGlass = new ItemStack(Material.PURPLE_STAINED_GLASS_PANE);
-        ItemMeta purpleMeta = purpleGlass.getItemMeta();
-        purpleMeta.setDisplayName(ChatColor.LIGHT_PURPLE + "" + ChatColor.BOLD + relation.getDisplayName());
-        purpleMeta.setLore(Arrays.asList(
-                ChatColor.GRAY + "Click to manage permissions",
-                ChatColor.GRAY + "for " + relation.getDisplayName() + " relations"
-        ));
-        purpleGlass.setItemMeta(purpleMeta);
-        menu.setItem(slot, purpleGlass);
+    private void createRelationPermissionPane(Inventory menu, int slot, Relation relation, Player player, Rank playerRank, Faction faction) {
+        boolean canModify = canModifyRelationPermissionsCheck(playerRank, faction);
+
+        ItemStack relationGlass = new ItemStack(canModify ? Material.PURPLE_STAINED_GLASS_PANE : Material.RED_STAINED_GLASS_PANE);
+        ItemMeta relationMeta = relationGlass.getItemMeta();
+
+        if (canModify) {
+            relationMeta.setDisplayName(ChatColor.LIGHT_PURPLE + "" + ChatColor.BOLD + relation.getDisplayName());
+            relationMeta.setLore(Arrays.asList(
+                    ChatColor.GRAY + "Click to manage permissions",
+                    ChatColor.GRAY + "for " + relation.getDisplayName() + " relations",
+                    "",
+                    ChatColor.GREEN + "✓ You can modify these permissions"
+            ));
+        } else {
+            relationMeta.setDisplayName(ChatColor.RED + "" + ChatColor.BOLD + relation.getDisplayName() + " 🔒");
+            relationMeta.setLore(Arrays.asList(
+                    ChatColor.GRAY + "Permissions for " + relation.getDisplayName() + " relations",
+                    "",
+                    ChatColor.RED + "✗ You lack MANAGE_PERMISSIONS",
+                    ChatColor.DARK_RED + "🔒 Locked - Cannot modify"
+            ));
+        }
+
+        relationGlass.setItemMeta(relationMeta);
+        menu.setItem(slot, relationGlass);
     }
 
     /**
-     * Open rank-specific permissions GUI
+     * Open rank-specific permissions GUI with visual indicators
      */
     public void openRankPermissionsGUI(Player player, String factionName, Rank rank) {
         Inventory menu = Bukkit.createInventory(null, 54, ChatColor.DARK_GRAY + rank.name() + " Permissions");
@@ -2428,25 +2592,63 @@ public class MenuHandler {
         ItemStack backButton = createBackButton();
         menu.setItem(45, backButton);
 
+        // Reset permissions button (center of bottom row - slot 49)
+        ItemStack resetButton = createResetPermissionsButton(playerRank, null, faction, false);
+        menu.setItem(49, resetButton);
+
+        // Reset permissions button (center of bottom row - slot 49)
+        ItemStack resetButton = createResetPermissionsButton(playerRank, rank, faction, true);
+        menu.setItem(49, resetButton);
+
         // Get faction to check current permissions
         Faction faction = factions.get(factionName);
+        Rank playerRank = faction.members.get(player.getUniqueId());
         Set<FactionPermission> currentPerms = faction.rankPermissions.getOrDefault(rank, EnumSet.noneOf(FactionPermission.class));
 
-        // Add permission items
+        // Add permission items with visual indicators
         FactionPermission[] permissions = FactionPermission.values();
         for (int i = 0; i < permissions.length && i < 45; i++) {
             FactionPermission perm = permissions[i];
             boolean hasPermission = currentPerms.contains(perm);
+            boolean canToggle = canTogglePermissionCheck(playerRank, rank, perm, faction);
 
-            ItemStack permItem = new ItemStack(hasPermission ? Material.GREEN_STAINED_GLASS_PANE : Material.RED_STAINED_GLASS_PANE);
+            Material material;
+            ChatColor nameColor;
+            List<String> lore = new ArrayList<>();
+
+            if (canToggle) {
+                material = hasPermission ? Material.GREEN_STAINED_GLASS_PANE : Material.RED_STAINED_GLASS_PANE;
+                nameColor = hasPermission ? ChatColor.GREEN : ChatColor.RED;
+
+                lore.add(ChatColor.GRAY + "Status: " + (hasPermission ? ChatColor.GREEN + "ENABLED" : ChatColor.RED + "DISABLED"));
+                lore.add("");
+                lore.add(ChatColor.YELLOW + "Click to " + (hasPermission ? "disable" : "enable") + "!");
+            } else {
+                material = Material.GRAY_STAINED_GLASS_PANE;
+                nameColor = ChatColor.GRAY;
+
+                lore.add(ChatColor.GRAY + "Status: " + (hasPermission ? ChatColor.GREEN + "ENABLED" : ChatColor.RED + "DISABLED"));
+                lore.add("");
+
+                // Explain why it's locked
+                if (playerRank != Rank.OWNER && !faction.hasPermission(playerRank, perm)) {
+                    lore.add(ChatColor.RED + "✗ Your rank lacks this permission");
+                    lore.add(ChatColor.GRAY + "You need " + perm.getDisplayName());
+                    lore.add(ChatColor.GRAY + "to grant it to others");
+                } else {
+                    lore.add(ChatColor.RED + "✗ Cannot modify this rank's permissions");
+                }
+
+                lore.add("");
+                lore.add(ChatColor.DARK_RED + "🔒 Locked - Cannot toggle");
+            }
+
+            ItemStack permItem = new ItemStack(material);
             ItemMeta permMeta = permItem.getItemMeta();
-            permMeta.setDisplayName((hasPermission ? ChatColor.GREEN : ChatColor.RED) + perm.getDisplayName());
-            permMeta.setLore(Arrays.asList(
-                    ChatColor.GRAY + "Status: " + (hasPermission ? ChatColor.GREEN + "ENABLED" : ChatColor.RED + "DISABLED"),
-                    "",
-                    ChatColor.YELLOW + "Click to " + (hasPermission ? "disable" : "enable") + "!"
-            ));
+            permMeta.setDisplayName(nameColor + perm.getDisplayName() + (canToggle ? "" : " 🔒"));
+            permMeta.setLore(lore);
             permItem.setItemMeta(permMeta);
+
             menu.setItem(i, permItem);
         }
 
@@ -2454,7 +2656,7 @@ public class MenuHandler {
     }
 
     /**
-     * Open relation-specific permissions GUI
+     * Open relation-specific permissions GUI with visual indicators
      */
     public void openRelationPermissionsGUI(Player player, String factionName, Relation relation) {
         Inventory menu = Bukkit.createInventory(null, 54, ChatColor.DARK_GRAY + relation.getDisplayName() + " Permissions");
@@ -2475,29 +2677,146 @@ public class MenuHandler {
 
         // Get faction to check current permissions
         Faction faction = factions.get(factionName);
+        Rank playerRank = faction.members.get(player.getUniqueId());
         Set<RelationPermission> currentPerms = faction.relationPermissions.getOrDefault(relation, EnumSet.noneOf(RelationPermission.class));
 
-        // Add permission items
+        // Add permission items with visual indicators
         RelationPermission[] permissions = RelationPermission.values();
         for (int i = 0; i < permissions.length && i < 45; i++) {
             RelationPermission perm = permissions[i];
             boolean hasPermission = currentPerms.contains(perm);
+            boolean canToggle = canToggleRelationPermissionCheck(playerRank, relation, perm, faction);
 
-            ItemStack permItem = new ItemStack(hasPermission ? Material.GREEN_STAINED_GLASS_PANE : Material.RED_STAINED_GLASS_PANE);
+            Material material;
+            ChatColor nameColor;
+            List<String> lore = new ArrayList<>();
+
+            if (canToggle) {
+                material = hasPermission ? Material.GREEN_STAINED_GLASS_PANE : Material.RED_STAINED_GLASS_PANE;
+                nameColor = hasPermission ? ChatColor.GREEN : ChatColor.RED;
+
+                lore.add(ChatColor.GRAY + "Status: " + (hasPermission ? ChatColor.GREEN + "ENABLED" : ChatColor.RED + "DISABLED"));
+                lore.add("");
+                lore.add(ChatColor.YELLOW + "Click to " + (hasPermission ? "disable" : "enable") + "!");
+            } else {
+                material = Material.GRAY_STAINED_GLASS_PANE;
+                nameColor = ChatColor.GRAY;
+
+                lore.add(ChatColor.GRAY + "Status: " + (hasPermission ? ChatColor.GREEN + "ENABLED" : ChatColor.RED + "DISABLED"));
+                lore.add("");
+
+                // Explain why it's locked
+                FactionPermission equivalentPermission = getEquivalentFactionPermission(perm);
+                if (playerRank != Rank.OWNER && equivalentPermission != null && !faction.hasPermission(playerRank, equivalentPermission)) {
+                    lore.add(ChatColor.RED + "✗ Your rank lacks equivalent permission");
+                    lore.add(ChatColor.GRAY + "You need " + equivalentPermission.getDisplayName());
+                    lore.add(ChatColor.GRAY + "to grant " + perm.getDisplayName());
+                } else {
+                    lore.add(ChatColor.RED + "✗ Cannot modify relation permissions");
+                }
+
+                lore.add("");
+                lore.add(ChatColor.DARK_RED + "🔒 Locked - Cannot toggle");
+            }
+
+            ItemStack permItem = new ItemStack(material);
             ItemMeta permMeta = permItem.getItemMeta();
-            permMeta.setDisplayName((hasPermission ? ChatColor.GREEN : ChatColor.RED) + perm.getDisplayName());
-            permMeta.setLore(Arrays.asList(
-                    ChatColor.GRAY + "Status: " + (hasPermission ? ChatColor.GREEN + "ENABLED" : ChatColor.RED + "DISABLED"),
-                    "",
-                    ChatColor.YELLOW + "Click to " + (hasPermission ? "disable" : "enable") + "!"
-            ));
+            permMeta.setDisplayName(nameColor + perm.getDisplayName() + (canToggle ? "" : " 🔒"));
+            permMeta.setLore(lore);
             permItem.setItemMeta(permMeta);
+
             menu.setItem(i, permItem);
         }
 
         player.openInventory(menu);
     }
 
+    // Helper methods for checking permissions without sending error messages (for GUI display)
+    private boolean canModifyRankPermissionsCheck(Rank playerRank, Rank targetRank, Faction faction) {
+        if (playerRank != Rank.OWNER && !faction.hasPermission(playerRank, FactionPermission.MANAGE_PERMISSIONS)) {
+            return false;
+        }
+        return playerRank == Rank.OWNER || targetRank.ordinal() < playerRank.ordinal();
+    }
+
+    private boolean canModifyRelationPermissionsCheck(Rank playerRank, Faction faction) {
+        return playerRank == Rank.OWNER || faction.hasPermission(playerRank, FactionPermission.MANAGE_PERMISSIONS);
+    }
+
+    private boolean canTogglePermissionCheck(Rank playerRank, Rank targetRank, FactionPermission permission, Faction faction) {
+        if (playerRank == Rank.OWNER) return true;
+        return faction.hasPermission(playerRank, permission);
+    }
+
+    private boolean canToggleRelationPermissionCheck(Rank playerRank, Relation targetRelation, RelationPermission permission, Faction faction) {
+        if (playerRank == Rank.OWNER) return true;
+
+        FactionPermission equivalentPermission = getEquivalentFactionPermission(permission);
+        if (equivalentPermission != null) {
+            return faction.hasPermission(playerRank, equivalentPermission);
+        }
+        return true;
+    }
+
+    /**
+     * Create reset permissions button with custom head texture
+     */
+    private ItemStack createResetPermissionsButton(Rank playerRank, Rank targetRank, Faction faction, boolean isRankPermissions) {
+        ItemStack resetButton = new ItemStack(Material.PLAYER_HEAD);
+        SkullMeta skullMeta = (SkullMeta) resetButton.getItemMeta();
+
+        // Set custom texture
+        String texture = "eyJ0ZXh0dXJlcyI6eyJTS0lOIjp7InVybCI6Imh0dHA6Ly90ZXh0dXJlcy5taW5lY3JhZnQubmV0L3RleHR1cmUvYjQ2ZGRiN2ZhMjQxN2E5Yjg4N2Q3ZDUwOTM1ZGVkY2FmNDVmZTkwYWM2ZmI0MTc4OGY4YWE0ZjVlODQ2ZDVkZiJ9fX0=";
+
+        try {
+            GameProfile profile = new GameProfile(UUID.randomUUID(), null);
+            profile.getProperties().put("textures", new Property("textures", texture));
+
+            Field profileField = skullMeta.getClass().getDeclaredField("profile");
+            profileField.setAccessible(true);
+            profileField.set(skullMeta, profile);
+        } catch (Exception e) {
+            plugin.getLogger().warning("Failed to set custom head texture for reset button: " + e.getMessage());
+        }
+
+        boolean canReset = playerRank == Rank.OWNER || faction.hasPermission(playerRank, FactionPermission.MANAGE_PERMISSIONS);
+
+        if (canReset) {
+            skullMeta.setDisplayName(ChatColor.YELLOW + "" + ChatColor.BOLD + "RESET TO DEFAULT");
+
+            List<String> lore = new ArrayList<>();
+            if (isRankPermissions) {
+                lore.add(ChatColor.GRAY + "Reset " + targetRank.name() + " permissions to default");
+            } else {
+                lore.add(ChatColor.GRAY + "Reset relation permissions to default");
+            }
+            lore.add("");
+
+            if (playerRank == Rank.OWNER) {
+                lore.add(ChatColor.GREEN + "✓ Will reset ALL permissions");
+            } else {
+                lore.add(ChatColor.YELLOW + "⚠ Will only reset permissions you have");
+                lore.add(ChatColor.GRAY + "Permissions you lack will be unchanged");
+            }
+
+            lore.add("");
+            lore.add(ChatColor.YELLOW + "Click to reset permissions!");
+            lore.add(ChatColor.RED + "This action cannot be undone!");
+
+            skullMeta.setLore(lore);
+        } else {
+            skullMeta.setDisplayName(ChatColor.RED + "" + ChatColor.BOLD + "RESET TO DEFAULT 🔒");
+            skullMeta.setLore(Arrays.asList(
+                    ChatColor.GRAY + "Reset permissions to default",
+                    "",
+                    ChatColor.RED + "✗ You lack MANAGE_PERMISSIONS",
+                    ChatColor.DARK_RED + "🔒 Locked - Cannot reset"
+            ));
+        }
+
+        resetButton.setItemMeta(skullMeta);
+        return resetButton;
+    }
 
     /**
      * Get pending kick target for a player

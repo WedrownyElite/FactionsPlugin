@@ -163,18 +163,12 @@ public class FactionCreationManager {
                 player.closeInventory();
                 player.sendMessage(ChatColor.GREEN + "Successfully created faction: " + ChatColor.BOLD + factionName);
                 player.sendMessage(ChatColor.YELLOW + "You are now the owner of " + factionName + "!");
+                player.sendMessage(ChatColor.GRAY + "Use " + ChatColor.YELLOW + "/f menu" + ChatColor.GRAY + " to access faction features.");
 
-                // Open the faction menu
-                new BukkitRunnable() {
-                    @Override
-                    public void run() {
-                        plugin.openFactionsMenu(player);
-                    }
-                }.runTaskLater(plugin, 20L); // Wait 1 second
 
             } else if (factions.containsKey(factionName)) {
                 player.sendMessage(ChatColor.RED + "A faction with that name already exists!");
-                plugin.openFactionsMenu(player);
+                player.closeInventory();
             }
 
             // Clean up
@@ -186,7 +180,9 @@ public class FactionCreationManager {
             pendingFactionCreation.remove(uuid);
             pendingFactionNames.remove(uuid);
             player.closeInventory();
-            plugin.openFactionsMenu(player);
+
+            // CHANGED: Don't automatically open the menu, let player decide
+            player.sendMessage(ChatColor.YELLOW + "Faction creation cancelled.");
         }
     }
 }

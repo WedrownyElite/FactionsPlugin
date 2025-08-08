@@ -360,7 +360,8 @@ public class FactionsEventListener implements Listener {
                 title.equals(ChatColor.DARK_GRAY + "Public Factions") ||
                 title.equals(ChatColor.DARK_GRAY + "Your Invitations") ||
                 title.equals(ChatColor.DARK_GRAY + "Relation Requests") ||
-                title.equals(ChatColor.DARK_GRAY + "Faction Relations")) {
+                title.equals(ChatColor.DARK_GRAY + "Faction Relations") ||
+                title.startsWith(ChatColor.DARK_RED + "Remove: ")) {
 
             UUID uuid = player.getUniqueId();
             playerInFactionGUI.put(uuid, true);
@@ -582,7 +583,8 @@ public class FactionsEventListener implements Listener {
                 title.equals(ChatColor.DARK_GRAY + "Public Factions") ||
                 title.equals(ChatColor.DARK_GRAY + "Your Invitations") ||
                 title.equals(ChatColor.DARK_GRAY + "Relation Requests") ||
-                title.equals(ChatColor.DARK_GRAY + "Faction Relations")) {
+                title.equals(ChatColor.DARK_GRAY + "Faction Relations") ||
+                title.startsWith(ChatColor.DARK_RED + "Remove: ")) {
 
             // Clear offhand when closing GUI
             player.getInventory().setItemInOffHand(new ItemStack(Material.AIR));
@@ -664,7 +666,7 @@ public class FactionsEventListener implements Listener {
                 title.equals(ChatColor.DARK_GRAY + "Faction Permissions") ||
                 title.equals(ChatColor.DARK_GRAY + "Relation Requests") ||
                 title.equals(ChatColor.DARK_GRAY + "Faction Relations") ||
-                title.equals(ChatColor.DARK_RED + "Remove") ||
+                title.startsWith(ChatColor.DARK_RED + "Remove: ") || // FIXED: Use startsWith instead of equals
                 title.contains(" Permissions")) {
 
             // Cancel ALL clicks in faction GUIs
@@ -746,15 +748,10 @@ public class FactionsEventListener implements Listener {
             } else if (title.equals(ChatColor.DARK_GRAY + "Faction Relations")) {
                 plugin.getMenuHandler().handleRelationsViewClick(player, item, event.getClick(), title);
             } else if (title.startsWith(ChatColor.DARK_RED + "Remove: ")) {
-                // This line already exists, but make sure the event.setCancelled(true) is there
-                event.setCancelled(true);
-                // Clear offhand immediately
-                player.getInventory().setItemInOffHand(new ItemStack(Material.AIR));
-
+                // FIXED: Proper handling for relation removal confirmation
                 if (event.getClick() == ClickType.LEFT) {
                     plugin.getMenuHandler().handleRelationRemovalClick(player, displayName, title);
                 }
-                return;
             }
             return;
         }
@@ -918,6 +915,10 @@ public class FactionsEventListener implements Listener {
         factionGUIItems.add(ChatColor.RED + "" + ChatColor.BOLD + "LEAVE FACTION");
         factionGUIItems.add(ChatColor.RED + "" + ChatColor.BOLD + "DISBAND FACTION");
 
+        // ADDED: Relation removal confirmation items
+        factionGUIItems.add(ChatColor.RED + "" + ChatColor.BOLD + "REMOVE RELATION");
+        factionGUIItems.add(ChatColor.GREEN + "" + ChatColor.BOLD + "CANCEL");
+
         // Browse menu items
         factionGUIItems.add(ChatColor.GREEN + "" + ChatColor.BOLD + "PUBLIC FACTIONS");
         factionGUIItems.add(ChatColor.YELLOW + "" + ChatColor.BOLD + "YOUR INVITATIONS");
@@ -949,6 +950,11 @@ public class FactionsEventListener implements Listener {
 
         // Check for kick confirmation items (start with "Kick:")
         if (displayName.startsWith(ChatColor.YELLOW + "Kick:")) {
+            return true;
+        }
+
+        // ADDED: Check for relation removal confirmation items (start with "Remove Relation?")
+        if (displayName.startsWith(ChatColor.YELLOW + "Remove Relation?")) {
             return true;
         }
 
