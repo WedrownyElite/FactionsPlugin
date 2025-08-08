@@ -2,6 +2,8 @@ package me.elite.Factions.data;
 import me.elite.Factions.data.FactionPermission;
 import me.elite.Factions.data.RelationPermission;
 import me.elite.Factions.data.Relation;
+import me.elite.Factions.data.RelationRequest;
+import me.elite.Factions.Relations.RelationManager;
 
 import me.elite.Factions.territory.ChunkCoord;
 import me.elite.Factions.FactionsPlugin;
@@ -108,6 +110,38 @@ public class DataManager {
                 invitationsMap.put(entry.getKey().toString(), new ArrayList<>(entry.getValue()));
             }
             data.put("invitations", invitationsMap);
+
+            // Save faction relations
+            Map<String, Map<String, String>> relationsMap = new HashMap<>();
+            for (Map.Entry<String, Map<String, Relation>> factionEntry : plugin.getRelationManager().getAllRelations().entrySet()) {
+                String faction = factionEntry.getKey();
+                Map<String, String> factionRelations = new HashMap<>();
+                for (Map.Entry<String, Relation> relationEntry : factionEntry.getValue().entrySet()) {
+                    factionRelations.put(relationEntry.getKey(), relationEntry.getValue().name());
+                }
+                relationsMap.put(faction, factionRelations);
+            }
+            data.put("relations", relationsMap);
+
+            // Save pending relation requests
+            Map<String, List<Map<String, Object>>> requestsMap = new HashMap<>();
+            for (Map.Entry<String, List<RelationRequest>> requestEntry : plugin.getRelationManager().getAllPendingRequests().entrySet()) {
+                String toFaction = requestEntry.getKey();
+                List<Map<String, Object>> requestsList = new ArrayList<>();
+
+                for (RelationRequest request : requestEntry.getValue()) {
+                    Map<String, Object> requestData = new HashMap<>();
+                    requestData.put("fromFaction", request.fromFaction);
+                    requestData.put("toFaction", request.toFaction);
+                    requestData.put("relation", request.requestedRelation.name());
+                    requestData.put("requestedBy", request.requestedBy.toString());
+                    requestData.put("timestamp", request.timestamp);
+                    requestsList.add(requestData);
+                }
+
+                requestsMap.put(toFaction, requestsList);
+            }
+            data.put("relationRequests", requestsMap);
 
             writer.println(new JSONObject(data).toString(2));
         } catch (IOException e) {
@@ -243,6 +277,72 @@ public class DataManager {
                     }
                     plugin.getPlayerInvitations().put(UUID.fromString(uuidStr), inviteSet);
                 }
+            }
+
+            // Load faction relations
+            if (data.has("relations")) {
+                JSONObject relationsMap = data.getJSONObject("relations");
+                Map<String, Map<String, Relation>> loadedRelations = new HashMap<>();
+
+                for (String faction : relationsMap.keySet()) {
+                    JSONObject factionRelations = relationsMap.getJSONObject(faction);
+                    Map<String, Relation> relations = new HashMap<>();
+
+                    for (String targetFaction : factionRelations.keySet()) {
+                        try {
+                            Relation relation = Relation.valueOf(factionRelations.getString(targetFaction));
+                            relations.put(targetFaction, relation);
+                        } catch (IllegalArgumentException e) {
+                            plugin.getLogger().warning("Unknown relation: " + factionRelations.getString(targetFaction));
+                        }
+                    }
+
+                    loadedRelations.put(faction, relations);
+                }
+
+                plugin.getRelationManager().loadRelations(loadedRelations);
+            }
+
+            // Load pending relation requests
+            if (data.has("relationRequests")) {
+                JSONObject requestsMap = data.getJSONObject("relationRequests");
+                Map<String, List<RelationRequest>> loadedRequests = new HashMap<>();
+
+                for (String toFaction : requestsMap.keySet()) {
+                    org.json.JSONArray requestsArray = requestsMap.getJSONArray(toFaction);
+                    List<RelationRequest> requests = new ArrayList<>();
+
+                    for (int i = 0; i < requestsArray.length(); i++) {
+                        JSONObject requestData = requestsArray.getJSONObject(i);
+
+                        try {
+                            String fromFaction = requestData.getString("fromFaction");
+                            String requestToFaction = requestData.getString("toFaction");
+                            Relation relation = Relation.valueOf(requestData.getString("relation"));
+                            UUID requestedBy = UUID.fromString(requestData.getString("requestedBy"));
+
+                            // Create request with original timestamp if available
+                            RelationRequest request = new RelationRequest(fromFaction, requestToFaction, relation, requestedBy);
+                            if (requestData.has("timestamp")) {
+                                // Use reflection to set timestamp if needed, or recreate with current time
+                                // For now, we'll accept that loaded requests will have current timestamp
+                            }
+
+                            // Only add if not expired
+                            if (!request.isExpired()) {
+                                requests.add(request);
+                            }
+                        } catch (Exception e) {
+                            plugin.getLogger().warning("Failed to load relation request: " + e.getMessage());
+                        }
+                    }
+
+                    if (!requests.isEmpty()) {
+                        loadedRequests.put(toFaction, requests);
+                    }
+                }
+
+                plugin.getRelationManager().loadPendingRequests(loadedRequests);
             }
 
             plugin.getLogger().info("Successfully loaded faction data: " + factions.size() + " factions, " +

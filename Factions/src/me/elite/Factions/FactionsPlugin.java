@@ -11,6 +11,7 @@ import me.elite.Factions.permissions.PermissionManager;
 import me.elite.Factions.territory.ChunkCoord;
 import me.elite.Factions.territory.ClaimManager;
 import me.elite.Factions.utils.FactionUtilityManager;
+import me.elite.Factions.Relations.RelationManager;
 
 import org.bukkit.Bukkit;
 import org.bukkit.Chunk;
@@ -41,6 +42,7 @@ public class FactionsPlugin extends JavaPlugin implements Listener {
     private FactionsEventListener eventListener;
     private FactionCreationManager factionCreationManager;
     private FactionUtilityManager utilityManager;
+    private RelationManager relationManager;
 
     @Override
     public void onEnable() {
@@ -56,6 +58,7 @@ public class FactionsPlugin extends JavaPlugin implements Listener {
         factionCreationManager = new FactionCreationManager(this);
         commandManager = new CommandManager(this);
         eventListener = new FactionsEventListener(this);
+        relationManager = new RelationManager(this);
 
         // Load data
         dataManager.loadFactionData();
@@ -64,6 +67,11 @@ public class FactionsPlugin extends JavaPlugin implements Listener {
         getCommand("f").setExecutor(commandManager);
         getCommand("f").setTabCompleter(new FactionsTabCompleter());
         Bukkit.getPluginManager().registerEvents(eventListener, this);
+
+        // Start periodic cleanup task for expired relation requests
+        Bukkit.getScheduler().runTaskTimer(this, () -> {
+            relationManager.cleanupExpiredRequests();
+        }, 20L * 60 * 60, 20L * 60 * 60); // Run every hour
 
         getLogger().info("Custom Factions plugin enabled.");
     }
@@ -81,6 +89,8 @@ public class FactionsPlugin extends JavaPlugin implements Listener {
     public Map<UUID, Set<String>> getPlayerInvitations() {
         return playerInvitations;
     }
+
+    public RelationManager getRelationManager() {return relationManager;}
 
     public DataManager getDataManager() {
         return dataManager;

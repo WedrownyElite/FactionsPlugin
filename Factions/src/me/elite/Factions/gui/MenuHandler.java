@@ -7,6 +7,8 @@ import me.elite.Factions.territory.ChunkCoord;
 import me.elite.Factions.data.FactionPermission;
 import me.elite.Factions.data.RelationPermission;
 import me.elite.Factions.data.Relation;
+import me.elite.Factions.data.RelationRequest;
+import me.elite.Factions.Relations.RelationManager;
 import org.bukkit.Bukkit;
 import org.bukkit.ChatColor;
 import org.bukkit.Material;
@@ -728,6 +730,48 @@ public class MenuHandler {
             menu.setItem(34, settings);
         }
 
+        // Relation requests for admins and owners
+        if (playerRank == Rank.OWNER || playerRank == Rank.ADMIN) {
+            List<RelationRequest> requests = plugin.getRelationManager().getPendingRequests(factionName);
+
+            ItemStack relationRequests = new ItemStack(Material.PAPER);
+            ItemMeta requestsMeta = relationRequests.getItemMeta();
+            requestsMeta.setDisplayName(ChatColor.GOLD + "Relation Requests");
+
+            if (requests.isEmpty()) {
+                requestsMeta.setLore(Arrays.asList(
+                        ChatColor.GRAY + "No pending relation requests"
+                ));
+            } else {
+                requestsMeta.setLore(Arrays.asList(
+                        ChatColor.GRAY + "Pending requests: " + ChatColor.WHITE + requests.size(),
+                        ChatColor.GRAY + "• Ally requests",
+                        ChatColor.GRAY + "• Truce requests",
+                        "",
+                        ChatColor.YELLOW + "Click to manage requests!"
+                ));
+            }
+
+            relationRequests.setItemMeta(requestsMeta);
+            menu.setItem(31, relationRequests); // Bottom row, center-left
+        }
+
+        // Relations view for all members
+        ItemStack relations = new ItemStack(Material.COMPASS);
+        ItemMeta relationsMeta = relations.getItemMeta();
+        relationsMeta.setDisplayName(ChatColor.BLUE + "View Relations");
+
+        Map<String, Relation> factionRelations = plugin.getRelationManager().getFactionRelations(factionName);
+        relationsMeta.setLore(Arrays.asList(
+                ChatColor.GRAY + "View your faction's relations",
+                ChatColor.GRAY + "Current relations: " + ChatColor.WHITE + factionRelations.size(),
+                "",
+                ChatColor.YELLOW + "Click to view relations!"
+        ));
+
+        relations.setItemMeta(relationsMeta);
+        menu.setItem(25, relations); // Bottom row, center-right
+
         // Leave/Disband faction
         ItemStack leave = new ItemStack(Material.RED_CONCRETE);
         ItemMeta leaveMeta = leave.getItemMeta();
@@ -753,6 +797,343 @@ public class MenuHandler {
         menu.setItem(45, backButton); // Bottom left
 
         player.openInventory(menu);
+    }
+
+    /**
+     * Open the relation requests menu
+     */
+    public void openRelationRequestsMenu(Player player, String factionName) {
+        List<RelationRequest> requests = plugin.getRelationManager().getPendingRequests(factionName);
+
+        Inventory menu = Bukkit.createInventory(null, 54, ChatColor.DARK_GRAY + "Relation Requests");
+
+        // Fill bottom row with black glass panes
+        ItemStack blackGlass = new ItemStack(Material.BLACK_STAINED_GLASS_PANE);
+        ItemMeta glassMeta = blackGlass.getItemMeta();
+        glassMeta.setDisplayName(" ");
+        blackGlass.setItemMeta(glassMeta);
+
+        for (int i = 45; i < 54; i++) {
+            menu.setItem(i, blackGlass);
+        }
+
+        // Back button
+        ItemStack backButton = createBackButton();
+        menu.setItem(45, backButton);
+
+        if (requests.isEmpty()) {
+            // No requests message
+            ItemStack noRequests = new ItemStack(Material.BARRIER);
+            ItemMeta noRequestsMeta = noRequests.getItemMeta();
+            noRequestsMeta.setDisplayName(ChatColor.RED + "No Pending Requests");
+            noRequestsMeta.setLore(Arrays.asList(
+                    ChatColor.GRAY + "Your faction has no pending",
+                    ChatColor.GRAY + "relation requests at this time."
+            ));
+            noRequests.setItemMeta(noRequestsMeta);
+            menu.setItem(22, noRequests); // Center
+        } else {
+            // Display requests (slots 0-44, excluding slot 45 for back button)
+            int slot = 0;
+            for (RelationRequest request : requests) {
+                if (slot >= 45) break; // Don't overwrite back button
+
+                ItemStack requestItem = createRelationRequestItem(request);
+                menu.setItem(slot, requestItem);
+                slot++;
+            }
+        }
+
+        player.openInventory(menu);
+    }
+
+    /**
+     * Create an item representing a relation request
+     */
+    private ItemStack createRelationRequestItem(RelationRequest request) {
+        Faction fromFaction = factions.get(request.fromFaction);
+        if (fromFaction == null) {
+            // Fallback item
+            ItemStack item = new ItemStack(Material.PAPER);
+            ItemMeta meta = item.getItemMeta();
+            meta.setDisplayName(ChatColor.RED + "Invalid Request");
+            item.setItemMeta(meta);
+            return item;
+        }
+
+        // Use faction owner's head
+        ItemStack head = new ItemStack(Material.PLAYER_HEAD);
+        SkullMeta skullMeta = (SkullMeta) head.getItemMeta();
+
+        OfflinePlayer owner = Bukkit.getOfflinePlayer(fromFaction.owner);
+        skullMeta.setOwningPlayer(owner);
+
+        // Color based on relation type
+        ChatColor relationColor = RelationManager.getRelationColor(request.requestedRelation);
+        skullMeta.setDisplayName(relationColor + request.fromFaction);
+
+        // Calculate time since request
+        long timeSince = System.currentTimeMillis() - request.timestamp;
+        String timeString = formatTimeString(timeSince);
+
+        OfflinePlayer requester = Bukkit.getOfflinePlayer(request.requestedBy);
+        String requesterName = requester.getName() != null ? requester.getName() : "Unknown";
+
+        List<String> lore = new ArrayList<>();
+        lore.add(ChatColor.GRAY + "Requested: " + relationColor + request.requestedRelation.getDisplayName());
+        lore.add(ChatColor.GRAY + "From: " + ChatColor.WHITE + request.fromFaction);
+        lore.add(ChatColor.GRAY + "By: " + ChatColor.WHITE + requesterName);
+        lore.add(ChatColor.GRAY + "Sent: " + ChatColor.WHITE + timeString + " ago");
+
+        if (!fromFaction.description.isEmpty()) {
+            lore.add(ChatColor.GRAY + "Description: " + ChatColor.WHITE + fromFaction.description);
+        }
+
+        lore.add(ChatColor.GRAY + "Members: " + ChatColor.WHITE + fromFaction.members.size());
+        lore.add("");
+        lore.add(ChatColor.GREEN + "Left Click: Accept Request");
+        lore.add(ChatColor.RED + "Right Click: Reject Request");
+
+        skullMeta.setLore(lore);
+        head.setItemMeta(skullMeta);
+
+        return head;
+    }
+
+    /**
+     * Handle relation requests menu clicks
+     */
+    public void handleRelationRequestsClick(Player player, ItemStack item, ClickType clickType, String title) {
+        if (item.getItemMeta() == null) return;
+        String displayName = item.getItemMeta().getDisplayName();
+
+        // Handle back button
+        if (displayName.equals(ChatColor.GRAY + "← Back")) {
+            String factionName = playerFactions.get(player.getUniqueId());
+            openFactionMenu(player, factionName);
+            return;
+        }
+
+        // Handle request clicks
+        if (item.getType() == Material.PLAYER_HEAD && (clickType == ClickType.LEFT || clickType == ClickType.RIGHT)) {
+            String factionName = playerFactions.get(player.getUniqueId());
+            String fromFactionName = ChatColor.stripColor(displayName);
+
+            // Find the request based on the faction name
+            List<RelationRequest> requests = plugin.getRelationManager().getPendingRequests(factionName);
+            RelationRequest targetRequest = null;
+
+            for (RelationRequest request : requests) {
+                if (request.fromFaction.equals(fromFactionName)) {
+                    targetRequest = request;
+                    break;
+                }
+            }
+
+            if (targetRequest == null) {
+                player.sendMessage(ChatColor.RED + "Request not found or has expired.");
+                openRelationRequestsMenu(player, factionName); // Refresh menu
+                return;
+            }
+
+            if (clickType == ClickType.LEFT) {
+                // Accept request
+                boolean success = plugin.getRelationManager().acceptRelationRequest(
+                        factionName, targetRequest.fromFaction, targetRequest.requestedRelation, player.getUniqueId());
+
+                if (success) {
+                    player.sendMessage(ChatColor.GREEN + "Accepted " +
+                            RelationManager.getRelationColor(targetRequest.requestedRelation) +
+                            targetRequest.requestedRelation.getDisplayName() + ChatColor.GREEN +
+                            " request from " + fromFactionName + "!");
+
+                    // Save data
+                    plugin.getDataManager().saveFactionData();
+                } else {
+                    player.sendMessage(ChatColor.RED + "Failed to accept request.");
+                }
+
+            } else if (clickType == ClickType.RIGHT) {
+                // Reject request
+                boolean success = plugin.getRelationManager().rejectRelationRequest(
+                        factionName, targetRequest.fromFaction, targetRequest.requestedRelation, player.getUniqueId());
+
+                if (success) {
+                    player.sendMessage(ChatColor.YELLOW + "Rejected " +
+                            RelationManager.getRelationColor(targetRequest.requestedRelation) +
+                            targetRequest.requestedRelation.getDisplayName() + ChatColor.YELLOW +
+                            " request from " + fromFactionName + ".");
+
+                    // Save data
+                    plugin.getDataManager().saveFactionData();
+                } else {
+                    player.sendMessage(ChatColor.RED + "Failed to reject request.");
+                }
+            }
+
+            // Refresh the menu
+            openRelationRequestsMenu(player, factionName);
+        }
+    }
+
+    /**
+     * Open the relations view menu
+     */
+    public void openRelationsViewMenu(Player player, String factionName) {
+        Map<String, Relation> relations = plugin.getRelationManager().getFactionRelations(factionName);
+
+        Inventory menu = Bukkit.createInventory(null, 54, ChatColor.DARK_GRAY + "Faction Relations");
+
+        // Fill bottom row with black glass panes
+        ItemStack blackGlass = new ItemStack(Material.BLACK_STAINED_GLASS_PANE);
+        ItemMeta glassMeta = blackGlass.getItemMeta();
+        glassMeta.setDisplayName(" ");
+        blackGlass.setItemMeta(glassMeta);
+
+        for (int i = 45; i < 54; i++) {
+            menu.setItem(i, blackGlass);
+        }
+
+        // Back button
+        ItemStack backButton = createBackButton();
+        menu.setItem(45, backButton);
+
+        if (relations.isEmpty()) {
+            // No relations message
+            ItemStack noRelations = new ItemStack(Material.BARRIER);
+            ItemMeta noRelationsMeta = noRelations.getItemMeta();
+            noRelationsMeta.setDisplayName(ChatColor.GRAY + "No Relations");
+            noRelationsMeta.setLore(Arrays.asList(
+                    ChatColor.GRAY + "Your faction has no special",
+                    ChatColor.GRAY + "relations with other factions.",
+                    "",
+                    ChatColor.GRAY + "All other factions are " + ChatColor.WHITE + "Neutral",
+                    ChatColor.GRAY + "by default."
+            ));
+            noRelations.setItemMeta(noRelationsMeta);
+            menu.setItem(22, noRelations); // Center
+        } else {
+            // Display relations (slots 0-44, excluding slot 45 for back button)
+            int slot = 0;
+
+            // Group relations by type
+            Map<Relation, List<String>> groupedRelations = new HashMap<>();
+            for (Map.Entry<String, Relation> entry : relations.entrySet()) {
+                groupedRelations.computeIfAbsent(entry.getValue(), k -> new ArrayList<>()).add(entry.getKey());
+            }
+
+            // Display each relation type
+            for (Relation relationType : Arrays.asList(Relation.ALLY, Relation.TRUCE, Relation.ENEMY, Relation.NEUTRAL)) {
+                List<String> factionsWithRelation = groupedRelations.get(relationType);
+                if (factionsWithRelation == null || factionsWithRelation.isEmpty()) continue;
+
+                for (String targetFaction : factionsWithRelation) {
+                    if (slot >= 45) break; // Don't overwrite back button
+
+                    ItemStack relationItem = createRelationViewItem(targetFaction, relationType);
+                    menu.setItem(slot, relationItem);
+                    slot++;
+                }
+            }
+        }
+
+        player.openInventory(menu);
+    }
+
+    /**
+     * Create an item representing a faction relation
+     */
+    private ItemStack createRelationViewItem(String factionName, Relation relation) {
+        Faction faction = factions.get(factionName);
+        if (faction == null) {
+            // Fallback item
+            ItemStack item = new ItemStack(Material.PAPER);
+            ItemMeta meta = item.getItemMeta();
+            meta.setDisplayName(ChatColor.RED + "Invalid Faction");
+            item.setItemMeta(meta);
+            return item;
+        }
+
+        // Use faction owner's head
+        ItemStack head = new ItemStack(Material.PLAYER_HEAD);
+        SkullMeta skullMeta = (SkullMeta) head.getItemMeta();
+
+        OfflinePlayer owner = Bukkit.getOfflinePlayer(faction.owner);
+        skullMeta.setOwningPlayer(owner);
+
+        // Color based on relation type
+        ChatColor relationColor = RelationManager.getRelationColor(relation);
+        skullMeta.setDisplayName(relationColor + factionName);
+
+        List<String> lore = new ArrayList<>();
+        lore.add(ChatColor.GRAY + "Relation: " + relationColor + relation.getDisplayName());
+        lore.add(ChatColor.GRAY + "Owner: " + ChatColor.WHITE + (owner.getName() != null ? owner.getName() : "Unknown"));
+        lore.add(ChatColor.GRAY + "Members: " + ChatColor.WHITE + faction.members.size());
+
+        if (!faction.description.isEmpty()) {
+            lore.add(ChatColor.GRAY + "Description: " + ChatColor.WHITE + faction.description);
+        }
+
+        lore.add("");
+
+        // Add relation-specific information
+        switch (relation) {
+            case ALLY:
+                lore.add(ChatColor.GREEN + "✓ Allied Faction");
+                lore.add(ChatColor.GRAY + "• Can build in your territory");
+                lore.add(ChatColor.GRAY + "• No friendly fire");
+                break;
+            case TRUCE:
+                lore.add(ChatColor.YELLOW + "~ Truce Faction");
+                lore.add(ChatColor.GRAY + "• Limited interactions");
+                lore.add(ChatColor.GRAY + "• No PvP");
+                break;
+            case ENEMY:
+                lore.add(ChatColor.RED + "⚔ Enemy Faction");
+                lore.add(ChatColor.GRAY + "• Cannot interact in territory");
+                lore.add(ChatColor.GRAY + "• PvP allowed");
+                break;
+            case NEUTRAL:
+                lore.add(ChatColor.WHITE + "○ Neutral Faction");
+                lore.add(ChatColor.GRAY + "• Default relation");
+                break;
+        }
+
+        skullMeta.setLore(lore);
+        head.setItemMeta(skullMeta);
+
+        return head;
+    }
+
+    /**
+     * Handle relations view menu clicks
+     */
+    public void handleRelationsViewClick(Player player, String displayName, String title) {
+        if (displayName.equals(ChatColor.GRAY + "← Back")) {
+            String factionName = playerFactions.get(player.getUniqueId());
+            openFactionMenu(player, factionName);
+        }
+        // Relations view is read-only, so no other interactions needed
+    }
+
+    /**
+     * Format milliseconds into a readable time string
+     */
+    private String formatTimeString(long milliseconds) {
+        long seconds = milliseconds / 1000;
+        long minutes = seconds / 60;
+        long hours = minutes / 60;
+        long days = hours / 24;
+
+        if (days > 0) {
+            return days + " day" + (days == 1 ? "" : "s");
+        } else if (hours > 0) {
+            return hours + " hour" + (hours == 1 ? "" : "s");
+        } else if (minutes > 0) {
+            return minutes + " minute" + (minutes == 1 ? "" : "s");
+        } else {
+            return seconds + " second" + (seconds == 1 ? "" : "s");
+        }
     }
 
     /**
@@ -1193,6 +1574,10 @@ public class MenuHandler {
             openDisbandConfirmation(player, factionName);
         } else if (displayName.equals(ChatColor.GRAY + "← Back")) {
             player.closeInventory();
+        } else if (displayName.equals(ChatColor.GOLD + "Relation Requests")) {
+            openRelationRequestsMenu(player, factionName);
+        } else if (displayName.equals(ChatColor.BLUE + "View Relations")) {
+            openRelationsViewMenu(player, factionName);
         }
     }
 

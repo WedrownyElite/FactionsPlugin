@@ -22,7 +22,7 @@ public class FactionsTabCompleter implements TabCompleter {
             List<String> commands = new ArrayList<>();
 
             // Basic commands everyone can see
-            commands.addAll(Arrays.asList("create", "claim", "promote", "demote", "desc", "map", "unclaim", "unclaimall", "invite", "kick", "menu", "join", "leave", "disband", "invitations", "privacy"));
+            commands.addAll(Arrays.asList("create", "claim", "promote", "demote", "desc", "map", "unclaim", "unclaimall", "invite", "kick", "menu", "join", "leave", "disband", "invitations", "privacy", "relation", "ally", "truce"));
 
             // Admin commands - only show if player has permission or is op
             if (sender.isOp() || sender.hasPermission("factions.adminclaim")) {
@@ -162,6 +162,26 @@ public class FactionsTabCompleter implements TabCompleter {
                         return Arrays.asList("10", "20", "40", "50", "100");
                     }
                     return Collections.emptyList();
+                case "relation":
+                    // Show faction names for relation command
+                    FactionsPlugin relationPlugin = (FactionsPlugin) Bukkit.getPluginManager().getPlugin("Factions");
+                    if (relationPlugin != null) {
+                        return relationPlugin.getUtilityManager().getAllFactionNames().stream()
+                                .filter(name -> !name.equals(getPlayerFaction(sender)))
+                                .collect(Collectors.toList());
+                    }
+                    return Collections.emptyList();
+
+                case "ally":
+                case "truce":
+                    // Show faction names for ally/truce commands
+                    FactionsPlugin allyPlugin = (FactionsPlugin) Bukkit.getPluginManager().getPlugin("Factions");
+                    if (allyPlugin != null) {
+                        return allyPlugin.getUtilityManager().getAllFactionNames().stream()
+                                .filter(name -> !name.equals(getPlayerFaction(sender)))
+                                .collect(Collectors.toList());
+                    }
+                    return Collections.emptyList();
 
                 default:
                     return Collections.emptyList();
@@ -171,15 +191,28 @@ public class FactionsTabCompleter implements TabCompleter {
         if (args.length == 3) {
             String subCommand = args[0].toLowerCase();
 
-            if (subCommand.equals("adminjoin")) {
-                if (sender.isOp() || sender.hasPermission("factions.adminjoin")) {
-                    return Arrays.asList("<PlayerName>");
-                }
+            switch(subCommand) {
+                case "adminjoin":
+                    if (sender.isOp() || sender.hasPermission("factions.adminjoin")) {
+                        return Arrays.asList("<PlayerName>");
+                    }
+                case "relation":
+                    return Arrays.asList("neutral", "enemy");
             }
 
             return Collections.emptyList();
         }
 
         return Collections.emptyList();
+    }
+
+    private String getPlayerFaction(CommandSender sender) {
+        if (!(sender instanceof Player)) return null;
+        Player player = (Player) sender;
+        FactionsPlugin plugin = (FactionsPlugin) Bukkit.getPluginManager().getPlugin("Factions");
+        if (plugin != null) {
+            return plugin.getPlayerFactions().get(player.getUniqueId());
+        }
+        return null;
     }
 }

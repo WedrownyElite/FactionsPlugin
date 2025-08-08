@@ -4,6 +4,8 @@ import me.elite.Factions.territory.ChunkCoord;
 import me.elite.Factions.data.Faction;
 import me.elite.Factions.data.Rank;
 import me.elite.Factions.FactionsPlugin;
+import me.elite.Factions.data.Relation;
+import me.elite.Factions.data.FactionPermission;
 import org.bukkit.Bukkit;
 import org.bukkit.ChatColor;
 import org.bukkit.World;
@@ -90,9 +92,231 @@ public class CommandManager implements CommandExecutor {
                 return handleCreateTestFactions(player, args);
             case "removetestfactions":
                 return handleRemoveTestFactions(player, args);
+            case "relation":
+                return handleRelation(player, args);
+            case "ally":
+                return handleAlly(player, args);
+            case "truce":
+                return handleTruce(player, args);
+            case "relations":
+            case "rel":
+                return handleRelationsInfo(player, args);
             default:
                 return false;
         }
+    }
+    private boolean handleRelationsInfo(Player player, String[] args) {
+        UUID uuid = player.getUniqueId();
+        String factionName = playerFactions.get(uuid);
+
+        if (factionName == null) {
+            player.sendMessage(ChatColor.RED + "You are not in a faction.");
+            return true;
+        }
+
+        player.sendMessage(ChatColor.YELLOW + "═══════════════════════════════════");
+        player.sendMessage(ChatColor.GREEN + "" + ChatColor.BOLD + factionName + " RELATIONS");
+        player.sendMessage(ChatColor.YELLOW + "═══════════════════════════════════");
+
+        // Show current relations
+        Map<String, Relation> relations = plugin.getRelationManager().getFactionRelations(factionName);
+
+        if (relations.isEmpty()) {
+            player.sendMessage(ChatColor.GRAY + "No special relations with other factions.");
+            player.sendMessage(ChatColor.GRAY + "All other factions are " + ChatColor.WHITE + "Neutral" + ChatColor.GRAY + " by default.");
+        } else {
+            // Group by relation type
+            Map<Relation, List<String>> grouped = new HashMap<>();
+            for (Map.Entry<String, Relation> entry : relations.entrySet()) {
+                grouped.computeIfAbsent(entry.getValue(), k -> new ArrayList<>()).add(entry.getKey());
+            }
+
+            // Display each relation type
+            for (Relation relationType : Arrays.asList(Relation.ALLY, Relation.TRUCE, Relation.ENEMY, Relation.NEUTRAL)) {
+                List<String> factionsWithRelation = grouped.get(relationType);
+                if (factionsWithRelation == null || factionsWithRelation.isEmpty()) continue;
+
+                ChatColor color = plugin.getRelationManager().getRelationColor(relationType);
+                player.sendMessage(color + "" + ChatColor.BOLD + relationType.getDisplayName() + " (" + factionsWithRelation.size() + "):");
+
+                for (String targetFaction : factionsWithRelation) {
+                    Faction f = factions.get(targetFaction);
+                    int memberCount = f != null ? f.members.size() : 0;
+                    player.sendMessage(ChatColor.GRAY + "  • " + color + targetFaction + ChatColor.GRAY + " (" + memberCount + " members)");
+                }
+            }
+        }
+
+        // Show pending outgoing requests
+        List<RelationRequest> outgoingRequests = new ArrayList<>();
+        for (List<RelationRequest> requests : plugin.getRelationManager().getAllPendingRequests().values()) {
+            for (RelationRequest request : requests) {
+                if (request.fromFaction.equals(factionName)) {
+                    outgoingRequests.add(request);
+                }
+            }
+        }
+
+        if (!outgoingRequests.isEmpty()) {
+            player.sendMessage("");
+            player.sendMessage(ChatColor.YELLOW + "" + ChatColor.BOLD + "OUTGOING REQUESTS:");
+            for (RelationRequest request : outgoingRequests) {
+                ChatColor color = plugin.getRelationManager().getRelationColor(request.requestedRelation);
+                long timeSince = System.currentTimeMillis() - request.timestamp;
+                String timeString = formatTimeString(timeSince);
+                player.sendMessage(ChatColor.GRAY + "  • " + color + request.requestedRelation.getDisplayName() +
+                        ChatColor.GRAY + " to " + ChatColor.WHITE + request.toFaction +
+                        ChatColor.GRAY + " (" + timeString + " ago)");
+            }
+        }
+
+        // Show pending incoming requests
+        List<RelationRequest> incomingRequests = plugin.getRelationManager().getPendingRequests(factionName);
+        if (!incomingRequests.isEmpty()) {
+            player.sendMessage("");
+            player.sendMessage(ChatColor.YELLOW + "" + ChatColor.BOLD + "INCOMING REQUESTS:");
+            for (RelationRequest request : incomingRequests) {
+                ChatColor color = plugin.getRelationManager().getRelationColor(request.requestedRelation);
+                long timeSince = System.currentTimeMillis() - request.timestamp;
+                String timeString = formatTimeString(timeSince);
+                Player requester = Bukkit.getOfflinePlayer(request.requestedBy).getPlayer();
+                String requesterName = requester != null ? requester.getName() : "Unknown";
+                player.sendMessage(ChatColor.GRAY + "  • " + color + request.requestedRelation.getDisplayName() +
+                        ChatColor.GRAY + " from " + ChatColor.WHITE + request.fromFaction +
+                        ChatColor.GRAY + " by " + requesterName + " (" + timeString + " ago)");
+            }
+
+            Faction faction = factions.get(factionName);
+            Rank playerRank = faction.members.get(uuid);
+            if (faction.hasPermission(playerRank, FactionPermission.SET_RELATIONS)) {
+                player.sendMessage(ChatColor.GRAY + "Use " + ChatColor.YELLOW + "/f menu" + ChatColor.GRAY + " to manage incoming requests.");
+            }
+        }
+
+        player.sendMessage(ChatColor.YELLOW + "═══════════════════════════════════");
+        return true;
+    }
+
+    private boolean handleRelation(Player player, String[] args) {
+        UUID uuid = player.getUniqueId();
+        String factionName = playerFactions.get(uuid);
+
+        if (factionName == null) {
+            player.sendMessage(ChatColor.RED + "You are not in a faction.");
+            return true;
+        }
+
+        if (args.length < 3) {
+            player.sendMessage(ChatColor.RED + "Usage: /f relation <FactionName> <neutral|enemy>");
+            return true;
+        }
+
+        Faction faction = factions.get(factionName);
+        Rank playerRank = faction.members.get(uuid);
+
+        // Check permission
+        if (!faction.hasPermission(playerRank, FactionPermission.SET_RELATIONS)) {
+            player.sendMessage(ChatColor.RED + "You lack permission to set faction relations.");
+            return true;
+        }
+
+        String targetFaction = args[1];
+        String relationStr = args[2].toLowerCase();
+
+        if (!factions.containsKey(targetFaction)) {
+            player.sendMessage(ChatColor.RED + "Faction '" + targetFaction + "' does not exist.");
+            return true;
+        }
+
+        if (targetFaction.equals(factionName)) {
+            player.sendMessage(ChatColor.RED + "You cannot set relations with your own faction.");
+            return true;
+        }
+
+        Relation relation;
+        try {
+            relation = Relation.valueOf(relationStr.toUpperCase());
+        } catch (IllegalArgumentException e) {
+            player.sendMessage(ChatColor.RED + "Invalid relation. Use: neutral, enemy");
+            return true;
+        }
+
+        // Only allow NEUTRAL and ENEMY for direct setting
+        if (relation != Relation.NEUTRAL && relation != Relation.ENEMY) {
+            player.sendMessage(ChatColor.RED + "Use /f ally or /f truce for those relations.");
+            return true;
+        }
+
+        boolean success = plugin.getRelationManager().setDirectRelation(factionName, targetFaction, relation, uuid);
+        if (success) {
+            player.sendMessage(ChatColor.GREEN + "Relation with " + targetFaction + " set to: " +
+                    plugin.getRelationManager().getRelationColor(relation) + relation.getDisplayName());
+
+            // Save data
+            plugin.getDataManager().saveFactionData();
+        } else {
+            player.sendMessage(ChatColor.RED + "Failed to set relation.");
+        }
+
+        return true;
+    }
+
+    private boolean handleAlly(Player player, String[] args) {
+        return handleRelationRequest(player, args, Relation.ALLY);
+    }
+
+    private boolean handleTruce(Player player, String[] args) {
+        return handleRelationRequest(player, args, Relation.TRUCE);
+    }
+
+    private boolean handleRelationRequest(Player player, String[] args, Relation relation) {
+        UUID uuid = player.getUniqueId();
+        String factionName = playerFactions.get(uuid);
+
+        if (factionName == null) {
+            player.sendMessage(ChatColor.RED + "You are not in a faction.");
+            return true;
+        }
+
+        if (args.length < 2) {
+            player.sendMessage(ChatColor.RED + "Usage: /f " + relation.name().toLowerCase() + " <FactionName>");
+            return true;
+        }
+
+        Faction faction = factions.get(factionName);
+        Rank playerRank = faction.members.get(uuid);
+
+        // Check permission
+        if (!faction.hasPermission(playerRank, FactionPermission.SET_RELATIONS)) {
+            player.sendMessage(ChatColor.RED + "You lack permission to set faction relations.");
+            return true;
+        }
+
+        String targetFaction = args[1];
+
+        if (!factions.containsKey(targetFaction)) {
+            player.sendMessage(ChatColor.RED + "Faction '" + targetFaction + "' does not exist.");
+            return true;
+        }
+
+        if (targetFaction.equals(factionName)) {
+            player.sendMessage(ChatColor.RED + "You cannot set relations with your own faction.");
+            return true;
+        }
+
+        boolean success = plugin.getRelationManager().sendRelationRequest(factionName, targetFaction, relation, uuid);
+        if (success) {
+            player.sendMessage(ChatColor.GREEN + "Sent " +
+                    plugin.getRelationManager().getRelationColor(relation) + relation.getDisplayName() +
+                    ChatColor.GREEN + " request to " + targetFaction + "!");
+
+            // Save data
+            plugin.getDataManager().saveFactionData();
+        } else {
+            player.sendMessage(ChatColor.RED + "Failed to send relation request. A request may already exist.");
+        }
+
+        return true;
     }
 
     private boolean handleCreateTestFactions(Player player, String[] args) {
@@ -886,5 +1110,24 @@ public class CommandManager implements CommandExecutor {
         }
 
         return true;
+    }
+
+    // Add this helper method to CommandManager:
+
+    private String formatTimeString(long milliseconds) {
+        long seconds = milliseconds / 1000;
+        long minutes = seconds / 60;
+        long hours = minutes / 60;
+        long days = hours / 24;
+
+        if (days > 0) {
+            return days + " day" + (days == 1 ? "" : "s");
+        } else if (hours > 0) {
+            return hours + " hour" + (hours == 1 ? "" : "s");
+        } else if (minutes > 0) {
+            return minutes + " minute" + (minutes == 1 ? "" : "s");
+        } else {
+            return seconds + " second" + (seconds == 1 ? "" : "s");
+        }
     }
 }
