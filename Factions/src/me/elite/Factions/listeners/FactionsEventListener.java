@@ -340,20 +340,17 @@ public class FactionsEventListener implements Listener {
     public void onPlayerJoin(org.bukkit.event.player.PlayerJoinEvent event) {
         Player player = event.getPlayer();
 
-        // Update this player's name color for all online players
-        updatePlayerNameColorForAll(player);
-
-        // Update all online players' name colors for this player
-        for (Player onlinePlayer : Bukkit.getOnlinePlayers()) {
-            if (!onlinePlayer.equals(player)) {
-                updatePlayerNameColorFor(onlinePlayer, player);
-            }
-        }
+        plugin.getNametagManager().onPlayerJoin(player);
     }
 
     @EventHandler(priority = EventPriority.MONITOR)
     public void onPlayerQuit(org.bukkit.event.player.PlayerQuitEvent event) {
-        // Reset player's display name when they leave
+        Player player = event.getPlayer();
+
+        // Handle nametag cleanup
+        plugin.getNametagManager().onPlayerLeave(player);
+
+        // Reset player's display name when they leave (for chat)
         event.getPlayer().setDisplayName(event.getPlayer().getName());
         event.getPlayer().setPlayerListName(event.getPlayer().getName());
     }
@@ -1079,145 +1076,34 @@ public class FactionsEventListener implements Listener {
     }
 
     /**
-     * Update a player's name color as seen by all online players
-     */
-    public void updatePlayerNameColorForAll(Player player) {
-        for (Player viewer : Bukkit.getOnlinePlayers()) {
-            if (!viewer.equals(player)) {
-                updatePlayerNameColorFor(player, viewer);
-            }
-        }
-    }
-
-    /**
-     * Update how a specific player's name appears to a specific viewer
-     */
-    public void updatePlayerNameColorFor(Player player, Player viewer) {
-        ChatColor nameColor = getNameColorForRelation(player, viewer);
-        String coloredName = nameColor + player.getName() + ChatColor.RESET;
-
-        try {
-            // Update the name in the viewer's client
-            viewer.getServer().getScheduler().runTask(plugin, () -> {
-                // Use packets to update the name color for the specific viewer
-                // This is a simplified approach - in practice you might want to use ProtocolLib
-                // For now, we'll use the basic approach with display names
-
-                // Set the display name (visible in chat)
-                if (viewer.canSee(player)) {
-                    player.setDisplayName(coloredName);
-                }
-            });
-        } catch (Exception e) {
-            plugin.getLogger().warning("Failed to update name color for " + player.getName() + ": " + e.getMessage());
-        }
-    }
-
-    /**
-     * Get the appropriate name color based on faction relations
-     */
-    private ChatColor getNameColorForRelation(Player player, Player viewer) {
-        String playerFaction = playerFactions.get(player.getUniqueId());
-        String viewerFaction = playerFactions.get(viewer.getUniqueId());
-
-        // If viewer has no faction, show default white
-        if (viewerFaction == null) {
-            return ChatColor.WHITE;
-        }
-
-        // If player has no faction, show default white
-        if (playerFaction == null) {
-            return ChatColor.WHITE;
-        }
-
-        // Same faction = GREEN
-        if (playerFaction.equals(viewerFaction)) {
-            return ChatColor.GREEN;
-        }
-
-        // Different factions - check relations
-        me.elite.Factions.data.Relation relation = plugin.getRelationManager().getRelation(viewerFaction, playerFaction);
-
-        switch (relation) {
-            case ALLY:
-                return ChatColor.LIGHT_PURPLE; // Purple for allies
-            case TRUCE:
-                return ChatColor.BLUE; // Blue for truce
-            case ENEMY:
-                return ChatColor.RED; // Red for enemies
-            case NEUTRAL:
-            default:
-                return ChatColor.WHITE; // White for neutral
-        }
-    }
-
-    /**
      * Update name colors when a player joins a faction
      */
     public void onPlayerJoinFaction(Player player) {
-        // Update this player's color for everyone
-        updatePlayerNameColorForAll(player);
-
-        // Update everyone's color for this player
-        for (Player onlinePlayer : Bukkit.getOnlinePlayers()) {
-            if (!onlinePlayer.equals(player)) {
-                updatePlayerNameColorFor(onlinePlayer, player);
-            }
-        }
+        plugin.getNametagManager().onFactionChange(player);
     }
 
     /**
      * Update name colors when a player leaves a faction
      */
     public void onPlayerLeaveFaction(Player player) {
-        // Reset player's display name to default
+        plugin.getNametagManager().onFactionChange(player);
+
+        // Keep chat display name reset for chat purposes
         player.setDisplayName(player.getName());
-
-        // Update this player's color for everyone (should now be white)
-        updatePlayerNameColorForAll(player);
-
-        // Update everyone's color for this player
-        for (Player onlinePlayer : Bukkit.getOnlinePlayers()) {
-            if (!onlinePlayer.equals(player)) {
-                updatePlayerNameColorFor(onlinePlayer, player);
-            }
-        }
     }
 
     /**
      * Update name colors when faction relations change
      */
     public void onFactionRelationChange(String faction1, String faction2) {
-        // Get all online players from both factions
-        Set<Player> playersToUpdate = new HashSet<>();
-
-        for (Map.Entry<UUID, String> entry : playerFactions.entrySet()) {
-            if (entry.getValue().equals(faction1) || entry.getValue().equals(faction2)) {
-                Player player = Bukkit.getPlayer(entry.getKey());
-                if (player != null && player.isOnline()) {
-                    playersToUpdate.add(player);
-                }
-            }
-        }
-
-        // Update name colors between these players
-        for (Player player1 : playersToUpdate) {
-            for (Player player2 : playersToUpdate) {
-                if (!player1.equals(player2)) {
-                    updatePlayerNameColorFor(player1, player2);
-                    updatePlayerNameColorFor(player2, player1);
-                }
-            }
-        }
+        plugin.getNametagManager().onRelationChange(faction1, faction2);
     }
 
     /**
      * Call this method whenever faction membership or relations change
      */
     public void refreshAllNameColors() {
-        for (Player player : Bukkit.getOnlinePlayers()) {
-            updatePlayerNameColorForAll(player);
-        }
+        plugin.getNametagManager().refreshAllNametags();
     }
 
     private void joinFactionFromBrowser(Player player, String factionName) {

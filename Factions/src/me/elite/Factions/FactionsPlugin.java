@@ -12,6 +12,7 @@ import me.elite.Factions.territory.ChunkCoord;
 import me.elite.Factions.territory.ClaimManager;
 import me.elite.Factions.utils.FactionUtilityManager;
 import me.elite.Factions.Relations.RelationManager;
+import me.elite.Factions.nametags.PacketNametagManager;
 
 import org.bukkit.Bukkit;
 import org.bukkit.Chunk;
@@ -43,6 +44,7 @@ public class FactionsPlugin extends JavaPlugin implements Listener {
     private FactionCreationManager factionCreationManager;
     private FactionUtilityManager utilityManager;
     private RelationManager relationManager;
+    private PacketNametagManager nametagManager;
 
     @Override
     public void onEnable() {
@@ -59,6 +61,7 @@ public class FactionsPlugin extends JavaPlugin implements Listener {
         commandManager = new CommandManager(this);
         eventListener = new FactionsEventListener(this);
         relationManager = new RelationManager(this);
+        nametagManager = new PacketNametagManager(this);
 
         // Load data
         dataManager.loadFactionData();
@@ -72,6 +75,10 @@ public class FactionsPlugin extends JavaPlugin implements Listener {
         Bukkit.getScheduler().runTaskTimer(this, () -> {
             relationManager.cleanupExpiredRequests();
         }, 20L * 60 * 60, 20L * 60 * 60); // Run every hour
+
+        Bukkit.getScheduler().runTaskLater(this, () -> {
+            nametagManager.refreshAllNametags();
+        }, 20L);
 
         getLogger().info("Custom Factions plugin enabled.");
     }
@@ -93,6 +100,8 @@ public class FactionsPlugin extends JavaPlugin implements Listener {
     public FactionsEventListener getEventListener() {return eventListener;}
 
     public RelationManager getRelationManager() {return relationManager;}
+
+    public PacketNametagManager getNametagManager() {return nametagManager;}
 
     public DataManager getDataManager() {
         return dataManager;
