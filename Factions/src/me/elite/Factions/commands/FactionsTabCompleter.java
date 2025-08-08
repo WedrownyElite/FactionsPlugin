@@ -146,6 +146,10 @@ public class FactionsTabCompleter implements TabCompleter {
                     }
                     return Collections.emptyList();
 
+                case "debugnametags":
+                    if (sender.isOp() || sender.hasPermission("factions.debugnametags")) {
+                        return Arrays.asList("refresh", "info", "test");
+                    }
                 case "join":
                     if (sender instanceof Player) {
                         Player player = (Player) sender;

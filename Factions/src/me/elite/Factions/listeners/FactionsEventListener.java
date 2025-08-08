@@ -1054,6 +1054,90 @@ public class FactionsEventListener implements Listener {
         }
     }
 
+    public void handleKickPlayer(Player kicker, UUID targetUUID, String factionName) {
+        OfflinePlayer target = Bukkit.getOfflinePlayer(targetUUID);
+        Faction faction = factions.get(factionName);
+
+        // Remove player from faction
+        faction.members.remove(targetUUID);
+        playerFactions.remove(targetUUID);
+
+        // Notify players
+        kicker.sendMessage(ChatColor.GREEN + "Successfully kicked " + target.getName() + " from " + factionName + "!");
+
+        if (target.isOnline()) {
+            Player onlineTarget = (Player) target;
+            onlineTarget.sendMessage(ChatColor.RED + "You have been kicked from faction " + factionName + " by " + kicker.getName() + "!");
+
+            // UPDATE NAMETAGS when player is kicked
+            onPlayerLeaveFaction(onlineTarget);
+        }
+
+        // Save data
+        plugin.getDataManager().saveFactionData();
+    }
+
+    public void handlePlayerLeaveFaction(Player player, String factionName) {
+        UUID uuid = player.getUniqueId();
+        Faction faction = factions.get(factionName);
+
+        // Remove player from faction
+        faction.members.remove(uuid);
+        playerFactions.remove(uuid);
+
+        player.sendMessage(ChatColor.GREEN + "You have left faction " + factionName + ".");
+
+        // UPDATE NAMETAGS when player leaves
+        onPlayerLeaveFaction(player);
+
+        // Notify other online faction members
+        for (UUID memberUUID : faction.members.keySet()) {
+            Player member = Bukkit.getPlayer(memberUUID);
+            if (member != null) {
+                member.sendMessage(ChatColor.YELLOW + player.getName() + " has left the faction.");
+            }
+        }
+
+        // Save data
+        plugin.getDataManager().saveFactionData();
+    }
+
+    public void disbandFaction(String factionName, Player disbander) {
+        Faction faction = factions.get(factionName);
+        if (faction == null) return;
+
+        // Notify all members and update nametags
+        for (UUID memberUUID : faction.members.keySet()) {
+            Player member = Bukkit.getPlayer(memberUUID);
+            if (member != null) {
+                member.sendMessage(ChatColor.RED + "Faction " + factionName + " has been disbanded by " + disbander.getName() + "!");
+
+                // UPDATE NAMETAGS when faction is disbanded
+                plugin.getEventListener().onPlayerLeaveFaction(member);
+            }
+            playerFactions.remove(memberUUID);
+        }
+
+        // Remove all claims
+        for (Map<ChunkCoord, String> worldClaim : plugin.getWorldClaims().values()) {
+            worldClaim.entrySet().removeIf(entry -> entry.getValue().equals(factionName));
+        }
+
+        // Remove faction from invitations
+        for (Set<String> invites : playerInvitations.values()) {
+            invites.remove(factionName);
+        }
+        playerInvitations.entrySet().removeIf(entry -> entry.getValue().isEmpty());
+
+        // Remove faction
+        factions.remove(factionName);
+
+        disbander.sendMessage(ChatColor.GREEN + "Faction " + factionName + " has been disbanded.");
+
+        // Save data
+        plugin.getDataManager().saveFactionData();
+    }
+
     private void handleBrowseFactionsClick(Player player, int slot, String displayName) {
         // Handle back button
         if (displayName.equals(ChatColor.GRAY + "← Back")) {

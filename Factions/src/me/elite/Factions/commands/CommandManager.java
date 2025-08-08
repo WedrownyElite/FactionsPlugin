@@ -107,9 +107,60 @@ public class CommandManager implements CommandExecutor {
                 return handleConfirmOwnership(player, args);
             case "cancel":
                 return handleCancelOwnership(player, args);
+            case "debugnametags":
+                return handleDebugNametags(player, args);
             default:
                 return false;
         }
+    }
+
+    private boolean handleDebugNametags(Player player, String[] args) {
+        if (!player.isOp()) {
+            player.sendMessage(ChatColor.RED + "You must be an operator to use this command.");
+            return true;
+        }
+
+        if (args.length < 2) {
+            player.sendMessage(ChatColor.YELLOW + "Usage: /f debugnametags <refresh|info|test>");
+            return true;
+        }
+
+        switch (args[1].toLowerCase()) {
+            case "refresh":
+                player.sendMessage(ChatColor.YELLOW + "Refreshing all nametags...");
+                plugin.getNametagManager().forceRefreshAll();
+                player.sendMessage(ChatColor.GREEN + "Nametag refresh complete!");
+                break;
+
+            case "info":
+                UUID uuid = player.getUniqueId();
+                String factionName = playerFactions.get(uuid);
+                player.sendMessage(ChatColor.YELLOW + "=== NAMETAG DEBUG INFO ===");
+                player.sendMessage(ChatColor.WHITE + "Your faction: " + (factionName != null ? factionName : "None"));
+
+                // Show what suffixes you should see for other players
+                for (Player other : Bukkit.getOnlinePlayers()) {
+                    if (!other.equals(player)) {
+                        String otherFaction = playerFactions.get(other.getUniqueId());
+                        String suffix = getDebugSuffix(player, other);
+                        player.sendMessage(ChatColor.GRAY + other.getName() + " (" +
+                                (otherFaction != null ? otherFaction : "No faction") + "): " + suffix);
+                    }
+                }
+                break;
+
+            case "test":
+                // Force update nametags for the player
+                plugin.getNametagManager().onFactionChange(player);
+                player.sendMessage(ChatColor.GREEN + "Triggered nametag update for you!");
+                break;
+
+            default:
+                player.sendMessage(ChatColor.RED + "Unknown debug option. Use: refresh, info, or test");
+                break;
+        }
+
+        return true;
     }
 
     private boolean handleEnemy(Player player, String[] args) {
@@ -533,6 +584,9 @@ public class CommandManager implements CommandExecutor {
         factions.put(name, f);
         playerFactions.put(uuid, name);
         player.sendMessage("Faction created: " + name);
+
+        plugin.getEventListener().onPlayerJoinFaction(player);
+
         return true;
     }
 
@@ -1094,7 +1148,7 @@ public class CommandManager implements CommandExecutor {
 
         player.sendMessage(ChatColor.GREEN + "Successfully joined faction " + factionName + "!");
 
-        // Update nametags
+        // UPDATE NAMETAGS when player joins faction
         plugin.getEventListener().onPlayerJoinFaction(player);
 
         // Notify other online faction members
@@ -1131,10 +1185,9 @@ public class CommandManager implements CommandExecutor {
 
         player.sendMessage(ChatColor.GREEN + "You have left faction " + factionName + ".");
 
-        // Update nametags
-        if (player.isOnline()) {
-            plugin.getEventListener().onPlayerLeaveFaction(player);
-        }
+        // UPDATE NAMETAGS when player leaves faction
+        plugin.getEventListener().onPlayerLeaveFaction(player);
+
         // Notify other online faction members
         for (UUID memberUUID : faction.members.keySet()) {
             Player member = Bukkit.getPlayer(memberUUID);
@@ -1302,6 +1355,9 @@ public class CommandManager implements CommandExecutor {
         player.sendMessage(ChatColor.GREEN + "Successfully kicked " + targetName + " from " + factionName + "!");
         if (target != null) {
             target.sendMessage(ChatColor.RED + "You have been kicked from faction " + factionName + " by " + player.getName() + "!");
+
+            // UPDATE NAMETAGS when player is kicked
+            plugin.getEventListener().onPlayerLeaveFaction(target);
         }
 
         return true;
@@ -1323,6 +1379,23 @@ public class CommandManager implements CommandExecutor {
             return minutes + " minute" + (minutes == 1 ? "" : "s");
         } else {
             return seconds + " second" + (seconds == 1 ? "" : "s");
+        }
+    }
+
+    private String getDebugSuffix(Player viewer, Player target) {
+        String viewerFaction = playerFactions.get(viewer.getUniqueId());
+        String targetFaction = playerFactions.get(target.getUniqueId());
+
+        if (viewerFaction == null) return "None (no faction)";
+        if (targetFaction == null) return "None (target no faction)";
+        if (viewerFaction.equals(targetFaction)) return ChatColor.GREEN + "Green F (same faction)";
+
+        me.elite.Factions.data.Relation relation = plugin.getRelationManager().getRelation(viewerFaction, targetFaction);
+        switch (relation) {
+            case ALLY: return ChatColor.LIGHT_PURPLE + "Purple A (ally)";
+            case TRUCE: return ChatColor.BLUE + "Blue T (truce)";
+            case ENEMY: return ChatColor.RED + "Red E (enemy)";
+            default: return "None (neutral)";
         }
     }
 }
