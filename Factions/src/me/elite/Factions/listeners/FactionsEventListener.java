@@ -1,4 +1,5 @@
 package me.elite.Factions.listeners;
+import me.elite.Factions.data.Relation;
 
 import me.elite.Factions.FactionsPlugin;
 import me.elite.Factions.data.Faction;

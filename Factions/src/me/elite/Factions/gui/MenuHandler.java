@@ -4,6 +4,9 @@ import me.elite.Factions.FactionsPlugin;
 import me.elite.Factions.data.Faction;
 import me.elite.Factions.data.Rank;
 import me.elite.Factions.territory.ChunkCoord;
+import me.elite.Factions.data.FactionPermission;
+import me.elite.Factions.data.RelationPermission;
+import me.elite.Factions.data.Relation;
 import org.bukkit.Bukkit;
 import org.bukkit.ChatColor;
 import org.bukkit.Material;
@@ -20,6 +23,7 @@ import com.mojang.authlib.properties.Property;
 import java.lang.reflect.Field;
 import java.util.UUID;
 import java.util.Set;
+import java.util.EnumSet;
 
 import java.util.*;
 
@@ -1216,28 +1220,22 @@ public class MenuHandler {
             return;
         }
 
-        // Handle rank permission clicks (green squares)
+        // Handle rank permission clicks (green panes)
         if (displayName.startsWith(ChatColor.GREEN.toString())) {
-            if (displayName.contains("ADMIN")) {
-                openRankPermissionsGUI(player, factionName, Rank.ADMIN);
-            } else if (displayName.contains("MOD")) {
-                openRankPermissionsGUI(player, factionName, Rank.MOD);
-            } else if (displayName.contains("MEMBER")) {
-                openRankPermissionsGUI(player, factionName, Rank.MEMBER);
-            } else if (displayName.contains("RECRUIT")) {
-                openRankPermissionsGUI(player, factionName, Rank.RECRUIT);
+            for (Rank rank : Rank.values()) {
+                if (displayName.equals(ChatColor.GREEN + "" + ChatColor.BOLD + rank.name())) {
+                    openRankPermissionsGUI(player, factionName, rank);
+                    return;
+                }
             }
         }
-        // Handle relation permission clicks (purple squares)
+        // Handle relation permission clicks (purple panes)
         else if (displayName.startsWith(ChatColor.LIGHT_PURPLE.toString())) {
-            if (displayName.contains("Neutral")) {
-                openRelationPermissionsGUI(player, factionName, Relation.NEUTRAL);
-            } else if (displayName.contains("Truce")) {
-                openRelationPermissionsGUI(player, factionName, Relation.TRUCE);
-            } else if (displayName.contains("Ally")) {
-                openRelationPermissionsGUI(player, factionName, Relation.ALLY);
-            } else if (displayName.contains("Enemy")) {
-                openRelationPermissionsGUI(player, factionName, Relation.ENEMY);
+            for (Relation relation : Relation.values()) {
+                if (displayName.equals(ChatColor.LIGHT_PURPLE + "" + ChatColor.BOLD + relation.getDisplayName())) {
+                    openRelationPermissionsGUI(player, factionName, relation);
+                    return;
+                }
             }
         }
     }
@@ -1826,7 +1824,7 @@ public class MenuHandler {
      * Open the main permissions GUI with rank and relation sections
      */
     public void openPermissionsGUI(Player player, String factionName) {
-        Inventory menu = Bukkit.createInventory(null, 54, ChatColor.DARK_GRAY + "Faction Permissions");
+        Inventory menu = Bukkit.createInventory(null, 36, ChatColor.DARK_GRAY + "Faction Permissions");
 
         // Fill with black glass panes
         ItemStack blackGlass = new ItemStack(Material.BLACK_STAINED_GLASS_PANE);
@@ -1834,44 +1832,38 @@ public class MenuHandler {
         glassMeta.setDisplayName(" ");
         blackGlass.setItemMeta(glassMeta);
 
-        for (int i = 0; i < 54; i++) {
+        for (int i = 0; i < 36; i++) {
             menu.setItem(i, blackGlass);
         }
 
-        // Rank permissions section (Green squares - 2x2 each)
-        // ADMIN (slots 10, 11, 19, 20)
-        createRankPermissionSquare(menu, Rank.ADMIN, 10);
+        // Left 2x2 Green Square - Individual Rank Permissions
+        // Top-left: ADMIN (slot 10)
+        createRankPermissionPane(menu, 11, Rank.ADMIN);
+        // Top-right: MOD (slot 11)
+        createRankPermissionPane(menu, 12, Rank.MOD);
+        // Bottom-left: MEMBER (slot 19)
+        createRankPermissionPane(menu, 20, Rank.MEMBER);
+        // Bottom-right: RECRUIT (slot 20)
+        createRankPermissionPane(menu, 21, Rank.RECRUIT);
 
-        // MOD (slots 12, 13, 21, 22)
-        createRankPermissionSquare(menu, Rank.MOD, 12);
-
-        // MEMBER (slots 14, 15, 23, 24)
-        createRankPermissionSquare(menu, Rank.MEMBER, 14);
-
-        // RECRUIT (slots 16, 17, 25, 26)
-        createRankPermissionSquare(menu, Rank.RECRUIT, 16);
-
-        // Relation permissions section (Purple squares - 2x2 each)
-        // NEUTRAL (slots 28, 29, 37, 38)
-        createRelationPermissionSquare(menu, Relation.NEUTRAL, 28);
-
-        // TRUCE (slots 30, 31, 39, 40)
-        createRelationPermissionSquare(menu, Relation.TRUCE, 30);
-
-        // ALLY (slots 32, 33, 41, 42)
-        createRelationPermissionSquare(menu, Relation.ALLY, 32);
-
-        // ENEMY (slots 34, 35, 43, 44)
-        createRelationPermissionSquare(menu, Relation.ENEMY, 34);
+        // Right 2x2 Purple Square - Individual Relation Permissions
+        // Top-left: NEUTRAL (slot 14)
+        createRelationPermissionPane(menu, 14, Relation.NEUTRAL);
+        // Top-right: TRUCE (slot 15)
+        createRelationPermissionPane(menu, 15, Relation.TRUCE);
+        // Bottom-left: ALLY (slot 23)
+        createRelationPermissionPane(menu, 23, Relation.ALLY);
+        // Bottom-right: ENEMY (slot 24)
+        createRelationPermissionPane(menu, 24, Relation.ENEMY);
 
         // Back button
         ItemStack backButton = createBackButton();
-        menu.setItem(45, backButton); // Bottom left
+        menu.setItem(27, backButton); // Bottom left
 
         player.openInventory(menu);
     }
 
-    private void createRankPermissionSquare(Inventory menu, Rank rank, int startSlot) {
+    private void createRankPermissionPane(Inventory menu, int slot, Rank rank) {
         ItemStack greenGlass = new ItemStack(Material.GREEN_STAINED_GLASS_PANE);
         ItemMeta greenMeta = greenGlass.getItemMeta();
         greenMeta.setDisplayName(ChatColor.GREEN + "" + ChatColor.BOLD + rank.name());
@@ -1880,15 +1872,10 @@ public class MenuHandler {
                 ChatColor.GRAY + "for " + rank.name() + " rank"
         ));
         greenGlass.setItemMeta(greenMeta);
-
-        // Place in 2x2 square
-        menu.setItem(startSlot, greenGlass);
-        menu.setItem(startSlot + 1, greenGlass);
-        menu.setItem(startSlot + 9, greenGlass);
-        menu.setItem(startSlot + 10, greenGlass);
+        menu.setItem(slot, greenGlass);
     }
 
-    private void createRelationPermissionSquare(Inventory menu, Relation relation, int startSlot) {
+    private void createRelationPermissionPane(Inventory menu, int slot, Relation relation) {
         ItemStack purpleGlass = new ItemStack(Material.PURPLE_STAINED_GLASS_PANE);
         ItemMeta purpleMeta = purpleGlass.getItemMeta();
         purpleMeta.setDisplayName(ChatColor.LIGHT_PURPLE + "" + ChatColor.BOLD + relation.getDisplayName());
@@ -1897,12 +1884,7 @@ public class MenuHandler {
                 ChatColor.GRAY + "for " + relation.getDisplayName() + " relations"
         ));
         purpleGlass.setItemMeta(purpleMeta);
-
-        // Place in 2x2 square
-        menu.setItem(startSlot, purpleGlass);
-        menu.setItem(startSlot + 1, purpleGlass);
-        menu.setItem(startSlot + 9, purpleGlass);
-        menu.setItem(startSlot + 10, purpleGlass);
+        menu.setItem(slot, purpleGlass);
     }
 
     /**

@@ -1,5 +1,6 @@
 package me.elite.Factions.data;
 
+import java.util.EnumSet;
 import java.util.*;
 
 public class Faction {
