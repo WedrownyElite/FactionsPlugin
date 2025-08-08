@@ -210,6 +210,13 @@ public class FactionsEventListener implements Listener {
         // Check if there's a clicked block
         if (event.getClickedBlock() == null) return;
 
+        // Only check for actual interactions, not block breaking/placing
+        if (event.getAction() != Action.RIGHT_CLICK_BLOCK) return;
+
+        // Check if it's actually an interactive block
+        Material blockType = event.getClickedBlock().getType();
+        if (!isInteractiveBlock(blockType)) return;
+
         Chunk chunk = event.getClickedBlock().getChunk();
         String faction = getFactionAtChunk(event.getClickedBlock().getWorld(), new ChunkCoord(chunk.getX(), chunk.getZ()));
         if (faction == null) return;
@@ -657,6 +664,7 @@ public class FactionsEventListener implements Listener {
                 title.equals(ChatColor.DARK_GRAY + "Faction Permissions") ||
                 title.equals(ChatColor.DARK_GRAY + "Relation Requests") ||
                 title.equals(ChatColor.DARK_GRAY + "Faction Relations") ||
+                title.equals(ChatColor.DARK_RED + "Remove") ||
                 title.contains(" Permissions")) {
 
             // Cancel ALL clicks in faction GUIs
@@ -738,15 +746,15 @@ public class FactionsEventListener implements Listener {
             } else if (title.equals(ChatColor.DARK_GRAY + "Faction Relations")) {
                 plugin.getMenuHandler().handleRelationsViewClick(player, item, event.getClick(), title);
             } else if (title.startsWith(ChatColor.DARK_RED + "Remove: ")) {
-                // Cancel ALL clicks in removal confirmation GUI
+                // This line already exists, but make sure the event.setCancelled(true) is there
                 event.setCancelled(true);
-
                 // Clear offhand immediately
                 player.getInventory().setItemInOffHand(new ItemStack(Material.AIR));
 
                 if (event.getClick() == ClickType.LEFT) {
                     plugin.getMenuHandler().handleRelationRemovalClick(player, displayName, title);
                 }
+                return;
             }
             return;
         }
@@ -1163,5 +1171,21 @@ public class FactionsEventListener implements Listener {
             player.sendMessage(message);
             playerCooldowns.put(message, currentTime);
         }
+    }
+
+    private boolean isInteractiveBlock(Material material) {
+        return material.name().contains("BUTTON") ||
+                material.name().contains("LEVER") ||
+                material.name().contains("PRESSURE_PLATE") ||
+                material.name().contains("DOOR") ||
+                material.name().contains("GATE") ||
+                material == Material.REPEATER ||
+                material == Material.COMPARATOR ||
+                material.name().contains("TRAPDOOR") ||
+                material.name().contains("FENCE_GATE") ||
+                material == Material.TRIPWIRE_HOOK ||
+                material == Material.DAYLIGHT_DETECTOR ||
+                material == Material.REDSTONE_TORCH ||
+                material == Material.REDSTONE_WALL_TORCH;
     }
 }

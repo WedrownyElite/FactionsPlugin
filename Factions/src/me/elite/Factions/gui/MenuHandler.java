@@ -1122,8 +1122,8 @@ public class MenuHandler {
             return;
         }
 
-        // Handle right-click for relation removal
-        if (clickType == ClickType.RIGHT && item.getType() == Material.PLAYER_HEAD) {
+        // Handle clicks on faction relations
+        if (item.getType() == Material.PLAYER_HEAD) {
             String factionName = playerFactions.get(player.getUniqueId());
             String targetFaction = ChatColor.stripColor(displayName);
 
@@ -1135,14 +1135,25 @@ public class MenuHandler {
                 return;
             }
 
-            // Get current relation
-            Relation currentRelation = plugin.getRelationManager().getRelation(factionName, targetFaction);
-            if (currentRelation == Relation.NEUTRAL) {
-                player.sendMessage(ChatColor.RED + "No relation to remove with " + targetFaction + ".");
-                return;
+            if (clickType == ClickType.LEFT) {
+                // Quick set to neutral (remove relation)
+                boolean success = plugin.getRelationManager().setDirectRelation(factionName, targetFaction, Relation.NEUTRAL, player.getUniqueId());
+                if (success) {
+                    player.sendMessage(ChatColor.GREEN + "Set relation with " + targetFaction + " to Neutral!");
+                    plugin.getDataManager().saveFactionData();
+                    openRelationsViewMenu(player, factionName);
+                } else {
+                    player.sendMessage(ChatColor.RED + "Failed to set relation.");
+                }
+            } else if (clickType == ClickType.RIGHT) {
+                // Get current relation for confirmation dialog
+                Relation currentRelation = plugin.getRelationManager().getRelation(factionName, targetFaction);
+                if (currentRelation == Relation.NEUTRAL) {
+                    player.sendMessage(ChatColor.RED + "No relation to remove with " + targetFaction + ".");
+                    return;
+                }
+                openRelationRemovalConfirmation(player, targetFaction, currentRelation);
             }
-
-            openRelationRemovalConfirmation(player, targetFaction, currentRelation);
         }
     }
 
@@ -1151,9 +1162,20 @@ public class MenuHandler {
      */
     public void handleRelationRemovalClick(Player player, String displayName, String title) {
         String factionName = playerFactions.get(player.getUniqueId());
+
+        // Extract target faction from title
         String targetFaction = title.replace(ChatColor.DARK_RED + "Remove: ", "");
 
         if (displayName.equals(ChatColor.RED + "" + ChatColor.BOLD + "REMOVE RELATION")) {
+            // Check permission again for security
+            Faction faction = factions.get(factionName);
+            Rank playerRank = faction.members.get(player.getUniqueId());
+            if (!faction.hasPermission(playerRank, FactionPermission.SET_RELATIONS)) {
+                player.sendMessage(ChatColor.RED + "You lack permission to manage faction relations.");
+                player.closeInventory();
+                return;
+            }
+
             boolean success = plugin.getRelationManager().removeRelation(factionName, targetFaction, player.getUniqueId());
 
             if (success) {
@@ -1167,7 +1189,7 @@ public class MenuHandler {
             openRelationsViewMenu(player, factionName);
 
         } else if (displayName.equals(ChatColor.GREEN + "" + ChatColor.BOLD + "CANCEL")) {
-            // Return to relations view
+            // Return to relations view without making changes
             openRelationsViewMenu(player, factionName);
         }
     }

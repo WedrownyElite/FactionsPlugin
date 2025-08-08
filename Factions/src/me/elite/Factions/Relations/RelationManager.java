@@ -124,14 +124,12 @@ public class RelationManager {
             return false;
         }
 
-        // Check if request already exists
+        // Remove any existing requests from this faction to the target faction
         List<RelationRequest> requests = pendingRequests.get(toFaction);
         if (requests != null) {
-            for (RelationRequest existingRequest : requests) {
-                if (existingRequest.fromFaction.equals(fromFaction) &&
-                        existingRequest.requestedRelation == relation) {
-                    return false; // Request already exists
-                }
+            requests.removeIf(existingRequest -> existingRequest.fromFaction.equals(fromFaction));
+            if (requests.isEmpty()) {
+                pendingRequests.remove(toFaction);
             }
         }
 
@@ -378,7 +376,16 @@ public class RelationManager {
      * Get all relations for a faction
      */
     public Map<String, Relation> getFactionRelations(String factionName) {
-        return factionRelations.getOrDefault(factionName, new HashMap<>());
+        Map<String, Relation> allRelations = factionRelations.getOrDefault(factionName, new HashMap<>());
+        Map<String, Relation> filteredRelations = new HashMap<>();
+
+        for (Map.Entry<String, Relation> entry : allRelations.entrySet()) {
+            if (entry.getValue() != Relation.NEUTRAL) {
+                filteredRelations.put(entry.getKey(), entry.getValue());
+            }
+        }
+
+        return filteredRelations;
     }
 
     // =================================================================
