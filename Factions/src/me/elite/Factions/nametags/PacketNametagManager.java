@@ -29,7 +29,7 @@ public class PacketNametagManager {
     private Field playerConnectionField;
 
     // Team management
-    private static final String TEAM_PREFIX = "f_";
+    private static final String TEAM_PREFIX = "fac_";
 
     public PacketNametagManager(FactionsPlugin plugin) {
         this.plugin = plugin;
@@ -89,28 +89,27 @@ public class PacketNametagManager {
             // Get the appropriate suffix
             String suffix = getRelationSuffix(target, viewer);
 
-            // Create a unique team name for this target-viewer pair
-            String baseName = target.getName().toLowerCase();
-            String teamName = TEAM_PREFIX + baseName;
+            // Create a unique team name for this target player
+            String teamName = TEAM_PREFIX + target.getName().toLowerCase();
             if (teamName.length() > 16) {
                 teamName = teamName.substring(0, 16);
             }
 
             plugin.getLogger().info("Updating nametag: " + target.getName() + " -> " + viewer.getName() + " (Suffix: '" + suffix + "')");
 
-            // First remove player from any existing team
+            // First remove player from any existing team for this viewer
             removePlayerFromTeam(viewer, target);
 
-            // Small delay before creating new team
-            final String finalTeamName = teamName;
-            final String finalSuffix = suffix;
+            // Small delay before creating new team (important for packet ordering)
+            String finalTeamName = teamName;
             Bukkit.getScheduler().runTaskLater(plugin, () -> {
                 try {
-                    sendTeamPacket(viewer, target, finalTeamName, finalSuffix);
+                    // Create team and add player in one packet
+                    sendCreateTeamPacket(viewer, target, finalTeamName, suffix);
                 } catch (Exception e) {
                     plugin.getLogger().warning("Failed to send team packet: " + e.getMessage());
                 }
-            }, 3L);
+            }, 1L);
 
         } catch (Exception e) {
             plugin.getLogger().warning("Failed to update nametag for " + target.getName() + " -> " + viewer.getName() + ": " + e.getMessage());
@@ -122,55 +121,31 @@ public class PacketNametagManager {
      */
     private void removePlayerFromTeam(Player viewer, Player target) {
         try {
+            String teamName = TEAM_PREFIX + target.getName().toLowerCase();
+            if (teamName.length() > 16) {
+                teamName = teamName.substring(0, 16);
+            }
+
             Object packet = packetPlayOutScoreboardTeamClass.newInstance();
 
             // Set team name
-            setField(packet, "a", TEAM_PREFIX + target.getName().toLowerCase());
+            setField(packet, "a", teamName);
 
-            // Set action to REMOVE_PLAYERS (4)
-            setField(packet, "i", 4);
-
-            // Set players to remove
-            Collection<String> players = new ArrayList<>();
-            players.add(target.getName());
-            setField(packet, "h", players);
+            // Set action to REMOVE_TEAM (1)
+            setField(packet, "i", 1);
 
             sendPacket(viewer, packet);
         } catch (Exception e) {
-            // Ignore removal errors
+            // Ignore removal errors - team might not exist
         }
     }
 
     /**
-     * Send team packet with improved 1.16.5 compatibility
+     * Send create team packet with player already included
      */
-    private void sendTeamPacket(Player viewer, Player target, String teamName, String suffix) throws Exception {
+    private void sendCreateTeamPacket(Player viewer, Player target, String teamName, String suffix) throws Exception {
         plugin.getLogger().info("Creating team packet for " + target.getName() + " with suffix: '" + suffix + "'");
 
-        // Create the packet
-        Object packet = packetPlayOutScoreboardTeamClass.newInstance();
-
-        // Method 1: Try direct field setting (works for most 1.16.5)
-        try {
-            sendDirectTeamPacket(viewer, target, teamName, suffix);
-            return;
-        } catch (Exception e) {
-            plugin.getLogger().warning("Direct method failed, trying alternative: " + e.getMessage());
-        }
-
-        // Method 2: Try alternative approach
-        try {
-            sendAlternativeTeamPacket(viewer, target, teamName, suffix);
-        } catch (Exception e) {
-            plugin.getLogger().warning("Alternative method also failed: " + e.getMessage());
-            throw e;
-        }
-    }
-
-    /**
-     * Direct team packet method (primary approach for 1.16.5)
-     */
-    private void sendDirectTeamPacket(Player viewer, Player target, String teamName, String suffix) throws Exception {
         Object packet = packetPlayOutScoreboardTeamClass.newInstance();
 
         // Set team name
@@ -179,33 +154,35 @@ public class PacketNametagManager {
         // Set action to CREATE_TEAM (0)
         setField(packet, "i", 0);
 
-        // For 1.16.5, we need to create a team info object
-        // Try to find and create the team info
+        // Try to handle 1.16.5+ team info structure
+        boolean useTeamInfo = true;
         try {
-            // Look for inner class ScoreboardTeamBase$a or similar
+            // Look for team info inner class
             Class<?>[] innerClasses = packetPlayOutScoreboardTeamClass.getDeclaredClasses();
             Class<?> teamInfoClass = null;
 
             for (Class<?> innerClass : innerClasses) {
-                if (innerClass.getSimpleName().equals("a") || innerClass.getSimpleName().contains("TeamInfo")) {
+                String simpleName = innerClass.getSimpleName();
+                if (simpleName.equals("a") || simpleName.contains("TeamInfo") || simpleName.contains("Parameters")) {
                     teamInfoClass = innerClass;
                     break;
                 }
             }
 
             if (teamInfoClass != null) {
-                // Create team info with suffix
+                // Find appropriate constructor
                 Constructor<?> teamInfoConstructor = null;
                 Constructor<?>[] constructors = teamInfoClass.getDeclaredConstructors();
 
+                // Look for constructor with multiple parameters (display name, prefix, suffix, etc.)
                 for (Constructor<?> constructor : constructors) {
-                    if (constructor.getParameterCount() >= 6) { // Looking for the main constructor
+                    if (constructor.getParameterCount() >= 6) {
                         teamInfoConstructor = constructor;
                         break;
                     }
                 }
 
-                if (teamInfoConstructor != null) {
+                if (teamInfoConstructor != null && chatComponentConstructor != null) {
                     teamInfoConstructor.setAccessible(true);
 
                     // Create chat components
@@ -213,7 +190,7 @@ public class PacketNametagManager {
                     Object prefixComponent = chatComponentConstructor.newInstance("");
                     Object suffixComponent = chatComponentConstructor.newInstance(suffix);
 
-                    // Get EnumChatFormat.RESET
+                    // Get EnumChatFormat for color
                     Class<?> enumChatFormatClass = Class.forName("net.minecraft.server." + nmsVersion + ".EnumChatFormat");
                     Object chatFormat = enumChatFormatClass.getField("RESET").get(null);
 
@@ -225,76 +202,85 @@ public class PacketNametagManager {
                             "always",             // name tag visibility
                             "always",             // collision rule
                             chatFormat,           // color
-                            3                     // friendly fire flags
+                            0                     // friendly fire flags (0 = allow friendly fire)
                     );
 
                     // Set the team info in the packet
                     setField(packet, "b", teamInfo);
 
                     plugin.getLogger().info("✓ Created team info with suffix: '" + suffix + "'");
+                } else {
+                    useTeamInfo = false;
                 }
+            } else {
+                useTeamInfo = false;
             }
         } catch (Exception e) {
             plugin.getLogger().warning("Failed to create team info, using fallback: " + e.getMessage());
-
-            // Fallback: Set individual fields
-            setField(packet, "b", chatComponentConstructor.newInstance(""));     // display name
-            setField(packet, "c", chatComponentConstructor.newInstance(""));     // prefix
-            setField(packet, "d", chatComponentConstructor.newInstance(suffix)); // suffix
-            setField(packet, "e", "always");                                     // visibility
-            setField(packet, "f", "always");                                     // collision
+            useTeamInfo = false;
         }
 
-        // Set players
+        // Fallback method if team info creation failed
+        if (!useTeamInfo && chatComponentConstructor != null) {
+            try {
+                // Set individual fields directly
+                setField(packet, "b", chatComponentConstructor.newInstance(""));     // display name
+                setField(packet, "c", chatComponentConstructor.newInstance(""));     // prefix
+                setField(packet, "d", chatComponentConstructor.newInstance(suffix)); // suffix
+                setField(packet, "e", "always");                                     // visibility
+                setField(packet, "f", "always");                                     // collision rule
+
+                // Get color format
+                Class<?> enumChatFormatClass = Class.forName("net.minecraft.server." + nmsVersion + ".EnumChatFormat");
+                Object chatFormat = enumChatFormatClass.getField("RESET").get(null);
+                setField(packet, "g", chatFormat);                                   // color
+
+                setField(packet, "j", 0);                                            // friendly fire flags
+
+                plugin.getLogger().info("✓ Used fallback field setting with suffix: '" + suffix + "'");
+            } catch (Exception e) {
+                plugin.getLogger().severe("Both team info and fallback methods failed: " + e.getMessage());
+                throw e;
+            }
+        }
+
+        // Set players to add to team (include player in creation packet)
         Collection<String> players = new ArrayList<>();
         players.add(target.getName());
         setField(packet, "h", players);
 
         sendPacket(viewer, packet);
-        plugin.getLogger().info("✓ Sent direct team packet with suffix: '" + suffix + "'");
+        plugin.getLogger().info("✓ Sent create team packet with suffix: '" + suffix + "' for player: " + target.getName());
     }
 
     /**
-     * Alternative team packet method
-     */
-    private void sendAlternativeTeamPacket(Player viewer, Player target, String teamName, String suffix) throws Exception {
-        // Create team first
-        Object createPacket = packetPlayOutScoreboardTeamClass.newInstance();
-
-        setField(createPacket, "a", teamName);
-        setField(createPacket, "i", 0); // CREATE_TEAM
-        setField(createPacket, "b", chatComponentConstructor.newInstance(""));
-        setField(createPacket, "c", chatComponentConstructor.newInstance(""));
-        setField(createPacket, "d", chatComponentConstructor.newInstance(suffix));
-        setField(createPacket, "e", "always");
-        setField(createPacket, "f", "always");
-
-        Collection<String> emptyPlayers = new ArrayList<>();
-        setField(createPacket, "h", emptyPlayers);
-
-        sendPacket(viewer, createPacket);
-
-        // Add player to team
-        Object addPacket = packetPlayOutScoreboardTeamClass.newInstance();
-
-        setField(addPacket, "a", teamName);
-        setField(addPacket, "i", 3); // ADD_PLAYERS
-
-        Collection<String> playersToAdd = new ArrayList<>();
-        playersToAdd.add(target.getName());
-        setField(addPacket, "h", playersToAdd);
-
-        sendPacket(viewer, addPacket);
-        plugin.getLogger().info("✓ Sent alternative team packet with suffix: '" + suffix + "'");
-    }
-
-    /**
-     * Helper method to set fields safely
+     * Helper method to set fields safely with better error handling
      */
     private void setField(Object packet, String fieldName, Object value) throws Exception {
-        Field field = packetPlayOutScoreboardTeamClass.getDeclaredField(fieldName);
-        field.setAccessible(true);
-        field.set(packet, value);
+        try {
+            Field field = packetPlayOutScoreboardTeamClass.getDeclaredField(fieldName);
+            field.setAccessible(true);
+            field.set(packet, value);
+        } catch (NoSuchFieldException e) {
+            // Try to find field by type if name doesn't match
+            Field[] fields = packetPlayOutScoreboardTeamClass.getDeclaredFields();
+            boolean found = false;
+
+            for (Field field : fields) {
+                if (field.getType().equals(value.getClass()) ||
+                        (value instanceof Collection && Collection.class.isAssignableFrom(field.getType()))) {
+                    field.setAccessible(true);
+                    field.set(packet, value);
+                    found = true;
+                    break;
+                }
+            }
+
+            if (!found) {
+                plugin.getLogger().warning("Could not find field " + fieldName + " for type " + value.getClass().getSimpleName());
+                throw e;
+            }
+        }
     }
 
     /**
@@ -378,8 +364,14 @@ public class PacketNametagManager {
      * Refresh all nametags
      */
     public void refreshAllNametags() {
+        plugin.getLogger().info("Refreshing all nametags for " + Bukkit.getOnlinePlayers().size() + " players");
         for (Player viewer : Bukkit.getOnlinePlayers()) {
-            updateAllNametagsFor(viewer);
+            // Add small delay between players to prevent packet spam
+            Bukkit.getScheduler().runTaskLater(plugin, () -> {
+                if (viewer.isOnline()) {
+                    updateAllNametagsFor(viewer);
+                }
+            }, Bukkit.getOnlinePlayers().size() % 20); // Spread over 1 second max
         }
     }
 
@@ -387,23 +379,36 @@ public class PacketNametagManager {
      * Handle player joining
      */
     public void onPlayerJoin(Player player) {
+        plugin.getLogger().info("Player " + player.getName() + " joined, updating nametags");
         Bukkit.getScheduler().runTaskLater(plugin, () -> {
-            updateAllNametagsFor(player);
-            updateNametagForAll(player);
-        }, 40L);
+            if (player.isOnline()) {
+                updateAllNametagsFor(player);
+                updateNametagForAll(player);
+            }
+        }, 60L); // Wait 3 seconds for full login
     }
 
     /**
      * Handle player leaving
      */
     public void onPlayerLeave(Player player) {
-        // Nothing special needed for packet-based approach
+        // Clean up any teams for this player
+        for (Player viewer : Bukkit.getOnlinePlayers()) {
+            if (!viewer.equals(player)) {
+                try {
+                    removePlayerFromTeam(viewer, player);
+                } catch (Exception e) {
+                    // Ignore cleanup errors
+                }
+            }
+        }
     }
 
     /**
      * Handle faction changes
      */
     public void onFactionChange(Player player) {
+        plugin.getLogger().info("Faction change for " + player.getName() + ", updating nametags");
         Bukkit.getScheduler().runTaskLater(plugin, () -> {
             if (player.isOnline()) {
                 updateAllNametagsFor(player);
@@ -426,7 +431,7 @@ public class PacketNametagManager {
                     updateNametagForAll(player);
                 }
             }
-        }, 10L);
+        }, 5L);
     }
 
     /**
@@ -434,6 +439,21 @@ public class PacketNametagManager {
      */
     public void forceRefreshAll() {
         plugin.getLogger().info("Force refreshing all nametags...");
+
+        // Clear all existing teams first
+        for (Player viewer : Bukkit.getOnlinePlayers()) {
+            for (Player target : Bukkit.getOnlinePlayers()) {
+                if (!viewer.equals(target)) {
+                    try {
+                        removePlayerFromTeam(viewer, target);
+                    } catch (Exception e) {
+                        // Ignore errors
+                    }
+                }
+            }
+        }
+
+        // Wait a bit then recreate all teams
         Bukkit.getScheduler().runTaskLater(plugin, () -> {
             for (Player viewer : Bukkit.getOnlinePlayers()) {
                 for (Player target : Bukkit.getOnlinePlayers()) {
@@ -443,6 +463,6 @@ public class PacketNametagManager {
                 }
             }
             plugin.getLogger().info("Force refresh completed.");
-        }, 1L);
+        }, 10L);
     }
 }

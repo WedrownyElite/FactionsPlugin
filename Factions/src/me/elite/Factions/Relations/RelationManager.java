@@ -133,10 +133,9 @@ public class RelationManager {
             return false;
         }
 
-        // NEW: Check if the relation already exists
+        // Check if the relation already exists
         Relation currentRelation = getRelation(fromFaction, toFaction);
         if (currentRelation == relation) {
-            // Notify the player that the relation already exists
             Player sender = Bukkit.getPlayer(playerUUID);
             if (sender != null) {
                 sender.sendMessage(ChatColor.YELLOW + "You already have a " +
@@ -146,13 +145,24 @@ public class RelationManager {
             return false;
         }
 
-        // NEW: Check if there's already a pending request for this relation
+        // Check if the other faction already has a pending request for this relation, auto-accept it
+        List<RelationRequest> reverseRequests = pendingRequests.get(fromFaction);
+        if (reverseRequests != null) {
+            for (RelationRequest reverseRequest : reverseRequests) {
+                if (reverseRequest.fromFaction.equals(toFaction) &&
+                        reverseRequest.requestedRelation == relation) {
+                    // Accept their request instantly
+                    return acceptRelationRequest(fromFaction, toFaction, relation, playerUUID);
+                }
+            }
+        }
+
+        // Check if there's already a pending request for this relation
         List<RelationRequest> existingRequests = pendingRequests.get(toFaction);
         if (existingRequests != null) {
             for (RelationRequest existingRequest : existingRequests) {
                 if (existingRequest.fromFaction.equals(fromFaction) &&
                         existingRequest.requestedRelation == relation) {
-                    // Notify the player that a request is already pending
                     Player sender = Bukkit.getPlayer(playerUUID);
                     if (sender != null) {
                         sender.sendMessage(ChatColor.YELLOW + "You already have a pending " +
