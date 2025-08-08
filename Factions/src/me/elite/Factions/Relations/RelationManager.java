@@ -104,6 +104,8 @@ public class RelationManager {
                 ChatColor.WHITE + toFaction + ChatColor.YELLOW + " is now: " +
                 getRelationColor(relation) + relation.getDisplayName());
 
+        plugin.getEventListener().onFactionRelationChange(fromFaction, toFaction);
+
         return true;
     }
 
@@ -232,6 +234,8 @@ public class RelationManager {
                 getRelationColor(relation) + relation.getDisplayName() + ChatColor.GREEN +
                 " request from " + ChatColor.WHITE + fromFaction + ChatColor.GRAY + " (by " + accepterName + ")");
 
+        plugin.getEventListener().onFactionRelationChange(fromFaction, toFaction);
+
         return true;
     }
 
@@ -320,6 +324,8 @@ public class RelationManager {
         notifyFactionMembers(fromFaction, ChatColor.YELLOW + "Removed relation with " +
                 ChatColor.WHITE + toFaction + ChatColor.YELLOW + ". They are now " +
                 ChatColor.WHITE + "Neutral" + ChatColor.YELLOW + ".");
+
+        plugin.getEventListener().onFactionRelationChange(fromFaction, toFaction);
 
         return true;
     }

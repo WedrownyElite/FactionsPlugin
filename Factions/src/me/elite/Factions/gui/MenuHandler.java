@@ -1762,6 +1762,12 @@ public class MenuHandler {
             return;
         }
 
+        // Handle reset button click
+        if (displayName.equals(ChatColor.YELLOW + "" + ChatColor.BOLD + "RESET TO DEFAULT")) {
+            handleResetPermissionsClick(player, title, true);
+            return;
+        }
+
         // Extract rank from title
         String rankName = title.replace(ChatColor.DARK_GRAY + "", "").replace(" Permissions", "");
         Rank targetRank;
@@ -1940,6 +1946,12 @@ public class MenuHandler {
             return;
         }
 
+        // Handle reset button click
+        if (displayName.equals(ChatColor.YELLOW + "" + ChatColor.BOLD + "RESET TO DEFAULT")) {
+            handleResetPermissionsClick(player, title, false);
+            return;
+        }
+
         // Extract relation from title
         String relationName = title.replace(ChatColor.DARK_GRAY + "", "").replace(" Permissions", "");
         Relation relation;
@@ -2115,6 +2127,10 @@ public class MenuHandler {
             player.sendMessage(ChatColor.GREEN + "Successfully kicked " + targetName + " from " + factionName + "!");
 
             if (target.isOnline()) {
+                plugin.getEventListener().onPlayerLeaveFaction((Player) target);
+            }
+
+            if (target.isOnline()) {
                 Player onlineTarget = (Player) target;
                 onlineTarget.sendMessage(ChatColor.RED + "You have been kicked from faction " + factionName + " by " + player.getName() + "!");
             }
@@ -2177,6 +2193,260 @@ public class MenuHandler {
 
             player.sendMessage(ChatColor.YELLOW + "Faction creation cancelled.");
         }
+    }
+
+    /**
+     * Handle reset permissions button clicks
+     */
+    public void handleResetPermissionsClick(Player player, String title, boolean isRankPermissions) {
+        String factionName = playerFactions.get(player.getUniqueId());
+        if (factionName == null) {
+            player.sendMessage(ChatColor.RED + "You are not in a faction.");
+            return;
+        }
+
+        Faction faction = factions.get(factionName);
+        Rank playerRank = faction.members.get(player.getUniqueId());
+
+        // Check if player has permission to manage permissions
+        if (playerRank != Rank.OWNER && !faction.hasPermission(playerRank, FactionPermission.MANAGE_PERMISSIONS)) {
+            player.sendMessage(ChatColor.RED + "You lack permission to reset faction permissions.");
+            return;
+        }
+
+        if (isRankPermissions) {
+            // Extract rank from title (e.g. "ADMIN Permissions" -> "ADMIN")
+            String rankName = title.replace(ChatColor.DARK_GRAY + "", "").replace(" Permissions", "");
+            Rank targetRank;
+            try {
+                targetRank = Rank.valueOf(rankName);
+            } catch (IllegalArgumentException e) {
+                player.sendMessage(ChatColor.RED + "Error: Invalid rank detected.");
+                return;
+            }
+
+            // Check if player can modify this rank's permissions
+            if (!canModifyRankPermissionsCheck(playerRank, targetRank, faction)) {
+                if (playerRank != Rank.OWNER && !faction.hasPermission(playerRank, FactionPermission.MANAGE_PERMISSIONS)) {
+                    player.sendMessage(ChatColor.RED + "You lack permission to manage faction permissions.");
+                } else if (targetRank.ordinal() >= playerRank.ordinal()) {
+                    if (targetRank == playerRank) {
+                        player.sendMessage(ChatColor.RED + "You cannot reset permissions for your own rank.");
+                    } else {
+                        player.sendMessage(ChatColor.RED + "You cannot reset permissions for ranks equal to or higher than yours.");
+                    }
+                }
+                return;
+            }
+
+            resetRankPermissions(player, faction, targetRank, playerRank);
+
+        } else {
+            // This is a relation permissions reset - extract relation from title
+            String relationName = title.replace(ChatColor.DARK_GRAY + "", "").replace(" Permissions", "");
+            Relation relation;
+            try {
+                relation = Relation.valueOf(relationName.toUpperCase());
+            } catch (IllegalArgumentException e) {
+                // Try to match by display name
+                relation = null;
+                for (Relation r : Relation.values()) {
+                    if (r.getDisplayName().equals(relationName)) {
+                        relation = r;
+                        break;
+                    }
+                }
+                if (relation == null) {
+                    player.sendMessage(ChatColor.RED + "Error: Invalid relation detected.");
+                    return;
+                }
+            }
+
+            resetRelationPermissions(player, faction, relation, playerRank);
+        }
+
+        // Save data
+        plugin.getDataManager().saveFactionData();
+    }
+
+    /**
+     * Reset rank permissions to default, respecting player's permission limitations
+     */
+    private void resetRankPermissions(Player player, Faction faction, Rank targetRank, Rank playerRank) {
+        // Get current permissions
+        Set<FactionPermission> currentPermissions = faction.rankPermissions.getOrDefault(targetRank, EnumSet.noneOf(FactionPermission.class));
+
+        // Get default permissions for this rank
+        Set<FactionPermission> defaultPermissions = getDefaultPermissionsForRank(targetRank);
+
+        // Track what permissions were actually reset
+        Set<FactionPermission> permissionsReset = EnumSet.noneOf(FactionPermission.class);
+        Set<FactionPermission> permissionsSkipped = EnumSet.noneOf(FactionPermission.class);
+
+        // If player is owner, they can reset everything
+        if (playerRank == Rank.OWNER) {
+            // Clear current permissions and set to default
+            faction.rankPermissions.put(targetRank, EnumSet.copyOf(defaultPermissions));
+            permissionsReset.addAll(defaultPermissions);
+
+            // Add any permissions that were removed
+            for (FactionPermission perm : FactionPermission.values()) {
+                if (currentPermissions.contains(perm) && !defaultPermissions.contains(perm)) {
+                    permissionsReset.add(perm);
+                }
+            }
+        } else {
+            // Non-owner players can only reset permissions they have access to
+            Set<FactionPermission> newPermissions = EnumSet.copyOf(currentPermissions);
+
+            for (FactionPermission permission : FactionPermission.values()) {
+                boolean currentlyHas = currentPermissions.contains(permission);
+                boolean shouldHave = defaultPermissions.contains(permission);
+
+                // Only modify if there's a difference and player has permission to toggle it
+                if (currentlyHas != shouldHave && faction.hasPermission(playerRank, permission)) {
+                    if (shouldHave) {
+                        newPermissions.add(permission);
+                    } else {
+                        newPermissions.remove(permission);
+                    }
+                    permissionsReset.add(permission);
+                } else if (currentlyHas != shouldHave) {
+                    // Player lacks permission to change this - skip it
+                    permissionsSkipped.add(permission);
+                }
+            }
+
+            faction.rankPermissions.put(targetRank, newPermissions);
+        }
+
+        // Send feedback to player
+        if (!permissionsReset.isEmpty()) {
+            player.sendMessage(ChatColor.GREEN + "Successfully reset " + permissionsReset.size() +
+                    " permissions for " + targetRank.name() + " rank to default!");
+
+            if (permissionsReset.size() <= 5) {
+                // Show individual permissions if not too many
+                for (FactionPermission perm : permissionsReset) {
+                    boolean enabled = defaultPermissions.contains(perm);
+                    player.sendMessage(ChatColor.GRAY + "  • " + perm.getDisplayName() + ": " +
+                            (enabled ? ChatColor.GREEN + "ENABLED" : ChatColor.RED + "DISABLED"));
+                }
+            }
+        }
+
+        if (!permissionsSkipped.isEmpty()) {
+            player.sendMessage(ChatColor.YELLOW + "Skipped " + permissionsSkipped.size() +
+                    " permissions you don't have access to:");
+
+            if (permissionsSkipped.size() <= 5) {
+                for (FactionPermission perm : permissionsSkipped) {
+                    player.sendMessage(ChatColor.GRAY + "  • " + ChatColor.RED + perm.getDisplayName() +
+                            ChatColor.GRAY + " (you lack this permission)");
+                }
+            }
+        }
+
+        if (permissionsReset.isEmpty() && permissionsSkipped.isEmpty()) {
+            player.sendMessage(ChatColor.YELLOW + targetRank.name() + " rank permissions are already at default (or you cannot modify any of them).");
+        }
+
+        // Reopen the permissions GUI to show changes
+        String factionName = playerFactions.get(player.getUniqueId());
+        openRankPermissionsGUI(player, factionName, targetRank);
+    }
+
+    /**
+     * Reset relation permissions to default, respecting player's permission limitations
+     */
+    private void resetRelationPermissions(Player player, Faction faction, Relation relation, Rank playerRank) {
+        // Get current permissions
+        Set<RelationPermission> currentPermissions = faction.relationPermissions.getOrDefault(relation, EnumSet.noneOf(RelationPermission.class));
+
+        // Get default permissions for this relation
+        Set<RelationPermission> defaultPermissions = getDefaultPermissionsForRelation(relation);
+
+        // Track what permissions were actually reset
+        Set<RelationPermission> permissionsReset = EnumSet.noneOf(RelationPermission.class);
+        Set<RelationPermission> permissionsSkipped = EnumSet.noneOf(RelationPermission.class);
+
+        // If player is owner, they can reset everything
+        if (playerRank == Rank.OWNER) {
+            // Clear current permissions and set to default
+            faction.relationPermissions.put(relation, EnumSet.copyOf(defaultPermissions));
+            permissionsReset.addAll(defaultPermissions);
+
+            // Add any permissions that were removed
+            for (RelationPermission perm : RelationPermission.values()) {
+                if (currentPermissions.contains(perm) && !defaultPermissions.contains(perm)) {
+                    permissionsReset.add(perm);
+                }
+            }
+        } else {
+            // Non-owner players can only reset permissions they have equivalent access to
+            Set<RelationPermission> newPermissions = EnumSet.copyOf(currentPermissions);
+
+            for (RelationPermission permission : RelationPermission.values()) {
+                boolean currentlyHas = currentPermissions.contains(permission);
+                boolean shouldHave = defaultPermissions.contains(permission);
+
+                // Check if player has equivalent faction permission
+                FactionPermission equivalentPermission = getEquivalentFactionPermission(permission);
+                boolean canModify = equivalentPermission == null || faction.hasPermission(playerRank, equivalentPermission);
+
+                // Only modify if there's a difference and player has permission to toggle it
+                if (currentlyHas != shouldHave && canModify) {
+                    if (shouldHave) {
+                        newPermissions.add(permission);
+                    } else {
+                        newPermissions.remove(permission);
+                    }
+                    permissionsReset.add(permission);
+                } else if (currentlyHas != shouldHave) {
+                    // Player lacks permission to change this - skip it
+                    permissionsSkipped.add(permission);
+                }
+            }
+
+            faction.relationPermissions.put(relation, newPermissions);
+        }
+
+        // Send feedback to player
+        if (!permissionsReset.isEmpty()) {
+            player.sendMessage(ChatColor.GREEN + "Successfully reset " + permissionsReset.size() +
+                    " permissions for " + relation.getDisplayName() + " relations to default!");
+
+            if (permissionsReset.size() <= 5) {
+                // Show individual permissions if not too many
+                for (RelationPermission perm : permissionsReset) {
+                    boolean enabled = defaultPermissions.contains(perm);
+                    player.sendMessage(ChatColor.GRAY + "  • " + perm.getDisplayName() + ": " +
+                            (enabled ? ChatColor.GREEN + "ENABLED" : ChatColor.RED + "DISABLED"));
+                }
+            }
+        }
+
+        if (!permissionsSkipped.isEmpty()) {
+            player.sendMessage(ChatColor.YELLOW + "Skipped " + permissionsSkipped.size() +
+                    " permissions you don't have equivalent access to:");
+
+            if (permissionsSkipped.size() <= 5) {
+                for (RelationPermission perm : permissionsSkipped) {
+                    FactionPermission equiv = getEquivalentFactionPermission(perm);
+                    String reason = equiv != null ? "you lack " + equiv.getDisplayName() : "no equivalent permission";
+                    player.sendMessage(ChatColor.GRAY + "  • " + ChatColor.RED + perm.getDisplayName() +
+                            ChatColor.GRAY + " (" + reason + ")");
+                }
+            }
+        }
+
+        if (permissionsReset.isEmpty() && permissionsSkipped.isEmpty()) {
+            player.sendMessage(ChatColor.YELLOW + relation.getDisplayName() + " relation permissions are already at default (or you cannot modify any of them).");
+        }
+
+        // Reopen the permissions GUI to show changes
+        String factionName = playerFactions.get(player.getUniqueId());
+        openRelationPermissionsGUI(player, factionName, relation);
     }
 
     public void openLeaveConfirmation(Player player, String factionName) {
@@ -2592,18 +2862,14 @@ public class MenuHandler {
         ItemStack backButton = createBackButton();
         menu.setItem(45, backButton);
 
-        // Reset permissions button (center of bottom row - slot 49)
-        ItemStack resetButton = createResetPermissionsButton(playerRank, null, faction, false);
-        menu.setItem(49, resetButton);
-
-        // Reset permissions button (center of bottom row - slot 49)
-        ItemStack resetButton = createResetPermissionsButton(playerRank, rank, faction, true);
-        menu.setItem(49, resetButton);
-
         // Get faction to check current permissions
         Faction faction = factions.get(factionName);
         Rank playerRank = faction.members.get(player.getUniqueId());
         Set<FactionPermission> currentPerms = faction.rankPermissions.getOrDefault(rank, EnumSet.noneOf(FactionPermission.class));
+
+        // Reset permissions button (center of bottom row - slot 49)
+        ItemStack resetButton = createResetPermissionsButton(playerRank, rank, faction, true);
+        menu.setItem(49, resetButton);
 
         // Add permission items with visual indicators
         FactionPermission[] permissions = FactionPermission.values();
@@ -2679,6 +2945,10 @@ public class MenuHandler {
         Faction faction = factions.get(factionName);
         Rank playerRank = faction.members.get(player.getUniqueId());
         Set<RelationPermission> currentPerms = faction.relationPermissions.getOrDefault(relation, EnumSet.noneOf(RelationPermission.class));
+
+        // Reset permissions button (center of bottom row - slot 49)
+        ItemStack resetButton = createResetPermissionsButton(playerRank, null, faction, false);
+        menu.setItem(49, resetButton);
 
         // Add permission items with visual indicators
         RelationPermission[] permissions = RelationPermission.values();
@@ -2785,7 +3055,7 @@ public class MenuHandler {
             skullMeta.setDisplayName(ChatColor.YELLOW + "" + ChatColor.BOLD + "RESET TO DEFAULT");
 
             List<String> lore = new ArrayList<>();
-            if (isRankPermissions) {
+            if (isRankPermissions && targetRank != null) {
                 lore.add(ChatColor.GRAY + "Reset " + targetRank.name() + " permissions to default");
             } else {
                 lore.add(ChatColor.GRAY + "Reset relation permissions to default");
@@ -2830,5 +3100,137 @@ public class MenuHandler {
      */
     public void clearPendingKick(UUID kickerUUID) {
         pendingKicks.remove(kickerUUID);
+    }
+
+    /**
+     * Get default permissions for a rank (copied from Faction.java)
+     */
+    private Set<FactionPermission> getDefaultPermissionsForRank(Rank rank) {
+        switch (rank) {
+            case RECRUIT:
+                return EnumSet.of(
+                        FactionPermission.BREAK_BLOCKS,
+                        FactionPermission.PLACE_BLOCKS,
+                        FactionPermission.INTERACT,
+                        FactionPermission.CONTAINER_ACCESS,
+                        FactionPermission.USE_HOME,
+                        FactionPermission.WARPS_ACCESS,
+                        FactionPermission.VIEW_DISCORD,
+                        FactionPermission.BANK_DEPOSIT
+                );
+            case MEMBER:
+                Set<FactionPermission> memberPerms = EnumSet.of(
+                        FactionPermission.BREAK_BLOCKS,
+                        FactionPermission.PLACE_BLOCKS,
+                        FactionPermission.INTERACT,
+                        FactionPermission.CONTAINER_ACCESS,
+                        FactionPermission.USE_HOME,
+                        FactionPermission.WARPS_ACCESS,
+                        FactionPermission.VIEW_DISCORD,
+                        FactionPermission.BANK_DEPOSIT
+                );
+                memberPerms.addAll(EnumSet.of(
+                        FactionPermission.ENDER_CHEST_ACCESS,
+                        FactionPermission.SET_HOME,
+                        FactionPermission.FACTION_CHEST_ACCESS,
+                        FactionPermission.BANK_WITHDRAW
+                ));
+                return memberPerms;
+            case MOD:
+                Set<FactionPermission> modPerms = EnumSet.of(
+                        FactionPermission.BREAK_BLOCKS,
+                        FactionPermission.PLACE_BLOCKS,
+                        FactionPermission.INTERACT,
+                        FactionPermission.CONTAINER_ACCESS,
+                        FactionPermission.USE_HOME,
+                        FactionPermission.WARPS_ACCESS,
+                        FactionPermission.VIEW_DISCORD,
+                        FactionPermission.BANK_DEPOSIT,
+                        FactionPermission.ENDER_CHEST_ACCESS,
+                        FactionPermission.SET_HOME,
+                        FactionPermission.FACTION_CHEST_ACCESS,
+                        FactionPermission.BANK_WITHDRAW
+                );
+                modPerms.addAll(EnumSet.of(
+                        FactionPermission.PLACE_SPAWNERS,
+                        FactionPermission.BREAK_SPAWNERS,
+                        FactionPermission.INVITE_MEMBERS,
+                        FactionPermission.KICK_MEMBERS,
+                        FactionPermission.PROMOTE_MEMBERS,
+                        FactionPermission.DEMOTE_MEMBERS,
+                        FactionPermission.MANAGE_WARPS,
+                        FactionPermission.CLAIM_LAND,
+                        FactionPermission.UNCLAIM_LAND,
+                        FactionPermission.FLY,
+                        FactionPermission.FACTION_CHEST_LOGS
+                ));
+                return modPerms;
+            case ADMIN:
+                Set<FactionPermission> adminPerms = EnumSet.of(
+                        FactionPermission.BREAK_BLOCKS,
+                        FactionPermission.PLACE_BLOCKS,
+                        FactionPermission.INTERACT,
+                        FactionPermission.CONTAINER_ACCESS,
+                        FactionPermission.USE_HOME,
+                        FactionPermission.WARPS_ACCESS,
+                        FactionPermission.VIEW_DISCORD,
+                        FactionPermission.BANK_DEPOSIT,
+                        FactionPermission.ENDER_CHEST_ACCESS,
+                        FactionPermission.SET_HOME,
+                        FactionPermission.FACTION_CHEST_ACCESS,
+                        FactionPermission.BANK_WITHDRAW,
+                        FactionPermission.PLACE_SPAWNERS,
+                        FactionPermission.BREAK_SPAWNERS,
+                        FactionPermission.INVITE_MEMBERS,
+                        FactionPermission.KICK_MEMBERS,
+                        FactionPermission.PROMOTE_MEMBERS,
+                        FactionPermission.DEMOTE_MEMBERS,
+                        FactionPermission.MANAGE_WARPS,
+                        FactionPermission.CLAIM_LAND,
+                        FactionPermission.UNCLAIM_LAND,
+                        FactionPermission.FLY,
+                        FactionPermission.FACTION_CHEST_LOGS
+                );
+                adminPerms.addAll(EnumSet.of(
+                        FactionPermission.SET_TITLES,
+                        FactionPermission.BANK_LOGS,
+                        FactionPermission.SET_RELATIONS,
+                        FactionPermission.UNCLAIM_ALL,
+                        FactionPermission.CHANGE_DESCRIPTION,
+                        FactionPermission.SET_DISCORD,
+                        FactionPermission.SET_ANNOUNCEMENTS,
+                        FactionPermission.OPEN_CLOSE
+                ));
+                return adminPerms;
+            case OWNER:
+                // Owner gets all permissions
+                return EnumSet.allOf(FactionPermission.class);
+            default:
+                return EnumSet.noneOf(FactionPermission.class);
+        }
+    }
+
+    /**
+     * Get default permissions for a relation (copied from Faction.java)
+     */
+    private Set<RelationPermission> getDefaultPermissionsForRelation(Relation relation) {
+        switch (relation) {
+            case NEUTRAL:
+                return EnumSet.noneOf(RelationPermission.class); // No permissions for neutrals
+            case TRUCE:
+                return EnumSet.of(RelationPermission.INTERACT);
+            case ALLY:
+                return EnumSet.of(
+                        RelationPermission.BREAK_BLOCKS,
+                        RelationPermission.PLACE_BLOCKS,
+                        RelationPermission.INTERACT,
+                        RelationPermission.CONTAINER_ACCESS,
+                        RelationPermission.FLY
+                );
+            case ENEMY:
+                return EnumSet.noneOf(RelationPermission.class); // No permissions for enemies
+            default:
+                return EnumSet.noneOf(RelationPermission.class);
+        }
     }
 }

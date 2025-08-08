@@ -1,5 +1,6 @@
 package me.elite.Factions.commands;
 
+import me.elite.Factions.FactionsPlugin;
 import me.elite.Factions.territory.ChunkCoord;
 import me.elite.Factions.data.Faction;
 import me.elite.Factions.data.Rank;
@@ -1093,6 +1094,8 @@ public class CommandManager implements CommandExecutor {
 
         player.sendMessage(ChatColor.GREEN + "Successfully joined faction " + factionName + "!");
 
+        plugin.getEventListener().onPlayerJoinFaction(player);
+
         // Notify other online faction members
         for (UUID memberUUID : faction.members.keySet()) {
             Player member = Bukkit.getPlayer(memberUUID);
@@ -1126,6 +1129,10 @@ public class CommandManager implements CommandExecutor {
         playerFactions.remove(uuid);
 
         player.sendMessage(ChatColor.GREEN + "You have left faction " + factionName + ".");
+
+        if (player.isOnline()) {
+            plugin.getEventListener().onPlayerLeaveFaction(player);
+        }
 
         // Notify other online faction members
         for (UUID memberUUID : faction.members.keySet()) {

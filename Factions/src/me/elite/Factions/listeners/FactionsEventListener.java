@@ -258,77 +258,104 @@ public class FactionsEventListener implements Listener {
 
     @EventHandler
     public void onEntityDamageByEntity(EntityDamageByEntityEvent event) {
-        // Cancel PvP in Spawn, allow in Warzone
+        // Player vs Player
         if (event.getEntity() instanceof Player && event.getDamager() instanceof Player) {
             Player damaged = (Player) event.getEntity();
             Player damager = (Player) event.getDamager();
             Chunk chunk = damaged.getLocation().getChunk();
             String faction = getFactionAtChunk(damaged.getWorld(), new ChunkCoord(chunk.getX(), chunk.getZ()));
+
+            String damagerFaction = playerFactions.get(damager.getUniqueId());
+            String damagedFaction = playerFactions.get(damaged.getUniqueId());
+
+            // 1) SPAWN PROTECTION
+            if ("Spawn".equalsIgnoreCase(faction)) {
+                event.setCancelled(true);
+                damager.sendMessage(ChatColor.RED + "PvP is disabled in Spawn!");
+                return;
+            }
+
+            // 2) RELATIONSHIP CHECKS
+            if (damagerFaction != null && damagerFaction.equals(damagedFaction)) {
+                event.setCancelled(true);
+                damager.sendMessage(ChatColor.RED + "You cannot attack your faction members!");
+                return;
+            }
+
+            if (damagerFaction != null && damagedFaction != null && !damagerFaction.equals(damagedFaction)) {
+                me.elite.Factions.data.Relation relation = plugin.getRelationManager()
+                        .getRelation(damagerFaction, damagedFaction);
+
+                if (relation == me.elite.Factions.data.Relation.ALLY) {
+                    event.setCancelled(true);
+                    damager.sendMessage(ChatColor.RED + "You cannot attack allied faction members!");
+                    return;
+                }
+                if (relation == me.elite.Factions.data.Relation.TRUCE) {
+                    event.setCancelled(true);
+                    damager.sendMessage(ChatColor.RED + "You cannot attack truced faction members!");
+                    return;
+                }
+            }
+
+            // 3) TERRITORY-SPECIFIC CHECKS
+            if ("Warzone".equalsIgnoreCase(faction)) {
+                if (hasPermissionBypass(damager, faction, "pvp_disable")) {
+                    event.setCancelled(true);
+                    damager.sendMessage(ChatColor.YELLOW + "You have PvP protection in Warzone.");
+                    return;
+                }
+            }
+
+            // Check bypass for any territory
+            if (hasPermissionBypass(damager, faction != null ? faction : "wilderness", "pvp")) {
+                return; // Allow PvP
+            }
+
+            // Wilderness or other unclaimed = allow PvP unless blocked above
+            return;
+        }
+
+        // Player vs Mob
+        else if (!(event.getEntity() instanceof Player) && event.getDamager() instanceof Player) {
+            Player player = (Player) event.getDamager();
+            Chunk chunk = event.getEntity().getLocation().getChunk();
+            String faction = getFactionAtChunk(event.getEntity().getWorld(), new ChunkCoord(chunk.getX(), chunk.getZ()));
+
             if (faction == null) return;
 
-            if (faction.equalsIgnoreCase("Spawn")) {
-                // Check for bypass permissions
-                if (hasPermissionBypass(damager, faction, "pvp")) {
-                    return; // Allow PvP
-                }
-                event.setCancelled(true);
-            } else if (faction.equalsIgnoreCase("Warzone")) {
-                // PvP allowed in warzone by default, unless bypassed
-                if (hasPermissionBypass(damager, faction, "pvp_disable")) {
-                    event.setCancelled(true); // Disable PvP for this player
-                }
-            } else if (faction.equalsIgnoreCase("Wilderness")) {
-                // Wilderness allows everything including PvP
+            // Mob damage bypass check
+            if (hasPermissionBypass(player, faction, "damage_mobs")) {
                 return;
-            } else {
-                // In faction territory - check relation-based PvP rules
-                String damagerFaction = playerFactions.get(damager.getUniqueId());
-                String damagedFaction = playerFactions.get(damaged.getUniqueId());
+            }
 
-                // Check for bypass permissions
-                if (hasPermissionBypass(damager, faction, "pvp")) {
-                    return; // Allow PvP
-                }
-
-                // Cancel friendly fire within same faction
-                if (damagerFaction != null && damagerFaction.equals(damagedFaction)) {
-                    event.setCancelled(true);
-                    return;
-                }
-
-                // Apply relation-based PvP rules if both players have factions
-                if (damagerFaction != null && damagedFaction != null && !damagerFaction.equals(damagedFaction)) {
-                    me.elite.Factions.data.Relation relation = plugin.getRelationManager().getRelation(damagerFaction, damagedFaction);
-
-                    if (relation == me.elite.Factions.data.Relation.ALLY || relation == me.elite.Factions.data.Relation.TRUCE) {
-                        event.setCancelled(true);
-                        damager.sendMessage(ChatColor.RED + "You cannot attack " + relation.getDisplayName().toLowerCase() + " faction members!");
-                    }
-                }
+            // Block in spawn & warzone
+            if ("Spawn".equalsIgnoreCase(faction) || "Warzone".equalsIgnoreCase(faction)) {
+                event.setCancelled(true);
             }
         }
+    }
 
-        // Prevent damage to mobs in Spawn and Warzone
-        else if (event.getEntity() instanceof org.bukkit.entity.Entity && !(event.getEntity() instanceof Player)) {
-            if (event.getDamager() instanceof Player) {
-                Player player = (Player) event.getDamager();
-                Chunk chunk = event.getEntity().getLocation().getChunk();
-                String faction = getFactionAtChunk(event.getEntity().getWorld(), new ChunkCoord(chunk.getX(), chunk.getZ()));
-                if (faction == null) return;
+    @EventHandler(priority = EventPriority.MONITOR)
+    public void onPlayerJoin(org.bukkit.event.player.PlayerJoinEvent event) {
+        Player player = event.getPlayer();
 
-                // Check for bypass permissions
-                if (hasPermissionBypass(player, faction, "damage_mobs")) {
-                    return; // Allow mob damage
-                }
+        // Update this player's name color for all online players
+        updatePlayerNameColorForAll(player);
 
-                if (faction.equalsIgnoreCase("Spawn") || faction.equalsIgnoreCase("Warzone")) {
-                    event.setCancelled(true);
-                } else if (faction.equalsIgnoreCase("Wilderness")) {
-                    // Wilderness allows everything
-                    return;
-                }
+        // Update all online players' name colors for this player
+        for (Player onlinePlayer : Bukkit.getOnlinePlayers()) {
+            if (!onlinePlayer.equals(player)) {
+                updatePlayerNameColorFor(onlinePlayer, player);
             }
         }
+    }
+
+    @EventHandler(priority = EventPriority.MONITOR)
+    public void onPlayerQuit(org.bukkit.event.player.PlayerQuitEvent event) {
+        // Reset player's display name when they leave
+        event.getPlayer().setDisplayName(event.getPlayer().getName());
+        event.getPlayer().setPlayerListName(event.getPlayer().getName());
     }
 
     @EventHandler
@@ -1048,6 +1075,148 @@ public class FactionsEventListener implements Listener {
         if (displayName.contains("Previous") || displayName.contains("Next")) {
             player.sendMessage(ChatColor.YELLOW + "Pagination coming soon!");
             return;
+        }
+    }
+
+    /**
+     * Update a player's name color as seen by all online players
+     */
+    public void updatePlayerNameColorForAll(Player player) {
+        for (Player viewer : Bukkit.getOnlinePlayers()) {
+            if (!viewer.equals(player)) {
+                updatePlayerNameColorFor(player, viewer);
+            }
+        }
+    }
+
+    /**
+     * Update how a specific player's name appears to a specific viewer
+     */
+    public void updatePlayerNameColorFor(Player player, Player viewer) {
+        ChatColor nameColor = getNameColorForRelation(player, viewer);
+        String coloredName = nameColor + player.getName() + ChatColor.RESET;
+
+        try {
+            // Update the name in the viewer's client
+            viewer.getServer().getScheduler().runTask(plugin, () -> {
+                // Use packets to update the name color for the specific viewer
+                // This is a simplified approach - in practice you might want to use ProtocolLib
+                // For now, we'll use the basic approach with display names
+
+                // Set the display name (visible in chat)
+                if (viewer.canSee(player)) {
+                    player.setDisplayName(coloredName);
+                }
+            });
+        } catch (Exception e) {
+            plugin.getLogger().warning("Failed to update name color for " + player.getName() + ": " + e.getMessage());
+        }
+    }
+
+    /**
+     * Get the appropriate name color based on faction relations
+     */
+    private ChatColor getNameColorForRelation(Player player, Player viewer) {
+        String playerFaction = playerFactions.get(player.getUniqueId());
+        String viewerFaction = playerFactions.get(viewer.getUniqueId());
+
+        // If viewer has no faction, show default white
+        if (viewerFaction == null) {
+            return ChatColor.WHITE;
+        }
+
+        // If player has no faction, show default white
+        if (playerFaction == null) {
+            return ChatColor.WHITE;
+        }
+
+        // Same faction = GREEN
+        if (playerFaction.equals(viewerFaction)) {
+            return ChatColor.GREEN;
+        }
+
+        // Different factions - check relations
+        me.elite.Factions.data.Relation relation = plugin.getRelationManager().getRelation(viewerFaction, playerFaction);
+
+        switch (relation) {
+            case ALLY:
+                return ChatColor.LIGHT_PURPLE; // Purple for allies
+            case TRUCE:
+                return ChatColor.BLUE; // Blue for truce
+            case ENEMY:
+                return ChatColor.RED; // Red for enemies
+            case NEUTRAL:
+            default:
+                return ChatColor.WHITE; // White for neutral
+        }
+    }
+
+    /**
+     * Update name colors when a player joins a faction
+     */
+    public void onPlayerJoinFaction(Player player) {
+        // Update this player's color for everyone
+        updatePlayerNameColorForAll(player);
+
+        // Update everyone's color for this player
+        for (Player onlinePlayer : Bukkit.getOnlinePlayers()) {
+            if (!onlinePlayer.equals(player)) {
+                updatePlayerNameColorFor(onlinePlayer, player);
+            }
+        }
+    }
+
+    /**
+     * Update name colors when a player leaves a faction
+     */
+    public void onPlayerLeaveFaction(Player player) {
+        // Reset player's display name to default
+        player.setDisplayName(player.getName());
+
+        // Update this player's color for everyone (should now be white)
+        updatePlayerNameColorForAll(player);
+
+        // Update everyone's color for this player
+        for (Player onlinePlayer : Bukkit.getOnlinePlayers()) {
+            if (!onlinePlayer.equals(player)) {
+                updatePlayerNameColorFor(onlinePlayer, player);
+            }
+        }
+    }
+
+    /**
+     * Update name colors when faction relations change
+     */
+    public void onFactionRelationChange(String faction1, String faction2) {
+        // Get all online players from both factions
+        Set<Player> playersToUpdate = new HashSet<>();
+
+        for (Map.Entry<UUID, String> entry : playerFactions.entrySet()) {
+            if (entry.getValue().equals(faction1) || entry.getValue().equals(faction2)) {
+                Player player = Bukkit.getPlayer(entry.getKey());
+                if (player != null && player.isOnline()) {
+                    playersToUpdate.add(player);
+                }
+            }
+        }
+
+        // Update name colors between these players
+        for (Player player1 : playersToUpdate) {
+            for (Player player2 : playersToUpdate) {
+                if (!player1.equals(player2)) {
+                    updatePlayerNameColorFor(player1, player2);
+                    updatePlayerNameColorFor(player2, player1);
+                }
+            }
+        }
+    }
+
+    /**
+     * Call this method whenever faction membership or relations change
+     */
+    public void refreshAllNameColors() {
+        for (Player player : Bukkit.getOnlinePlayers()) {
+            updatePlayerNameColorForAll(player);
         }
     }
 

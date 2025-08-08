@@ -90,6 +90,8 @@ public class FactionsPlugin extends JavaPlugin implements Listener {
         return playerInvitations;
     }
 
+    public FactionsEventListener getEventListener() {return eventListener;}
+
     public RelationManager getRelationManager() {return relationManager;}
 
     public DataManager getDataManager() {
