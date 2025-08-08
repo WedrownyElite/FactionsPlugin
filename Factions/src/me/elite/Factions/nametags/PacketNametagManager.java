@@ -29,7 +29,7 @@ public class PacketNametagManager {
     private Field playerConnectionField;
 
     // Team management
-    private static final String TEAM_PREFIX = "fac_";
+    private static final String TEAM_PREFIX = "f_";
 
     public PacketNametagManager(FactionsPlugin plugin) {
         this.plugin = plugin;
@@ -86,12 +86,16 @@ public class PacketNametagManager {
         }
 
         try {
-            // Get the appropriate suffix
+            // Get the appropriate prefix
             String suffix = getRelationSuffix(target, viewer);
 
             // Create a unique team name for this target-viewer pair
             String baseName = target.getName().toLowerCase();
-            String teamName = TEAM_PREFIX + (baseName.length() > 12 ? baseName.substring(0, 12) : baseName);
+            // Ensure team name is never longer than 16 characters
+            String teamName = TEAM_PREFIX + baseName;
+            if (teamName.length() > 16) {
+                teamName = teamName.substring(0, 16);
+            }
 
             plugin.getLogger().info("Updating nametag: " + target.getName() + " -> " + viewer.getName() + " (Suffix: '" + suffix + "', Team: " + teamName + ")");
 
@@ -107,7 +111,7 @@ public class PacketNametagManager {
                 } catch (Exception e) {
                     plugin.getLogger().warning("Failed to send team packet: " + e.getMessage());
                 }
-            }, 1L); // 1 tick delay
+            }, 1L);// 1 tick delay
 
         } catch (Exception e) {
             plugin.getLogger().warning("Failed to update nametag for " + target.getName() + " -> " + viewer.getName() + ": " + e.getMessage());
@@ -311,68 +315,88 @@ public class PacketNametagManager {
      */
     private void sendModernTeamPacket(Player viewer, Player target, String teamName, String suffix) throws Exception {
         Object packet = packetPlayOutScoreboardTeamClass.newInstance();
+        Field[] fields = packetPlayOutScoreboardTeamClass.getDeclaredFields();
 
-        // Field a: Team name
-        Field teamNameField = packetPlayOutScoreboardTeamClass.getDeclaredField("a");
-        teamNameField.setAccessible(true);
-        teamNameField.set(packet, teamName);
+        plugin.getLogger().info("Setting up packet for suffix: '" + suffix + "'");
 
-        // Field b: Display name (IChatBaseComponent)
-        Field displayNameField = packetPlayOutScoreboardTeamClass.getDeclaredField("b");
-        displayNameField.setAccessible(true);
-        Object displayComponent = chatComponentConstructor.newInstance("");
-        displayNameField.set(packet, displayComponent);
+        // Try a more systematic approach to field setting
+        for (int i = 0; i < fields.length; i++) {
+            Field field = fields[i];
+            field.setAccessible(true);
 
-        // Field c: Prefix (IChatBaseComponent)
-        Field prefixField = packetPlayOutScoreboardTeamClass.getDeclaredField("c");
-        prefixField.setAccessible(true);
-        Object prefixComponent = chatComponentConstructor.newInstance("");
-        prefixField.set(packet, prefixComponent);
+            try {
+                switch (field.getName()) {
+                    case "a": // Team name
+                        field.set(packet, teamName);
+                        plugin.getLogger().info("Set team name: " + teamName);
+                        break;
 
-        // Field d: Suffix (IChatBaseComponent) - THE IMPORTANT ONE
-        Field suffixField = packetPlayOutScoreboardTeamClass.getDeclaredField("d");
-        suffixField.setAccessible(true);
-        Object suffixComponent = chatComponentConstructor.newInstance(suffix);
-        suffixField.set(packet, suffixComponent);
+                    case "b": // Display name
+                        if (chatComponentConstructor != null) {
+                            Object component = chatComponentConstructor.newInstance("");
+                            field.set(packet, component);
+                            plugin.getLogger().info("Set display name component");
+                        }
+                        break;
 
-        // Field e: Name tag visibility
-        Field visibilityField = packetPlayOutScoreboardTeamClass.getDeclaredField("e");
-        visibilityField.setAccessible(true);
-        visibilityField.set(packet, "always");
+                    case "c": // Prefix - Empty now
+                        if (chatComponentConstructor != null) {
+                            Object component = chatComponentConstructor.newInstance("");
+                            field.set(packet, component);
+                            plugin.getLogger().info("Set prefix component (empty)");
+                        }
+                        break;
 
-        // Field f: Collision rule
-        Field collisionField = packetPlayOutScoreboardTeamClass.getDeclaredField("f");
-        collisionField.setAccessible(true);
-        collisionField.set(packet, "always");
+                    case "d": // Suffix - THE IMPORTANT ONE
+                        if (chatComponentConstructor != null) {
+                            Object component = chatComponentConstructor.newInstance(suffix);
+                            field.set(packet, component);
+                            plugin.getLogger().info("Set suffix component: '" + suffix + "'");
+                        }
+                        break;
 
-        // Field g: Team color (EnumChatFormat) - try setting this to reset
-        try {
-            Field colorField = packetPlayOutScoreboardTeamClass.getDeclaredField("g");
-            colorField.setAccessible(true);
-            // Try to get RESET enum value
-            Class<?> enumChatFormatClass = Class.forName("net.minecraft.server." + nmsVersion + ".EnumChatFormat");
-            Object resetColor = enumChatFormatClass.getField("RESET").get(null);
-            colorField.set(packet, resetColor);
-        } catch (Exception e) {
-            plugin.getLogger().fine("Could not set team color: " + e.getMessage());
+                    case "e": // Visibility
+                        field.set(packet, "always");
+                        plugin.getLogger().info("Set visibility: always");
+                        break;
+
+                    case "f": // Collision
+                        field.set(packet, "always");
+                        plugin.getLogger().info("Set collision: always");
+                        break;
+
+                    case "g": // Color
+                        try {
+                            Class<?> enumChatFormatClass = Class.forName("net.minecraft.server." + nmsVersion + ".EnumChatFormat");
+                            Object resetColor = enumChatFormatClass.getField("RESET").get(null);
+                            field.set(packet, resetColor);
+                            plugin.getLogger().info("Set color: RESET");
+                        } catch (Exception e) {
+                            plugin.getLogger().info("Could not set color field");
+                        }
+                        break;
+
+                    case "h": // Players
+                        Collection<String> players = new ArrayList<>();
+                        players.add(target.getName());
+                        field.set(packet, players);
+                        plugin.getLogger().info("Set players: [" + target.getName() + "]");
+                        break;
+
+                    case "i": // Action
+                        field.set(packet, 0); // CREATE_TEAM
+                        plugin.getLogger().info("Set action: 0 (CREATE_TEAM)");
+                        break;
+
+                    case "j": // Friendly fire
+                        field.set(packet, 3);
+                        plugin.getLogger().info("Set friendly fire: 3");
+                        break;
+                }
+            } catch (Exception e) {
+                plugin.getLogger().warning("Failed to set field " + field.getName() + ": " + e.getMessage());
+            }
         }
-
-        // Field h: Players collection
-        Field playersField = packetPlayOutScoreboardTeamClass.getDeclaredField("h");
-        playersField.setAccessible(true);
-        Collection<String> players = new ArrayList<>();
-        players.add(target.getName());
-        playersField.set(packet, players);
-
-        // Field i: Action (0 = CREATE_TEAM_WITH_PLAYERS)
-        Field actionField = packetPlayOutScoreboardTeamClass.getDeclaredField("i");
-        actionField.setAccessible(true);
-        actionField.set(packet, 0);
-
-        // Field j: Friendly fire flags
-        Field friendlyFireField = packetPlayOutScoreboardTeamClass.getDeclaredField("j");
-        friendlyFireField.setAccessible(true);
-        friendlyFireField.set(packet, 3);
 
         sendPacket(viewer, packet);
         plugin.getLogger().info("✓ Sent team packet with suffix: '" + suffix + "'");
@@ -466,6 +490,23 @@ public class PacketNametagManager {
     }
 
     /**
+     * Debug method to print all packet fields and their types
+     */
+    private void debugPacketStructure() {
+        if (packetPlayOutScoreboardTeamClass == null) return;
+
+        plugin.getLogger().info("=== PacketPlayOutScoreboardTeam Debug Info ===");
+        plugin.getLogger().info("NMS Version: " + nmsVersion);
+
+        Field[] fields = packetPlayOutScoreboardTeamClass.getDeclaredFields();
+        for (int i = 0; i < fields.length; i++) {
+            Field field = fields[i];
+            plugin.getLogger().info("Field[" + i + "] " + field.getName() + " - Type: " + field.getType().getSimpleName());
+        }
+        plugin.getLogger().info("=== End Debug Info ===");
+    }
+
+    /**
      * Find the int field (action field)
      */
     private Field findIntField(Class<?> clazz) {
@@ -517,7 +558,7 @@ public class PacketNametagManager {
             return "";
         }
 
-        // Same faction = green F (with space)
+        // Same faction = green F (with space before)
         if (targetFaction.equals(viewerFaction)) {
             return " " + ChatColor.GREEN + "F";
         }
@@ -612,13 +653,20 @@ public class PacketNametagManager {
      * Handle relation changes
      */
     public void onRelationChange(String faction1, String faction2) {
-        // Small delay to ensure relation data is updated
+        plugin.getLogger().info("Relation change detected between " + faction1 + " and " + faction2);
+
+        // Update after a delay to ensure data is saved
         Bukkit.getScheduler().runTaskLater(plugin, () -> {
             // Update all players from both factions
             for (Player player : Bukkit.getOnlinePlayers()) {
                 String playerFaction = playerFactions.get(player.getUniqueId());
                 if (playerFaction != null && (playerFaction.equals(faction1) || playerFaction.equals(faction2))) {
+                    plugin.getLogger().info("Updating nametags for player " + player.getName() + " due to relation change");
+
+                    // Update how this player sees everyone
                     updateAllNametagsFor(player);
+
+                    // Update how everyone sees this player
                     updateNametagForAll(player);
                 }
             }

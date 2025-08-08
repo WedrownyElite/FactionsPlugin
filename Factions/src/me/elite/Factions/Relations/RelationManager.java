@@ -104,7 +104,14 @@ public class RelationManager {
                 ChatColor.WHITE + toFaction + ChatColor.YELLOW + " is now: " +
                 getRelationColor(relation) + relation.getDisplayName());
 
+        plugin.getDataManager().saveFactionData();
+
         plugin.getEventListener().onFactionRelationChange(fromFaction, toFaction);
+
+        // Trigger nametag updates after a short delay
+        Bukkit.getScheduler().runTaskLater(plugin, () -> {
+            plugin.getNametagManager().onRelationChange(fromFaction, toFaction);
+        }, 3L);
 
         return true;
     }
@@ -236,6 +243,11 @@ public class RelationManager {
 
         plugin.getEventListener().onFactionRelationChange(fromFaction, toFaction);
 
+        // Trigger nametag updates after a short delay
+        Bukkit.getScheduler().runTaskLater(plugin, () -> {
+            plugin.getNametagManager().onRelationChange(fromFaction, toFaction);
+        }, 3L);
+
         return true;
     }
 
@@ -326,6 +338,11 @@ public class RelationManager {
                 ChatColor.WHITE + "Neutral" + ChatColor.YELLOW + ".");
 
         plugin.getEventListener().onFactionRelationChange(fromFaction, toFaction);
+
+        // Trigger nametag updates after a short delay
+        Bukkit.getScheduler().runTaskLater(plugin, () -> {
+            plugin.getNametagManager().onRelationChange(fromFaction, toFaction);
+        }, 3L);
 
         return true;
     }

@@ -1094,6 +1094,7 @@ public class CommandManager implements CommandExecutor {
 
         player.sendMessage(ChatColor.GREEN + "Successfully joined faction " + factionName + "!");
 
+        // Update nametags
         plugin.getEventListener().onPlayerJoinFaction(player);
 
         // Notify other online faction members
@@ -1130,10 +1131,10 @@ public class CommandManager implements CommandExecutor {
 
         player.sendMessage(ChatColor.GREEN + "You have left faction " + factionName + ".");
 
+        // Update nametags
         if (player.isOnline()) {
             plugin.getEventListener().onPlayerLeaveFaction(player);
         }
-
         // Notify other online faction members
         for (UUID memberUUID : faction.members.keySet()) {
             Player member = Bukkit.getPlayer(memberUUID);
@@ -1291,6 +1292,11 @@ public class CommandManager implements CommandExecutor {
         // Remove player from faction
         f.members.remove(targetUUID);
         playerFactions.remove(targetUUID);
+
+        // Update nametags
+        if (target.isOnline()) {
+            plugin.getEventListener().onPlayerLeaveFaction((Player) target);
+        }
 
         // Notify both players
         player.sendMessage(ChatColor.GREEN + "Successfully kicked " + targetName + " from " + factionName + "!");

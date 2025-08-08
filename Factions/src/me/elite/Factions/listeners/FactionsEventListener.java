@@ -1079,17 +1079,27 @@ public class FactionsEventListener implements Listener {
      * Update name colors when a player joins a faction
      */
     public void onPlayerJoinFaction(Player player) {
-        plugin.getNametagManager().onFactionChange(player);
+        plugin.getLogger().info("Player " + player.getName() + " joined a faction, updating nametags");
+
+        // Update after a delay to ensure faction data is updated
+        Bukkit.getScheduler().runTaskLater(plugin, () -> {
+            plugin.getNametagManager().onFactionChange(player);
+        }, 5L);
     }
 
     /**
      * Update name colors when a player leaves a faction
      */
     public void onPlayerLeaveFaction(Player player) {
-        plugin.getNametagManager().onFactionChange(player);
+        plugin.getLogger().info("Player " + player.getName() + " left a faction, updating nametags");
 
-        // Keep chat display name reset for chat purposes
-        player.setDisplayName(player.getName());
+        // Update after a delay to ensure faction data is updated
+        Bukkit.getScheduler().runTaskLater(plugin, () -> {
+            plugin.getNametagManager().onFactionChange(player);
+
+            // Keep chat display name reset for chat purposes
+            player.setDisplayName(player.getName());
+        }, 5L);
     }
 
     /**
