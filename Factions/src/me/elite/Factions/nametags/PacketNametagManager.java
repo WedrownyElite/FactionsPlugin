@@ -22,10 +22,7 @@ public class PacketNametagManager {
     private String nmsVersion;
     private Class<?> packetPlayOutScoreboardTeamClass;
     private Class<?> craftPlayerClass;
-    private Class<?> scoreboardTeamClass;
     private Class<?> chatComponentTextClass;
-    private Class<?> enumChatFormatClass;
-    private Constructor<?> packetConstructor;
     private Constructor<?> chatComponentConstructor;
     private Method sendPacketMethod;
     private Method getHandleMethod;
@@ -34,73 +31,10 @@ public class PacketNametagManager {
     // Team management
     private static final String TEAM_PREFIX = "fac_";
 
-    // Debug flag
-    private boolean debugPrinted = false;
-
     public PacketNametagManager(FactionsPlugin plugin) {
         this.plugin = plugin;
         this.playerFactions = plugin.getPlayerFactions();
         initializeReflection();
-    }
-
-    /**
-     * Convert ChatColor to NMS EnumChatFormat
-     */
-    private Object getEnumChatFormat(ChatColor color) {
-        if (enumChatFormatClass == null) {
-            plugin.getLogger().info("EnumChatFormat class is null");
-            return null;
-        }
-
-        try {
-            String enumName;
-            switch (color) {
-                case BLACK: enumName = "BLACK"; break;
-                case DARK_BLUE: enumName = "DARK_BLUE"; break;
-                case DARK_GREEN: enumName = "DARK_GREEN"; break;
-                case DARK_AQUA: enumName = "DARK_AQUA"; break;
-                case DARK_RED: enumName = "DARK_RED"; break;
-                case DARK_PURPLE: enumName = "DARK_PURPLE"; break;
-                case GOLD: enumName = "GOLD"; break;
-                case GRAY: enumName = "GRAY"; break;
-                case DARK_GRAY: enumName = "DARK_GRAY"; break;
-                case BLUE: enumName = "BLUE"; break;
-                case GREEN: enumName = "GREEN"; break;
-                case AQUA: enumName = "AQUA"; break;
-                case RED: enumName = "RED"; break;
-                case LIGHT_PURPLE: enumName = "LIGHT_PURPLE"; break;
-                case YELLOW: enumName = "YELLOW"; break;
-                case WHITE: enumName = "WHITE"; break;
-                default: enumName = "WHITE"; break;
-            }
-
-            // Try different methods to get the enum value
-            try {
-                Method valueOfMethod = enumChatFormatClass.getMethod("valueOf", String.class);
-                Object result = valueOfMethod.invoke(null, enumName);
-                plugin.getLogger().info("Successfully converted " + color.name() + " to " + result);
-                return result;
-            } catch (Exception e) {
-                plugin.getLogger().info("valueOf failed: " + e.getMessage());
-
-                // Try getting all enum constants
-                Object[] constants = enumChatFormatClass.getEnumConstants();
-                if (constants != null) {
-                    for (Object constant : constants) {
-                        if (constant.toString().equals(enumName)) {
-                            plugin.getLogger().info("Found enum constant: " + constant);
-                            return constant;
-                        }
-                    }
-                }
-            }
-
-        } catch (Exception e) {
-            plugin.getLogger().fine("Could not convert ChatColor to EnumChatFormat: " + e.getMessage());
-        }
-
-        plugin.getLogger().info("Failed to convert ChatColor " + color.name() + " to EnumChatFormat");
-        return null;
     }
 
     private void initializeReflection() {
@@ -115,7 +49,7 @@ public class PacketNametagManager {
             packetPlayOutScoreboardTeamClass = Class.forName("net.minecraft.server." + nmsVersion + ".PacketPlayOutScoreboardTeam");
             craftPlayerClass = Class.forName("org.bukkit.craftbukkit." + nmsVersion + ".entity.CraftPlayer");
 
-            // For 1.16+, we need to handle chat components differently
+            // For 1.16+, we need to handle chat components
             try {
                 chatComponentTextClass = Class.forName("net.minecraft.server." + nmsVersion + ".ChatComponentText");
                 chatComponentConstructor = chatComponentTextClass.getConstructor(String.class);
@@ -123,12 +57,6 @@ public class PacketNametagManager {
                 // Fallback for older versions
                 chatComponentTextClass = null;
                 chatComponentConstructor = null;
-            }
-
-            try {
-                enumChatFormatClass = Class.forName("net.minecraft.server." + nmsVersion + ".EnumChatFormat");
-            } catch (ClassNotFoundException e) {
-                enumChatFormatClass = null;
             }
 
             // Get methods for sending packets
@@ -146,7 +74,7 @@ public class PacketNametagManager {
     }
 
     /**
-     * Update nametag color for a target player as seen by a viewer
+     * Update nametag suffix for a target player as seen by a viewer
      */
     public void updateNametagFor(Player target, Player viewer) {
         if (target == null || viewer == null || !target.isOnline() || !viewer.isOnline()) {
@@ -158,24 +86,28 @@ public class PacketNametagManager {
         }
 
         try {
-            // Get the appropriate color
-            ChatColor color = getRelationColor(target, viewer);
+            // Get the appropriate suffix
+            String suffix = getRelationSuffix(target, viewer);
 
-            // Create a short team name (max 16 chars)
-            // Format: fac_R_123 where R is relation and 123 is hash
-            String relationCode = getRelationCode(color);
-            String hash = String.valueOf(Math.abs(target.getName().hashCode()) % 1000);
-            String teamName = "fac_" + relationCode + "_" + hash;
+            // Create a unique team name for this target-viewer pair
+            String baseName = target.getName().toLowerCase();
+            String teamName = TEAM_PREFIX + (baseName.length() > 12 ? baseName.substring(0, 12) : baseName);
 
-            // Ensure it's under 16 characters
-            if (teamName.length() > 16) {
-                teamName = teamName.substring(0, 16);
-            }
+            plugin.getLogger().info("Updating nametag: " + target.getName() + " -> " + viewer.getName() + " (Suffix: '" + suffix + "', Team: " + teamName + ")");
 
-            plugin.getLogger().info("Updating nametag: " + target.getName() + " -> " + viewer.getName() + " (Color: " + color.name() + ", Team: " + teamName + ")");
+            // First remove player from any existing team
+            removePlayerFromTeam(viewer, target);
 
-            // Use the systematic method
-            sendTeamPacketSystematic(viewer, target, teamName, color);
+            // Small delay before creating new team
+            final String finalTeamName = teamName;
+            final String finalSuffix = suffix;
+            Bukkit.getScheduler().runTaskLater(plugin, () -> {
+                try {
+                    sendModernTeamPacket(viewer, target, finalTeamName, finalSuffix);
+                } catch (Exception e) {
+                    plugin.getLogger().warning("Failed to send team packet: " + e.getMessage());
+                }
+            }, 1L); // 1 tick delay
 
         } catch (Exception e) {
             plugin.getLogger().warning("Failed to update nametag for " + target.getName() + " -> " + viewer.getName() + ": " + e.getMessage());
@@ -184,43 +116,18 @@ public class PacketNametagManager {
     }
 
     /**
-     * Get a short code for each relation type
+     * Remove player from any existing team
      */
-    private String getRelationCode(ChatColor color) {
-        switch (color) {
-            case GREEN: return "F"; // Faction/Friend
-            case LIGHT_PURPLE: return "A"; // Ally
-            case BLUE: return "T"; // Truce
-            case RED: return "E"; // Enemy
-            case WHITE:
-            default: return "N"; // Neutral
-        }
-    }
-
-    /**
-     * Send team packet to update nametag color - Updated for 1.16+
-     */
-    private void sendTeamPacket(Player viewer, Player target, String teamName, ChatColor color) throws Exception {
-        // First, remove player from any existing team
-        sendRemovePlayerPacket(viewer, target);
-
-        // Then add to new colored team
-        sendCreateTeamPacket(viewer, target, teamName, color);
-    }
-
-    /**
-     * Send packet to remove player from their current team
-     */
-    private void sendRemovePlayerPacket(Player viewer, Player target) throws Exception {
+    private void removePlayerFromTeam(Player viewer, Player target) {
         try {
             Object packet = packetPlayOutScoreboardTeamClass.newInstance();
 
-            // Set team name - use a generic name for removal
+            // Generic team name for removal
             Field teamNameField = packetPlayOutScoreboardTeamClass.getDeclaredField("a");
             teamNameField.setAccessible(true);
-            teamNameField.set(packet, "old_team");
+            teamNameField.set(packet, TEAM_PREFIX + target.getName().toLowerCase());
 
-            // Set action to REMOVE_PLAYERS (value 4)
+            // Set action to REMOVE_PLAYERS (4)
             Field actionField = packetPlayOutScoreboardTeamClass.getDeclaredField("i");
             actionField.setAccessible(true);
             actionField.set(packet, 4);
@@ -233,111 +140,314 @@ public class PacketNametagManager {
             playersField.set(packet, players);
 
             sendPacket(viewer, packet);
+            plugin.getLogger().fine("✓ Removed " + target.getName() + " from team");
         } catch (Exception e) {
-            // Ignore errors for removal - player might not be on a team
+            // Ignore removal errors
+            plugin.getLogger().fine("Remove player failed (expected): " + e.getMessage());
         }
     }
 
     /**
-     * Send packet to create team and add player
+     * Alternative team packet approach
      */
-    private void sendCreateTeamPacket(Player viewer, Player target, String teamName, ChatColor color) throws Exception {
-        // Create the team first
+    private void sendAlternativeTeamPacket(Player viewer, Player target, String teamName, String suffix) throws Exception {
+        plugin.getLogger().info("Trying alternative packet approach...");
+
+        // First remove player from any existing team
+        sendRemovePlayerPacket(viewer, target);
+
+        // Then create new team with suffix
+        sendCreateTeamPacket(viewer, target, teamName, suffix);
+    }
+
+    /**
+     * Send remove player packet
+     */
+    private void sendRemovePlayerPacket(Player viewer, Player target) throws Exception {
+        try {
+            Object packet = packetPlayOutScoreboardTeamClass.newInstance();
+
+            // Set a generic team name for removal
+            Field teamNameField = packetPlayOutScoreboardTeamClass.getDeclaredField("a");
+            teamNameField.setAccessible(true);
+            teamNameField.set(packet, "remove_team");
+
+            // Set action to REMOVE_PLAYERS (4)
+            Field[] fields = packetPlayOutScoreboardTeamClass.getDeclaredFields();
+            for (Field field : fields) {
+                if (field.getType() == int.class) {
+                    field.setAccessible(true);
+                    field.set(packet, 4); // REMOVE_PLAYERS
+                    break;
+                }
+            }
+
+            // Set players to remove
+            for (Field field : fields) {
+                if (Collection.class.isAssignableFrom(field.getType())) {
+                    field.setAccessible(true);
+                    Collection<String> players = new ArrayList<>();
+                    players.add(target.getName());
+                    field.set(packet, players);
+                    break;
+                }
+            }
+
+            sendPacket(viewer, packet);
+            plugin.getLogger().info("✓ Sent remove player packet");
+        } catch (Exception e) {
+            // Ignore removal errors - player might not be on a team
+            plugin.getLogger().fine("Remove player packet failed (expected): " + e.getMessage());
+        }
+    }
+
+    /**
+     * Send create team packet
+     */
+    private void sendCreateTeamPacket(Player viewer, Player target, String teamName, String suffix) throws Exception {
+        Object packet = packetPlayOutScoreboardTeamClass.newInstance();
+
+        Field[] fields = packetPlayOutScoreboardTeamClass.getDeclaredFields();
+
+        plugin.getLogger().info("Creating team with suffix: '" + suffix + "'");
+
+        // Set team name (usually field 'a' or index 0)
+        for (Field field : fields) {
+            if (field.getType() == String.class) {
+                field.setAccessible(true);
+                field.set(packet, teamName);
+                plugin.getLogger().info("✓ Set team name in field " + field.getName());
+                break;
+            }
+        }
+
+        // Set action to CREATE_TEAM (0)
+        for (Field field : fields) {
+            if (field.getType() == int.class) {
+                field.setAccessible(true);
+                field.set(packet, 0);
+                plugin.getLogger().info("✓ Set action to CREATE_TEAM in field " + field.getName());
+                break;
+            }
+        }
+
+        // Try to set chat component fields systematically
+        int componentFieldCount = 0;
+        for (Field field : fields) {
+            field.setAccessible(true);
+
+            // Check if it's a chat component field
+            if (chatComponentTextClass != null &&
+                    (field.getType().equals(chatComponentTextClass) ||
+                            field.getType().getSimpleName().contains("IChatBaseComponent") ||
+                            field.getType().getSimpleName().contains("ChatComponent"))) {
+
+                componentFieldCount++;
+
+                if (componentFieldCount == 1) {
+                    // First component field - display name (empty)
+                    Object displayComponent = chatComponentConstructor.newInstance("");
+                    field.set(packet, displayComponent);
+                    plugin.getLogger().info("✓ Set display name in field " + field.getName());
+                } else if (componentFieldCount == 2) {
+                    // Second component field - prefix (empty)
+                    Object prefixComponent = chatComponentConstructor.newInstance("");
+                    field.set(packet, prefixComponent);
+                    plugin.getLogger().info("✓ Set prefix in field " + field.getName());
+                } else if (componentFieldCount == 3) {
+                    // Third component field - suffix (our relation indicator)
+                    Object suffixComponent = chatComponentConstructor.newInstance(suffix);
+                    field.set(packet, suffixComponent);
+                    plugin.getLogger().info("✓ Set suffix '" + suffix + "' in field " + field.getName());
+                }
+            }
+            // For string fields after team name
+            else if (field.getType() == String.class && componentFieldCount == 0) {
+                // These might be visibility/collision settings
+                String fieldName = field.getName();
+                if (fieldName.contains("visibility") || fieldName.equals("e")) {
+                    field.set(packet, "always");
+                    plugin.getLogger().info("✓ Set visibility to 'always' in field " + fieldName);
+                } else if (fieldName.contains("collision") || fieldName.equals("f")) {
+                    field.set(packet, "always");
+                    plugin.getLogger().info("✓ Set collision to 'always' in field " + fieldName);
+                }
+            }
+        }
+
+        // Set players
+        for (Field field : fields) {
+            if (Collection.class.isAssignableFrom(field.getType())) {
+                field.setAccessible(true);
+                Collection<String> players = new ArrayList<>();
+                players.add(target.getName());
+                field.set(packet, players);
+                plugin.getLogger().info("✓ Set players [" + target.getName() + "] in field " + field.getName());
+                break;
+            }
+        }
+
+        sendPacket(viewer, packet);
+        plugin.getLogger().info("✓ Sent create team packet with suffix: '" + suffix + "'");
+    }
+
+    /**
+     * Send team packet to update nametag suffix
+     */
+    private void sendTeamPacket(Player viewer, Player target, String teamName, String suffix) throws Exception {
+        plugin.getLogger().info("Creating team packet for " + target.getName() + " with suffix: '" + suffix + "'");
+
+        // Try the modern approach first (for 1.16+)
+        try {
+            sendModernTeamPacket(viewer, target, teamName, suffix);
+        } catch (Exception e) {
+            plugin.getLogger().warning("Modern approach failed, trying legacy: " + e.getMessage());
+            sendLegacyTeamPacket(viewer, target, teamName, suffix);
+        }
+    }
+
+    /**
+     * Modern team packet for 1.16+ (Create team with players included)
+     */
+    private void sendModernTeamPacket(Player viewer, Player target, String teamName, String suffix) throws Exception {
+        Object packet = packetPlayOutScoreboardTeamClass.newInstance();
+
+        // Field a: Team name
+        Field teamNameField = packetPlayOutScoreboardTeamClass.getDeclaredField("a");
+        teamNameField.setAccessible(true);
+        teamNameField.set(packet, teamName);
+
+        // Field b: Display name (IChatBaseComponent)
+        Field displayNameField = packetPlayOutScoreboardTeamClass.getDeclaredField("b");
+        displayNameField.setAccessible(true);
+        Object displayComponent = chatComponentConstructor.newInstance("");
+        displayNameField.set(packet, displayComponent);
+
+        // Field c: Prefix (IChatBaseComponent)
+        Field prefixField = packetPlayOutScoreboardTeamClass.getDeclaredField("c");
+        prefixField.setAccessible(true);
+        Object prefixComponent = chatComponentConstructor.newInstance("");
+        prefixField.set(packet, prefixComponent);
+
+        // Field d: Suffix (IChatBaseComponent) - THE IMPORTANT ONE
+        Field suffixField = packetPlayOutScoreboardTeamClass.getDeclaredField("d");
+        suffixField.setAccessible(true);
+        Object suffixComponent = chatComponentConstructor.newInstance(suffix);
+        suffixField.set(packet, suffixComponent);
+
+        // Field e: Name tag visibility
+        Field visibilityField = packetPlayOutScoreboardTeamClass.getDeclaredField("e");
+        visibilityField.setAccessible(true);
+        visibilityField.set(packet, "always");
+
+        // Field f: Collision rule
+        Field collisionField = packetPlayOutScoreboardTeamClass.getDeclaredField("f");
+        collisionField.setAccessible(true);
+        collisionField.set(packet, "always");
+
+        // Field g: Team color (EnumChatFormat) - try setting this to reset
+        try {
+            Field colorField = packetPlayOutScoreboardTeamClass.getDeclaredField("g");
+            colorField.setAccessible(true);
+            // Try to get RESET enum value
+            Class<?> enumChatFormatClass = Class.forName("net.minecraft.server." + nmsVersion + ".EnumChatFormat");
+            Object resetColor = enumChatFormatClass.getField("RESET").get(null);
+            colorField.set(packet, resetColor);
+        } catch (Exception e) {
+            plugin.getLogger().fine("Could not set team color: " + e.getMessage());
+        }
+
+        // Field h: Players collection
+        Field playersField = packetPlayOutScoreboardTeamClass.getDeclaredField("h");
+        playersField.setAccessible(true);
+        Collection<String> players = new ArrayList<>();
+        players.add(target.getName());
+        playersField.set(packet, players);
+
+        // Field i: Action (0 = CREATE_TEAM_WITH_PLAYERS)
+        Field actionField = packetPlayOutScoreboardTeamClass.getDeclaredField("i");
+        actionField.setAccessible(true);
+        actionField.set(packet, 0);
+
+        // Field j: Friendly fire flags
+        Field friendlyFireField = packetPlayOutScoreboardTeamClass.getDeclaredField("j");
+        friendlyFireField.setAccessible(true);
+        friendlyFireField.set(packet, 3);
+
+        sendPacket(viewer, packet);
+        plugin.getLogger().info("✓ Sent team packet with suffix: '" + suffix + "'");
+    }
+
+    /**
+     * Legacy team packet approach (separate create and add)
+     */
+    private void sendLegacyTeamPacket(Player viewer, Player target, String teamName, String suffix) throws Exception {
+        plugin.getLogger().info("Using legacy approach...");
+
+        // First: Create the team (action 0)
         Object createPacket = packetPlayOutScoreboardTeamClass.newInstance();
 
-        // Set team name
         Field teamNameField = packetPlayOutScoreboardTeamClass.getDeclaredField("a");
         teamNameField.setAccessible(true);
         teamNameField.set(createPacket, teamName);
 
-        // Set action to CREATE_TEAM (value 0)
-        Field actionField = packetPlayOutScoreboardTeamClass.getDeclaredField("i");
-        actionField.setAccessible(true);
-        actionField.set(createPacket, 0);
-
-        // Set team display name (same as team name)
         Field displayNameField = packetPlayOutScoreboardTeamClass.getDeclaredField("b");
         displayNameField.setAccessible(true);
-        if (chatComponentTextClass != null && chatComponentConstructor != null) {
-            Object displayNameComponent = chatComponentConstructor.newInstance(teamName);
-            displayNameField.set(createPacket, displayNameComponent);
-        } else {
-            displayNameField.set(createPacket, teamName);
-        }
+        Object displayComponent = chatComponentConstructor.newInstance("");
+        displayNameField.set(createPacket, displayComponent);
 
-        // Set prefix (the color)
         Field prefixField = packetPlayOutScoreboardTeamClass.getDeclaredField("c");
         prefixField.setAccessible(true);
-        if (chatComponentTextClass != null && chatComponentConstructor != null) {
-            Object prefixComponent = chatComponentConstructor.newInstance(color.toString());
-            prefixField.set(createPacket, prefixComponent);
-        } else {
-            prefixField.set(createPacket, color.toString());
-        }
+        Object prefixComponent = chatComponentConstructor.newInstance("");
+        prefixField.set(createPacket, prefixComponent);
 
-        // Set suffix (reset)
         Field suffixField = packetPlayOutScoreboardTeamClass.getDeclaredField("d");
         suffixField.setAccessible(true);
-        if (chatComponentTextClass != null && chatComponentConstructor != null) {
-            Object suffixComponent = chatComponentConstructor.newInstance(ChatColor.RESET.toString());
-            suffixField.set(createPacket, suffixComponent);
-        } else {
-            suffixField.set(createPacket, ChatColor.RESET.toString());
-        }
+        Object suffixComponent = chatComponentConstructor.newInstance(suffix);
+        suffixField.set(createPacket, suffixComponent);
 
-        // Set name tag visibility to ALWAYS
-        Field nameTagVisibilityField = packetPlayOutScoreboardTeamClass.getDeclaredField("e");
-        nameTagVisibilityField.setAccessible(true);
-        nameTagVisibilityField.set(createPacket, "always");
+        Field visibilityField = packetPlayOutScoreboardTeamClass.getDeclaredField("e");
+        visibilityField.setAccessible(true);
+        visibilityField.set(createPacket, "always");
 
-        // Set collision rule to ALWAYS
-        Field collisionRuleField = packetPlayOutScoreboardTeamClass.getDeclaredField("f");
-        collisionRuleField.setAccessible(true);
-        collisionRuleField.set(createPacket, "always");
+        Field collisionField = packetPlayOutScoreboardTeamClass.getDeclaredField("f");
+        collisionField.setAccessible(true);
+        collisionField.set(createPacket, "always");
 
-        // Set team color using EnumChatFormat
-        Field colorField = packetPlayOutScoreboardTeamClass.getDeclaredField("g");
-        colorField.setAccessible(true);
-        Object enumChatFormat = getEnumChatFormat(color);
-        if (enumChatFormat != null) {
-            colorField.set(createPacket, enumChatFormat);
-        }
+        Field playersField = packetPlayOutScoreboardTeamClass.getDeclaredField("h");
+        playersField.setAccessible(true);
+        playersField.set(createPacket, new ArrayList<String>());
 
-        // Set friendly fire (0 = allow, 1 = disallow, 2 = disallow for invisible)
-        Field friendlyFireField = packetPlayOutScoreboardTeamClass.getDeclaredField("h");
+        Field actionField = packetPlayOutScoreboardTeamClass.getDeclaredField("i");
+        actionField.setAccessible(true);
+        actionField.set(createPacket, 0); // CREATE_TEAM
+
+        Field friendlyFireField = packetPlayOutScoreboardTeamClass.getDeclaredField("j");
         friendlyFireField.setAccessible(true);
-        friendlyFireField.set(createPacket, 0);
+        friendlyFireField.set(createPacket, 3);
 
-        // Set players (empty for creation)
-        Field playersCreateField = packetPlayOutScoreboardTeamClass.getDeclaredField("j");
-        playersCreateField.setAccessible(true);
-        playersCreateField.set(createPacket, new ArrayList<String>());
-
-        // Send create team packet
         sendPacket(viewer, createPacket);
+        plugin.getLogger().info("✓ Sent team creation packet");
 
-        // Now add player to the team
+        // Second: Add player to team (action 3)
         Object addPacket = packetPlayOutScoreboardTeamClass.newInstance();
 
-        // Set team name
         Field addTeamNameField = packetPlayOutScoreboardTeamClass.getDeclaredField("a");
         addTeamNameField.setAccessible(true);
         addTeamNameField.set(addPacket, teamName);
 
-        // Set action to ADD_PLAYERS (value 3)
-        Field addActionField = packetPlayOutScoreboardTeamClass.getDeclaredField("i");
-        addActionField.setAccessible(true);
-        addActionField.set(addPacket, 3);
-
-        // Set players to add
-        Field addPlayersField = packetPlayOutScoreboardTeamClass.getDeclaredField("j");
+        Field addPlayersField = packetPlayOutScoreboardTeamClass.getDeclaredField("h");
         addPlayersField.setAccessible(true);
         Collection<String> playersToAdd = new ArrayList<>();
         playersToAdd.add(target.getName());
         addPlayersField.set(addPacket, playersToAdd);
 
-        // Send add player packet
+        Field addActionField = packetPlayOutScoreboardTeamClass.getDeclaredField("i");
+        addActionField.setAccessible(true);
+        addActionField.set(addPacket, 3); // ADD_PLAYERS
+
         sendPacket(viewer, addPacket);
+        plugin.getLogger().info("✓ Sent add player packet");
     }
 
     /**
@@ -350,222 +460,35 @@ public class PacketNametagManager {
         Field[] fields = packetPlayOutScoreboardTeamClass.getDeclaredFields();
         for (int i = 0; i < fields.length; i++) {
             Field field = fields[i];
-            plugin.getLogger().info("Field " + i + ": " + field.getName() + " (Type: " + field.getType().getSimpleName() + ")");
+            plugin.getLogger().info("Field " + field.getName() + " (Type: " + field.getType().getSimpleName() + ")");
         }
         plugin.getLogger().info("=== End Field Analysis ===");
     }
 
     /**
-     * Systematic approach to sending team packets for 1.16
+     * Find the int field (action field)
      */
-    private void sendTeamPacketSystematic(Player viewer, Player target, String teamName, ChatColor color) throws Exception {
-        // Debug: Print all fields on first run
-        if (!debugPrinted) {
-            debugPacketFields();
-            debugPrinted = true;
-        }
-
-        // Create packet using the simpler CREATE_TEAM with players approach
-        Object packet = packetPlayOutScoreboardTeamClass.newInstance();
-
-        // Set team name (field a)
-        Field teamNameField = packetPlayOutScoreboardTeamClass.getDeclaredField("a");
-        teamNameField.setAccessible(true);
-        teamNameField.set(packet, teamName);
-        plugin.getLogger().info("Set team name: " + teamName);
-
-        // Set team display name (field b) - empty for now
-        try {
-            Field displayNameField = packetPlayOutScoreboardTeamClass.getDeclaredField("b");
-            displayNameField.setAccessible(true);
-            if (chatComponentConstructor != null) {
-                Object displayComponent = chatComponentConstructor.newInstance("");
-                displayNameField.set(packet, displayComponent);
+    private Field findIntField(Class<?> clazz) {
+        Field[] fields = clazz.getDeclaredFields();
+        for (Field field : fields) {
+            if (field.getType() == int.class) {
+                return field;
             }
-            plugin.getLogger().info("Set display name");
-        } catch (Exception e) {
-            plugin.getLogger().info("Could not set display name: " + e.getMessage());
         }
-
-        // Set prefix with color (field c)
-        try {
-            Field prefixField = packetPlayOutScoreboardTeamClass.getDeclaredField("c");
-            prefixField.setAccessible(true);
-            if (chatComponentConstructor != null) {
-                // Create prefix with the color code
-                String colorCode = color.toString();
-                Object prefixComponent = chatComponentConstructor.newInstance(colorCode);
-                prefixField.set(packet, prefixComponent);
-                plugin.getLogger().info("Set prefix: '" + colorCode + "' (" + color.name() + ")");
-            }
-        } catch (Exception e) {
-            plugin.getLogger().warning("Could not set prefix: " + e.getMessage());
-        }
-
-        // Set suffix (field d)
-        try {
-            Field suffixField = packetPlayOutScoreboardTeamClass.getDeclaredField("d");
-            suffixField.setAccessible(true);
-            if (chatComponentConstructor != null) {
-                Object suffixComponent = chatComponentConstructor.newInstance(ChatColor.RESET.toString());
-                suffixField.set(packet, suffixComponent);
-            }
-            plugin.getLogger().info("Set suffix");
-        } catch (Exception e) {
-            plugin.getLogger().info("Could not set suffix: " + e.getMessage());
-        }
-
-        // Set name tag visibility (field e)
-        try {
-            Field visibilityField = packetPlayOutScoreboardTeamClass.getDeclaredField("e");
-            visibilityField.setAccessible(true);
-            visibilityField.set(packet, "always");
-            plugin.getLogger().info("Set visibility: always");
-        } catch (Exception e) {
-            plugin.getLogger().info("Could not set visibility: " + e.getMessage());
-        }
-
-        // Set collision rule (field f)
-        try {
-            Field collisionField = packetPlayOutScoreboardTeamClass.getDeclaredField("f");
-            collisionField.setAccessible(true);
-            collisionField.set(packet, "always");
-            plugin.getLogger().info("Set collision: always");
-        } catch (Exception e) {
-            plugin.getLogger().info("Could not set collision: " + e.getMessage());
-        }
-
-        // Set team color (field g)
-        try {
-            Field colorField = packetPlayOutScoreboardTeamClass.getDeclaredField("g");
-            colorField.setAccessible(true);
-            Object enumColor = getEnumChatFormat(color);
-            if (enumColor != null) {
-                colorField.set(packet, enumColor);
-                plugin.getLogger().info("Set team color: " + enumColor);
-            } else {
-                plugin.getLogger().info("EnumChatFormat was null for color: " + color.name());
-            }
-        } catch (Exception e) {
-            plugin.getLogger().info("Could not set team color: " + e.getMessage());
-        }
-
-        // Field h is a Collection (players), based on the error message
-        try {
-            Field playersField = packetPlayOutScoreboardTeamClass.getDeclaredField("h");
-            playersField.setAccessible(true);
-            Collection<String> players = new ArrayList<>();
-            players.add(target.getName());
-            playersField.set(packet, players);
-            plugin.getLogger().info("Set players in field h: [" + target.getName() + "]");
-        } catch (Exception e) {
-            plugin.getLogger().warning("Could not set players in field h: " + e.getMessage());
-        }
-
-        // Field j is an int (probably action), based on the error message
-        try {
-            Field actionField = packetPlayOutScoreboardTeamClass.getDeclaredField("j");
-            actionField.setAccessible(true);
-            actionField.set(packet, 0); // 0 = CREATE_TEAM
-            plugin.getLogger().info("Set action in field j: CREATE_TEAM (0)");
-        } catch (Exception e) {
-            plugin.getLogger().warning("Could not set action in field j: " + e.getMessage());
-        }
-
-        // Try to find the actual action field (int type)
-        try {
-            Field[] allFields = packetPlayOutScoreboardTeamClass.getDeclaredFields();
-            for (Field field : allFields) {
-                if (field.getType() == int.class && !field.getName().equals("j")) {
-                    field.setAccessible(true);
-                    field.set(packet, 0); // CREATE_TEAM
-                    plugin.getLogger().info("Set action in field " + field.getName() + ": CREATE_TEAM (0)");
-                    break;
-                }
-            }
-        } catch (Exception e) {
-            plugin.getLogger().info("Could not find/set action field: " + e.getMessage());
-        }
-
-        // Send the packet
-        sendPacket(viewer, packet);
-        plugin.getLogger().info("Successfully sent packet for " + target.getName() + " to " + viewer.getName());
+        return null;
     }
-    private void sendTeamPacketAlternative(Player viewer, Player target, String teamName, ChatColor color) throws Exception {
-        // Debug: Print all fields on first run
-        if (!debugPrinted) {
-            debugPacketFields();
-            debugPrinted = true;
+
+    /**
+     * Find the Collection field (players field)
+     */
+    private Field findCollectionField(Class<?> clazz) {
+        Field[] fields = clazz.getDeclaredFields();
+        for (Field field : fields) {
+            if (Collection.class.isAssignableFrom(field.getType())) {
+                return field;
+            }
         }
-
-        // Try the simplified approach for 1.16
-        Object packet = packetPlayOutScoreboardTeamClass.newInstance();
-
-        Field[] fields = packetPlayOutScoreboardTeamClass.getDeclaredFields();
-
-        try {
-            // Field 0: Team name (String)
-            if (fields.length > 0 && fields[0].getType() == String.class) {
-                fields[0].setAccessible(true);
-                fields[0].set(packet, teamName);
-                plugin.getLogger().info("Set team name: " + teamName);
-            }
-
-            // Look for IChatBaseComponent fields for prefix/suffix
-            for (int i = 1; i < Math.min(fields.length, 8); i++) {
-                Field field = fields[i];
-                field.setAccessible(true);
-
-                if (field.getType().getSimpleName().contains("IChatBaseComponent") ||
-                        field.getType().getSimpleName().contains("ChatComponent")) {
-
-                    if (i == 2) { // Usually prefix
-                        if (chatComponentConstructor != null) {
-                            Object prefixComponent = chatComponentConstructor.newInstance(color.toString());
-                            field.set(packet, prefixComponent);
-                            plugin.getLogger().info("Set prefix component at field " + i);
-                        }
-                    } else if (i == 3) { // Usually suffix
-                        if (chatComponentConstructor != null) {
-                            Object suffixComponent = chatComponentConstructor.newInstance(ChatColor.RESET.toString());
-                            field.set(packet, suffixComponent);
-                            plugin.getLogger().info("Set suffix component at field " + i);
-                        }
-                    }
-                }
-            }
-
-            // Look for action field (int)
-            for (int i = 1; i < fields.length; i++) {
-                Field field = fields[i];
-                if (field.getType() == int.class) {
-                    field.setAccessible(true);
-                    field.set(packet, 0); // CREATE_TEAM
-                    plugin.getLogger().info("Set action (CREATE_TEAM) at field " + i);
-                    break;
-                }
-            }
-
-            // Look for Collection field for players
-            for (int i = 1; i < fields.length; i++) {
-                Field field = fields[i];
-                if (Collection.class.isAssignableFrom(field.getType())) {
-                    field.setAccessible(true);
-                    Collection<String> players = new ArrayList<>();
-                    players.add(target.getName());
-                    field.set(packet, players);
-                    plugin.getLogger().info("Set players collection at field " + i);
-                    break;
-                }
-            }
-
-            sendPacket(viewer, packet);
-            plugin.getLogger().info("Sent packet for " + target.getName() + " to " + viewer.getName());
-
-        } catch (Exception e) {
-            plugin.getLogger().warning("Alternative packet method failed: " + e.getMessage());
-            e.printStackTrace();
-        }
+        return null;
     }
 
     /**
@@ -575,6 +498,44 @@ public class PacketNametagManager {
         Object handle = getHandleMethod.invoke(player);
         Object playerConnection = playerConnectionField.get(handle);
         sendPacketMethod.invoke(playerConnection, packet);
+    }
+
+    /**
+     * Get relation suffix between target and viewer
+     */
+    private String getRelationSuffix(Player target, Player viewer) {
+        String targetFaction = playerFactions.get(target.getUniqueId());
+        String viewerFaction = playerFactions.get(viewer.getUniqueId());
+
+        // If viewer has no faction, show nothing
+        if (viewerFaction == null) {
+            return "";
+        }
+
+        // If target has no faction, show nothing (neutral)
+        if (targetFaction == null) {
+            return "";
+        }
+
+        // Same faction = green F (with space)
+        if (targetFaction.equals(viewerFaction)) {
+            return " " + ChatColor.GREEN + "F";
+        }
+
+        // Different factions - check relations
+        Relation relation = plugin.getRelationManager().getRelation(viewerFaction, targetFaction);
+
+        switch (relation) {
+            case ALLY:
+                return " " + ChatColor.LIGHT_PURPLE + "A"; // Purple A for ally
+            case TRUCE:
+                return " " + ChatColor.BLUE + "T"; // Blue T for truce
+            case ENEMY:
+                return " " + ChatColor.RED + "E"; // Red E for enemy
+            case NEUTRAL:
+            default:
+                return ""; // Nothing for neutral
+        }
     }
 
     /**
@@ -617,58 +578,6 @@ public class PacketNametagManager {
     }
 
     /**
-     * Get relation color between target and viewer
-     */
-    private ChatColor getRelationColor(Player target, Player viewer) {
-        String targetFaction = playerFactions.get(target.getUniqueId());
-        String viewerFaction = playerFactions.get(viewer.getUniqueId());
-
-        plugin.getLogger().info("DEBUG: Getting relation color for " + target.getName() + " (faction: " + targetFaction + ") -> " + viewer.getName() + " (faction: " + viewerFaction + ")");
-
-        // If viewer has no faction, show white
-        if (viewerFaction == null) {
-            plugin.getLogger().info("DEBUG: Viewer has no faction, returning WHITE");
-            return ChatColor.WHITE;
-        }
-
-        // If target has no faction, show white (neutral)
-        if (targetFaction == null) {
-            plugin.getLogger().info("DEBUG: Target has no faction, returning WHITE");
-            return ChatColor.WHITE;
-        }
-
-        // Same faction = GREEN
-        if (targetFaction.equals(viewerFaction)) {
-            plugin.getLogger().info("DEBUG: Same faction, returning GREEN");
-            return ChatColor.GREEN;
-        }
-
-        // Different factions - check relations
-        Relation relation = plugin.getRelationManager().getRelation(viewerFaction, targetFaction);
-        plugin.getLogger().info("DEBUG: Relation between " + viewerFaction + " and " + targetFaction + " is: " + relation);
-
-        ChatColor color;
-        switch (relation) {
-            case ALLY:
-                color = ChatColor.LIGHT_PURPLE; // Purple for allies
-                break;
-            case TRUCE:
-                color = ChatColor.BLUE; // Blue for truce
-                break;
-            case ENEMY:
-                color = ChatColor.RED; // Red for enemies
-                break;
-            case NEUTRAL:
-            default:
-                color = ChatColor.WHITE; // White for neutral
-                break;
-        }
-
-        plugin.getLogger().info("DEBUG: Returning color: " + color.name());
-        return color;
-    }
-
-    /**
      * Handle player joining
      */
     public void onPlayerJoin(Player player) {
@@ -690,23 +599,46 @@ public class PacketNametagManager {
      * Handle faction changes
      */
     public void onFactionChange(Player player) {
-        // Update how this player sees everyone
-        updateAllNametagsFor(player);
-        // Update how everyone sees this player
-        updateNametagForAll(player);
+        // Small delay to ensure faction data is updated
+        Bukkit.getScheduler().runTaskLater(plugin, () -> {
+            // Update how this player sees everyone
+            updateAllNametagsFor(player);
+            // Update how everyone sees this player
+            updateNametagForAll(player);
+        }, 5L); // 5 tick delay
     }
 
     /**
      * Handle relation changes
      */
     public void onRelationChange(String faction1, String faction2) {
-        // Update all players from both factions
-        for (Player player : Bukkit.getOnlinePlayers()) {
-            String playerFaction = playerFactions.get(player.getUniqueId());
-            if (playerFaction != null && (playerFaction.equals(faction1) || playerFaction.equals(faction2))) {
-                updateAllNametagsFor(player);
-                updateNametagForAll(player);
+        // Small delay to ensure relation data is updated
+        Bukkit.getScheduler().runTaskLater(plugin, () -> {
+            // Update all players from both factions
+            for (Player player : Bukkit.getOnlinePlayers()) {
+                String playerFaction = playerFactions.get(player.getUniqueId());
+                if (playerFaction != null && (playerFaction.equals(faction1) || playerFaction.equals(faction2))) {
+                    updateAllNametagsFor(player);
+                    updateNametagForAll(player);
+                }
             }
-        }
+        }, 5L); // 5 tick delay
+    }
+
+    /**
+     * Force refresh all nametags (for testing/debugging)
+     */
+    public void forceRefreshAll() {
+        plugin.getLogger().info("Force refreshing all nametags...");
+        Bukkit.getScheduler().runTaskLater(plugin, () -> {
+            for (Player viewer : Bukkit.getOnlinePlayers()) {
+                for (Player target : Bukkit.getOnlinePlayers()) {
+                    if (!viewer.equals(target)) {
+                        updateNametagFor(target, viewer);
+                    }
+                }
+            }
+            plugin.getLogger().info("Force refresh completed.");
+        }, 1L);
     }
 }
