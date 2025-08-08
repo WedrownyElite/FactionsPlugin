@@ -379,7 +379,11 @@ public class FactionsEventListener implements Listener {
                 title.contains("Kick:") || title.contains("Leave:") || title.contains("Disband:") ||
                 title.equals(ChatColor.DARK_GRAY + "Browse Factions") ||
                 title.equals(ChatColor.DARK_GRAY + "Public Factions") ||
-                title.equals(ChatColor.DARK_GRAY + "Your Invitations")) {
+                title.equals(ChatColor.DARK_GRAY + "Your Invitations") ||
+                title.equals(ChatColor.DARK_GRAY + "Invite Players") ||
+                title.equals(ChatColor.DARK_GRAY + "Faction Settings") ||
+                title.equals(ChatColor.DARK_GRAY + "Faction Permissions") ||
+                title.contains(" Permissions")) {
 
             // Cancel ALL clicks in faction GUIs
             event.setCancelled(true);
@@ -398,17 +402,17 @@ public class FactionsEventListener implements Listener {
             // Handle different menu interactions
             if (title.equals(ChatColor.DARK_GRAY + "Factions Menu")) {
                 if (event.getClick() == ClickType.LEFT) {
-                    handleNoFactionMenuClick(player, displayName);
+                    plugin.getMenuHandler().handleNoFactionMenuClick(player, displayName);
                 }
             } else if (title.startsWith(ChatColor.DARK_GRAY + "Faction: ")) {
                 if (event.getClick() == ClickType.LEFT) {
-                    handleFactionMenuClick(player, displayName);
+                    plugin.getMenuHandler().handleFactionMenuClick(player, displayName);
                 }
             } else if (title.startsWith(ChatColor.DARK_GRAY + "Members: ")) {
-                handleMembersMenuClick(player, item, event.getClick());
+                plugin.getMenuHandler().handleMembersMenuClick(player, item, event.getClick());
             } else if (title.startsWith(ChatColor.DARK_GRAY + "Confirm: ")) {
                 if (event.getClick() == ClickType.LEFT) {
-                    handleConfirmationMenuClick(player, displayName, title);
+                    plugin.getMenuHandler().handleConfirmationMenuClick(player, displayName, title);
                 }
             } else if (title.startsWith(ChatColor.DARK_RED + "Kick: ")) {
                 if (event.getClick() == ClickType.LEFT) {
@@ -433,6 +437,27 @@ public class FactionsEventListener implements Listener {
             } else if (title.equals(ChatColor.DARK_GRAY + "Your Invitations")) {
                 if (event.getClick() == ClickType.LEFT) {
                     plugin.getMenuHandler().handleInvitationsBrowserClick(player, displayName, event.getSlot());
+                }
+            } else if (title.equals(ChatColor.DARK_GRAY + "Invite Players")) {
+                if (event.getClick() == ClickType.LEFT) {
+                    plugin.getMenuHandler().handleInvitationMenuClick(player, displayName, title);
+                }
+            } else if (title.equals(ChatColor.DARK_GRAY + "Faction Settings")) {
+                if (event.getClick() == ClickType.LEFT) {
+                    plugin.getMenuHandler().handleSettingsMenuClick(player, displayName, title);
+                }
+            } else if (title.equals(ChatColor.DARK_GRAY + "Faction Permissions")) {
+                if (event.getClick() == ClickType.LEFT) {
+                    plugin.getMenuHandler().handlePermissionsGUIClick(player, displayName, title);
+                }
+            } else if (title.contains(" Permissions") && !title.equals(ChatColor.DARK_GRAY + "Faction Permissions")) {
+                // Handle rank/relation specific permission GUIs
+                if (event.getClick() == ClickType.LEFT) {
+                    if (title.contains("ADMIN") || title.contains("MOD") || title.contains("MEMBER") || title.contains("RECRUIT")) {
+                        plugin.getMenuHandler().handleRankPermissionsClick(player, displayName, title);
+                    } else {
+                        plugin.getMenuHandler().handleRelationPermissionsClick(player, displayName, title);
+                    }
                 }
             }
             return;

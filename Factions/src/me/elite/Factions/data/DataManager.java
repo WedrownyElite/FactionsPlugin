@@ -1,4 +1,7 @@
 package me.elite.Factions.data;
+import me.elite.Factions.data.FactionPermission;
+import me.elite.Factions.data.RelationPermission;
+import me.elite.Factions.data.Relation;
 
 import me.elite.Factions.territory.ChunkCoord;
 import me.elite.Factions.FactionsPlugin;
@@ -50,6 +53,29 @@ public class DataManager {
                 }
                 fdata.put("members", membersMap);
                 fdata.put("isPublic", f.isPublic);
+
+                // Save rank permissions
+                Map<String, List<String>> rankPermsMap = new HashMap<>();
+                for (Map.Entry<Rank, Set<FactionPermission>> rankEntry : f.rankPermissions.entrySet()) {
+                    List<String> permsList = new ArrayList<>();
+                    for (FactionPermission perm : rankEntry.getValue()) {
+                        permsList.add(perm.name());
+                    }
+                    rankPermsMap.put(rankEntry.getKey().name(), permsList);
+                }
+                fdata.put("rankPermissions", rankPermsMap);
+
+                // Save relation permissions
+                Map<String, List<String>> relationPermsMap = new HashMap<>();
+                for (Map.Entry<Relation, Set<RelationPermission>> relationEntry : f.relationPermissions.entrySet()) {
+                    List<String> permsList = new ArrayList<>();
+                    for (RelationPermission perm : relationEntry.getValue()) {
+                        permsList.add(perm.name());
+                    }
+                    relationPermsMap.put(relationEntry.getKey().name(), permsList);
+                }
+                fdata.put("relationPermissions", relationPermsMap);
+
                 factionMap.put(entry.getKey(), fdata);
             }
             data.put("factions", factionMap);
@@ -116,11 +142,60 @@ public class DataManager {
                     for (String uuidStr : members.keySet()) {
                         f.members.put(UUID.fromString(uuidStr), Rank.valueOf(members.getString(uuidStr)));
                     }
+
+                    // Load rank permissions
+                    if (fdata.has("rankPermissions")) {
+                        JSONObject rankPerms = fdata.getJSONObject("rankPermissions");
+                        for (String rankName : rankPerms.keySet()) {
+                            try {
+                                Rank rank = Rank.valueOf(rankName);
+                                Set<FactionPermission> perms = EnumSet.noneOf(FactionPermission.class);
+
+                                org.json.JSONArray permArray = rankPerms.getJSONArray(rankName);
+                                for (int i = 0; i < permArray.length(); i++) {
+                                    try {
+                                        FactionPermission perm = FactionPermission.valueOf(permArray.getString(i));
+                                        perms.add(perm);
+                                    } catch (IllegalArgumentException e) {
+                                        plugin.getLogger().warning("Unknown faction permission: " + permArray.getString(i));
+                                    }
+                                }
+                                f.rankPermissions.put(rank, perms);
+                            } catch (IllegalArgumentException e) {
+                                plugin.getLogger().warning("Unknown rank: " + rankName);
+                            }
+                        }
+                    }
+
+                    // Load relation permissions
+                    if (fdata.has("relationPermissions")) {
+                        JSONObject relationPerms = fdata.getJSONObject("relationPermissions");
+                        for (String relationName : relationPerms.keySet()) {
+                            try {
+                                Relation relation = Relation.valueOf(relationName);
+                                Set<RelationPermission> perms = EnumSet.noneOf(RelationPermission.class);
+
+                                org.json.JSONArray permArray = relationPerms.getJSONArray(relationName);
+                                for (int i = 0; i < permArray.length(); i++) {
+                                    try {
+                                        RelationPermission perm = RelationPermission.valueOf(permArray.getString(i));
+                                        perms.add(perm);
+                                    } catch (IllegalArgumentException e) {
+                                        plugin.getLogger().warning("Unknown relation permission: " + permArray.getString(i));
+                                    }
+                                }
+                                f.relationPermissions.put(relation, perms);
+                            } catch (IllegalArgumentException e) {
+                                plugin.getLogger().warning("Unknown relation: " + relationName);
+                            }
+                        }
+                    }
+
                     factions.put(name, f);
                 }
             }
 
-            // Load playerFactions
+            // Load playerFactions (unchanged)
             if (data.has("playerFactions")) {
                 JSONObject pfMap = data.getJSONObject("playerFactions");
                 for (String uuidStr : pfMap.keySet()) {
@@ -128,7 +203,7 @@ public class DataManager {
                 }
             }
 
-            // Load claims
+            // Load claims (unchanged)
             if (data.has("claims")) {
                 JSONObject claimsMap = data.getJSONObject("claims");
                 for (String worldName : claimsMap.keySet()) {
@@ -156,7 +231,7 @@ public class DataManager {
                 }
             }
 
-            // Load player invitations
+            // Load player invitations (unchanged)
             if (data.has("invitations")) {
                 JSONObject invitationsMap = data.getJSONObject("invitations");
                 for (String uuidStr : invitationsMap.keySet()) {

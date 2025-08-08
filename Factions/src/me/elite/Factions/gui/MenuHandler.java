@@ -692,25 +692,33 @@ public class MenuHandler {
         publicPrivate.setItemMeta(publicMeta);
         menu.setItem(22, publicPrivate); // Center bottom row
 
-        // Admin options
-        if (playerRank == Rank.OWNER || playerRank == Rank.ADMIN) {
-            // Invite players
+        // Admin and Owner options
+        if (playerRank == Rank.OWNER || playerRank == Rank.ADMIN || playerRank == Rank.MOD) {
+            // Invite players - Updated to actually work
             ItemStack invite = new ItemStack(Material.WRITABLE_BOOK);
             ItemMeta inviteMeta = invite.getItemMeta();
             inviteMeta.setDisplayName(ChatColor.LIGHT_PURPLE + "Invite Players");
             inviteMeta.setLore(Arrays.asList(
-                    ChatColor.GRAY + "Invite online players to your faction"
+                    ChatColor.GRAY + "Invite online players to your faction",
+                    "",
+                    ChatColor.YELLOW + "Click to open invitation menu!"
             ));
             invite.setItemMeta(inviteMeta);
             menu.setItem(28, invite);
+        }
 
-            // Manage settings
+        // Settings for Admins and Owners only
+        if (playerRank == Rank.OWNER || playerRank == Rank.ADMIN) {
+            // Manage settings - Updated to work
             ItemStack settings = new ItemStack(Material.REDSTONE);
             ItemMeta settingsMeta = settings.getItemMeta();
             settingsMeta.setDisplayName(ChatColor.RED + "Faction Settings");
             settingsMeta.setLore(Arrays.asList(
                     ChatColor.GRAY + "Manage faction settings",
-                    ChatColor.RED + "Coming Soon!"
+                    ChatColor.GRAY + "• Permissions",
+                    ChatColor.GRAY + "• Relations",
+                    "",
+                    ChatColor.YELLOW + "Click to open settings!"
             ));
             settings.setItemMeta(settingsMeta);
             menu.setItem(34, settings);
@@ -1144,9 +1152,11 @@ public class MenuHandler {
             player.closeInventory();
             plugin.displayFactionMap(player);
         } else if (displayName.equals(ChatColor.LIGHT_PURPLE + "Invite Players")) {
-            player.sendMessage(ChatColor.YELLOW + "Invite feature coming soon! Use /f invite <player> for now.");
-        } else if (displayName.equals(ChatColor.RED + "Leave Faction")) {
-            player.sendMessage(ChatColor.RED + "Leave faction feature coming soon! This needs confirmation dialog.");
+            // Open invitation menu
+            openInvitationMenu(player, factionName);
+        } else if (displayName.equals(ChatColor.RED + "Faction Settings")) {
+            // Open settings menu
+            openFactionSettings(player, factionName);
         } else if (displayName.equals(ChatColor.LIGHT_PURPLE + "Faction Visibility")) {
             Faction faction = factions.get(factionName);
             Rank playerRank = faction.members.get(player.getUniqueId());
@@ -1155,10 +1165,16 @@ public class MenuHandler {
                 faction.isPublic = !faction.isPublic;
                 player.sendMessage(ChatColor.GREEN + "Faction visibility changed to: " +
                         (faction.isPublic ? ChatColor.GREEN + "Public" : ChatColor.RED + "Private"));
+
+                // Save the data
+                plugin.getDataManager().saveFactionData();
+
                 // Reopen menu to show updated status
                 openFactionMenu(player, factionName);
+            } else {
+                player.sendMessage(ChatColor.RED + "You don't have permission to change faction visibility.");
             }
-        } else if (displayName.equals(ChatColor.RED + "Leave Faction") || displayName.equals(ChatColor.RED + "Disband Faction")) {
+        } else if (displayName.equals(ChatColor.RED + "Leave Faction")) {
             player.closeInventory();
             Faction faction = factions.get(factionName);
             Rank playerRank = faction.members.get(player.getUniqueId());
@@ -1168,9 +1184,204 @@ public class MenuHandler {
             } else {
                 openLeaveConfirmation(player, factionName);
             }
-        } else if (displayName.equals(ChatColor.GRAY + "← Back")) {
-            // Close GUI for faction menu
+        } else if (displayName.equals(ChatColor.RED + "Disband Faction")) {
             player.closeInventory();
+            openDisbandConfirmation(player, factionName);
+        } else if (displayName.equals(ChatColor.GRAY + "← Back")) {
+            player.closeInventory();
+        }
+    }
+
+    /**
+     * Handle settings menu clicks
+     */
+    public void handleSettingsMenuClick(Player player, String displayName, String title) {
+        String factionName = playerFactions.get(player.getUniqueId());
+
+        if (displayName.equals(ChatColor.GRAY + "← Back")) {
+            openFactionMenu(player, factionName);
+        } else if (displayName.equals(ChatColor.RED + "Faction Permissions")) {
+            openPermissionsGUI(player, factionName);
+        }
+    }
+
+    /**
+     * Handle permissions GUI clicks
+     */
+    public void handlePermissionsGUIClick(Player player, String displayName, String title) {
+        String factionName = playerFactions.get(player.getUniqueId());
+
+        if (displayName.equals(ChatColor.GRAY + "← Back")) {
+            openFactionSettings(player, factionName);
+            return;
+        }
+
+        // Handle rank permission clicks (green squares)
+        if (displayName.startsWith(ChatColor.GREEN.toString())) {
+            if (displayName.contains("ADMIN")) {
+                openRankPermissionsGUI(player, factionName, Rank.ADMIN);
+            } else if (displayName.contains("MOD")) {
+                openRankPermissionsGUI(player, factionName, Rank.MOD);
+            } else if (displayName.contains("MEMBER")) {
+                openRankPermissionsGUI(player, factionName, Rank.MEMBER);
+            } else if (displayName.contains("RECRUIT")) {
+                openRankPermissionsGUI(player, factionName, Rank.RECRUIT);
+            }
+        }
+        // Handle relation permission clicks (purple squares)
+        else if (displayName.startsWith(ChatColor.LIGHT_PURPLE.toString())) {
+            if (displayName.contains("Neutral")) {
+                openRelationPermissionsGUI(player, factionName, Relation.NEUTRAL);
+            } else if (displayName.contains("Truce")) {
+                openRelationPermissionsGUI(player, factionName, Relation.TRUCE);
+            } else if (displayName.contains("Ally")) {
+                openRelationPermissionsGUI(player, factionName, Relation.ALLY);
+            } else if (displayName.contains("Enemy")) {
+                openRelationPermissionsGUI(player, factionName, Relation.ENEMY);
+            }
+        }
+    }
+
+    /**
+     * Handle rank permissions GUI clicks
+     */
+    public void handleRankPermissionsClick(Player player, String displayName, String title) {
+        String factionName = playerFactions.get(player.getUniqueId());
+
+        if (displayName.equals(ChatColor.GRAY + "← Back")) {
+            openPermissionsGUI(player, factionName);
+            return;
+        }
+
+        // Extract rank from title
+        String rankName = title.replace(ChatColor.DARK_GRAY + "", "").replace(" Permissions", "");
+        Rank rank;
+        try {
+            rank = Rank.valueOf(rankName);
+        } catch (IllegalArgumentException e) {
+            player.sendMessage(ChatColor.RED + "Error: Invalid rank detected.");
+            return;
+        }
+
+        // Find the permission that was clicked
+        for (FactionPermission permission : FactionPermission.values()) {
+            if (displayName.contains(permission.getDisplayName())) {
+                Faction faction = factions.get(factionName);
+                faction.togglePermission(rank, permission);
+
+                // Save data
+                plugin.getDataManager().saveFactionData();
+
+                // Reopen the menu to show updated permissions
+                openRankPermissionsGUI(player, factionName, rank);
+
+                player.sendMessage(ChatColor.GREEN + "Toggled " + permission.getDisplayName() +
+                        " for " + rank.name() + " rank!");
+                return;
+            }
+        }
+    }
+
+    /**
+     * Handle relation permissions GUI clicks
+     */
+    public void handleRelationPermissionsClick(Player player, String displayName, String title) {
+        String factionName = playerFactions.get(player.getUniqueId());
+
+        if (displayName.equals(ChatColor.GRAY + "← Back")) {
+            openPermissionsGUI(player, factionName);
+            return;
+        }
+
+        // Extract relation from title
+        String relationName = title.replace(ChatColor.DARK_GRAY + "", "").replace(" Permissions", "");
+        Relation relation;
+        try {
+            relation = Relation.valueOf(relationName.toUpperCase());
+        } catch (IllegalArgumentException e) {
+            // Try to match by display name
+            relation = null;
+            for (Relation r : Relation.values()) {
+                if (r.getDisplayName().equals(relationName)) {
+                    relation = r;
+                    break;
+                }
+            }
+            if (relation == null) {
+                player.sendMessage(ChatColor.RED + "Error: Invalid relation detected.");
+                return;
+            }
+        }
+
+        // Find the permission that was clicked
+        for (RelationPermission permission : RelationPermission.values()) {
+            if (displayName.contains(permission.getDisplayName())) {
+                Faction faction = factions.get(factionName);
+                faction.toggleRelationPermission(relation, permission);
+
+                // Save data
+                plugin.getDataManager().saveFactionData();
+
+                // Reopen the menu to show updated permissions
+                openRelationPermissionsGUI(player, factionName, relation);
+
+                player.sendMessage(ChatColor.GREEN + "Toggled " + permission.getDisplayName() +
+                        " for " + relation.getDisplayName() + " relations!");
+                return;
+            }
+        }
+    }
+
+    /**
+     * Handle invitation menu clicks
+     */
+    public void handleInvitationMenuClick(Player player, String displayName, String title) {
+        if (displayName.equals(ChatColor.GRAY + "← Back")) {
+            String factionName = playerFactions.get(player.getUniqueId());
+            openFactionMenu(player, factionName);
+            return;
+        }
+
+        // Handle player invitation clicks
+        if (displayName.startsWith(ChatColor.GREEN.toString())) {
+            String playerName = ChatColor.stripColor(displayName);
+            Player targetPlayer = Bukkit.getPlayerExact(playerName);
+
+            if (targetPlayer == null) {
+                player.sendMessage(ChatColor.RED + "Player " + playerName + " is no longer online.");
+                return;
+            }
+
+            String factionName = playerFactions.get(player.getUniqueId());
+            UUID targetUUID = targetPlayer.getUniqueId();
+
+            // Check if player is already in a faction
+            if (playerFactions.containsKey(targetUUID)) {
+                player.sendMessage(ChatColor.RED + playerName + " is already in a faction.");
+                return;
+            }
+
+            // Add invitation
+            playerInvitations.putIfAbsent(targetUUID, new HashSet<>());
+            Set<String> invites = playerInvitations.get(targetUUID);
+
+            if (invites.contains(factionName)) {
+                player.sendMessage(ChatColor.YELLOW + playerName + " has already been invited to " + factionName + ".");
+                return;
+            }
+
+            invites.add(factionName);
+
+            // Notify both players
+            player.sendMessage(ChatColor.GREEN + "Successfully invited " + playerName + " to " + factionName + "!");
+            targetPlayer.sendMessage(ChatColor.GREEN + "You have been invited to faction " + factionName + " by " + player.getName() + "!");
+            targetPlayer.sendMessage(ChatColor.YELLOW + "Use /f join " + factionName + " to join, or /f invites to see all invitations.");
+
+            // Save data
+            plugin.getDataManager().saveFactionData();
+
+            // Reopen menu to refresh the list
+            openInvitationMenu(player, factionName);
         }
     }
 
@@ -1509,6 +1720,281 @@ public class MenuHandler {
         // Save data
         plugin.getDataManager().saveFactionData();
     }
+
+    /**
+     * Open the invitation menu for admins/owners to invite players
+     */
+    public void openInvitationMenu(Player player, String factionName) {
+        Inventory menu = Bukkit.createInventory(null, 54, ChatColor.DARK_GRAY + "Invite Players");
+
+        // Fill with black glass panes
+        ItemStack blackGlass = new ItemStack(Material.BLACK_STAINED_GLASS_PANE);
+        ItemMeta glassMeta = blackGlass.getItemMeta();
+        glassMeta.setDisplayName(" ");
+        blackGlass.setItemMeta(glassMeta);
+
+        for (int i = 0; i < 54; i++) {
+            menu.setItem(i, blackGlass);
+        }
+
+        // Back button
+        ItemStack backButton = createBackButton();
+        menu.setItem(45, backButton);
+
+        // Get online players who aren't in any faction
+        List<Player> invitablePlayers = new ArrayList<>();
+        for (Player onlinePlayer : Bukkit.getOnlinePlayers()) {
+            if (!playerFactions.containsKey(onlinePlayer.getUniqueId())) {
+                invitablePlayers.add(onlinePlayer);
+            }
+        }
+
+        // Display invitable players (slots 0-44, excluding slot 45 for back button)
+        int slot = 0;
+        for (Player invitablePlayer : invitablePlayers) {
+            if (slot >= 45) break; // Don't overwrite back button
+
+            ItemStack playerHead = new ItemStack(Material.PLAYER_HEAD);
+            SkullMeta skullMeta = (SkullMeta) playerHead.getItemMeta();
+            skullMeta.setOwningPlayer(invitablePlayer);
+            skullMeta.setDisplayName(ChatColor.GREEN + invitablePlayer.getName());
+            skullMeta.setLore(Arrays.asList(
+                    ChatColor.GRAY + "Status: " + ChatColor.GREEN + "Online",
+                    ChatColor.GRAY + "Faction: " + ChatColor.RED + "None",
+                    "",
+                    ChatColor.YELLOW + "Click to invite to " + factionName + "!"
+            ));
+            playerHead.setItemMeta(skullMeta);
+            menu.setItem(slot, playerHead);
+            slot++;
+        }
+
+        // If no players to invite, show message
+        if (invitablePlayers.isEmpty()) {
+            ItemStack noPlayers = new ItemStack(Material.BARRIER);
+            ItemMeta noPlayersMeta = noPlayers.getItemMeta();
+            noPlayersMeta.setDisplayName(ChatColor.RED + "No Players Available");
+            noPlayersMeta.setLore(Arrays.asList(
+                    ChatColor.GRAY + "All online players are already",
+                    ChatColor.GRAY + "in factions or not suitable",
+                    ChatColor.GRAY + "for invitation."
+            ));
+            noPlayers.setItemMeta(noPlayersMeta);
+            menu.setItem(22, noPlayers); // Center of GUI
+        }
+
+        player.openInventory(menu);
+    }
+
+    /**
+     * Open the faction settings menu
+     */
+    public void openFactionSettings(Player player, String factionName) {
+        Inventory menu = Bukkit.createInventory(null, 27, ChatColor.DARK_GRAY + "Faction Settings");
+
+        // Fill with black glass panes
+        ItemStack blackGlass = new ItemStack(Material.BLACK_STAINED_GLASS_PANE);
+        ItemMeta glassMeta = blackGlass.getItemMeta();
+        glassMeta.setDisplayName(" ");
+        blackGlass.setItemMeta(glassMeta);
+
+        for (int i = 0; i < 27; i++) {
+            menu.setItem(i, blackGlass);
+        }
+
+        // Permissions option
+        ItemStack permissions = new ItemStack(Material.REDSTONE);
+        ItemMeta permissionsMeta = permissions.getItemMeta();
+        permissionsMeta.setDisplayName(ChatColor.RED + "Faction Permissions");
+        permissionsMeta.setLore(Arrays.asList(
+                ChatColor.GRAY + "Manage faction permissions",
+                ChatColor.GRAY + "for ranks and relations",
+                "",
+                ChatColor.YELLOW + "Click to manage permissions!"
+        ));
+        permissions.setItemMeta(permissionsMeta);
+        menu.setItem(13, permissions); // Center
+
+        // Back button
+        ItemStack backButton = createBackButton();
+        menu.setItem(18, backButton); // Bottom left
+
+        player.openInventory(menu);
+    }
+
+    /**
+     * Open the main permissions GUI with rank and relation sections
+     */
+    public void openPermissionsGUI(Player player, String factionName) {
+        Inventory menu = Bukkit.createInventory(null, 54, ChatColor.DARK_GRAY + "Faction Permissions");
+
+        // Fill with black glass panes
+        ItemStack blackGlass = new ItemStack(Material.BLACK_STAINED_GLASS_PANE);
+        ItemMeta glassMeta = blackGlass.getItemMeta();
+        glassMeta.setDisplayName(" ");
+        blackGlass.setItemMeta(glassMeta);
+
+        for (int i = 0; i < 54; i++) {
+            menu.setItem(i, blackGlass);
+        }
+
+        // Rank permissions section (Green squares - 2x2 each)
+        // ADMIN (slots 10, 11, 19, 20)
+        createRankPermissionSquare(menu, Rank.ADMIN, 10);
+
+        // MOD (slots 12, 13, 21, 22)
+        createRankPermissionSquare(menu, Rank.MOD, 12);
+
+        // MEMBER (slots 14, 15, 23, 24)
+        createRankPermissionSquare(menu, Rank.MEMBER, 14);
+
+        // RECRUIT (slots 16, 17, 25, 26)
+        createRankPermissionSquare(menu, Rank.RECRUIT, 16);
+
+        // Relation permissions section (Purple squares - 2x2 each)
+        // NEUTRAL (slots 28, 29, 37, 38)
+        createRelationPermissionSquare(menu, Relation.NEUTRAL, 28);
+
+        // TRUCE (slots 30, 31, 39, 40)
+        createRelationPermissionSquare(menu, Relation.TRUCE, 30);
+
+        // ALLY (slots 32, 33, 41, 42)
+        createRelationPermissionSquare(menu, Relation.ALLY, 32);
+
+        // ENEMY (slots 34, 35, 43, 44)
+        createRelationPermissionSquare(menu, Relation.ENEMY, 34);
+
+        // Back button
+        ItemStack backButton = createBackButton();
+        menu.setItem(45, backButton); // Bottom left
+
+        player.openInventory(menu);
+    }
+
+    private void createRankPermissionSquare(Inventory menu, Rank rank, int startSlot) {
+        ItemStack greenGlass = new ItemStack(Material.GREEN_STAINED_GLASS_PANE);
+        ItemMeta greenMeta = greenGlass.getItemMeta();
+        greenMeta.setDisplayName(ChatColor.GREEN + "" + ChatColor.BOLD + rank.name());
+        greenMeta.setLore(Arrays.asList(
+                ChatColor.GRAY + "Click to manage permissions",
+                ChatColor.GRAY + "for " + rank.name() + " rank"
+        ));
+        greenGlass.setItemMeta(greenMeta);
+
+        // Place in 2x2 square
+        menu.setItem(startSlot, greenGlass);
+        menu.setItem(startSlot + 1, greenGlass);
+        menu.setItem(startSlot + 9, greenGlass);
+        menu.setItem(startSlot + 10, greenGlass);
+    }
+
+    private void createRelationPermissionSquare(Inventory menu, Relation relation, int startSlot) {
+        ItemStack purpleGlass = new ItemStack(Material.PURPLE_STAINED_GLASS_PANE);
+        ItemMeta purpleMeta = purpleGlass.getItemMeta();
+        purpleMeta.setDisplayName(ChatColor.LIGHT_PURPLE + "" + ChatColor.BOLD + relation.getDisplayName());
+        purpleMeta.setLore(Arrays.asList(
+                ChatColor.GRAY + "Click to manage permissions",
+                ChatColor.GRAY + "for " + relation.getDisplayName() + " relations"
+        ));
+        purpleGlass.setItemMeta(purpleMeta);
+
+        // Place in 2x2 square
+        menu.setItem(startSlot, purpleGlass);
+        menu.setItem(startSlot + 1, purpleGlass);
+        menu.setItem(startSlot + 9, purpleGlass);
+        menu.setItem(startSlot + 10, purpleGlass);
+    }
+
+    /**
+     * Open rank-specific permissions GUI
+     */
+    public void openRankPermissionsGUI(Player player, String factionName, Rank rank) {
+        Inventory menu = Bukkit.createInventory(null, 54, ChatColor.DARK_GRAY + rank.name() + " Permissions");
+
+        // Fill bottom row with black glass panes
+        ItemStack blackGlass = new ItemStack(Material.BLACK_STAINED_GLASS_PANE);
+        ItemMeta glassMeta = blackGlass.getItemMeta();
+        glassMeta.setDisplayName(" ");
+        blackGlass.setItemMeta(glassMeta);
+
+        for (int i = 45; i < 54; i++) {
+            menu.setItem(i, blackGlass);
+        }
+
+        // Back button
+        ItemStack backButton = createBackButton();
+        menu.setItem(45, backButton);
+
+        // Get faction to check current permissions
+        Faction faction = factions.get(factionName);
+        Set<FactionPermission> currentPerms = faction.rankPermissions.getOrDefault(rank, EnumSet.noneOf(FactionPermission.class));
+
+        // Add permission items
+        FactionPermission[] permissions = FactionPermission.values();
+        for (int i = 0; i < permissions.length && i < 45; i++) {
+            FactionPermission perm = permissions[i];
+            boolean hasPermission = currentPerms.contains(perm);
+
+            ItemStack permItem = new ItemStack(hasPermission ? Material.GREEN_STAINED_GLASS_PANE : Material.RED_STAINED_GLASS_PANE);
+            ItemMeta permMeta = permItem.getItemMeta();
+            permMeta.setDisplayName((hasPermission ? ChatColor.GREEN : ChatColor.RED) + perm.getDisplayName());
+            permMeta.setLore(Arrays.asList(
+                    ChatColor.GRAY + "Status: " + (hasPermission ? ChatColor.GREEN + "ENABLED" : ChatColor.RED + "DISABLED"),
+                    "",
+                    ChatColor.YELLOW + "Click to " + (hasPermission ? "disable" : "enable") + "!"
+            ));
+            permItem.setItemMeta(permMeta);
+            menu.setItem(i, permItem);
+        }
+
+        player.openInventory(menu);
+    }
+
+    /**
+     * Open relation-specific permissions GUI
+     */
+    public void openRelationPermissionsGUI(Player player, String factionName, Relation relation) {
+        Inventory menu = Bukkit.createInventory(null, 54, ChatColor.DARK_GRAY + relation.getDisplayName() + " Permissions");
+
+        // Fill bottom row with black glass panes
+        ItemStack blackGlass = new ItemStack(Material.BLACK_STAINED_GLASS_PANE);
+        ItemMeta glassMeta = blackGlass.getItemMeta();
+        glassMeta.setDisplayName(" ");
+        blackGlass.setItemMeta(glassMeta);
+
+        for (int i = 45; i < 54; i++) {
+            menu.setItem(i, blackGlass);
+        }
+
+        // Back button
+        ItemStack backButton = createBackButton();
+        menu.setItem(45, backButton);
+
+        // Get faction to check current permissions
+        Faction faction = factions.get(factionName);
+        Set<RelationPermission> currentPerms = faction.relationPermissions.getOrDefault(relation, EnumSet.noneOf(RelationPermission.class));
+
+        // Add permission items
+        RelationPermission[] permissions = RelationPermission.values();
+        for (int i = 0; i < permissions.length && i < 45; i++) {
+            RelationPermission perm = permissions[i];
+            boolean hasPermission = currentPerms.contains(perm);
+
+            ItemStack permItem = new ItemStack(hasPermission ? Material.GREEN_STAINED_GLASS_PANE : Material.RED_STAINED_GLASS_PANE);
+            ItemMeta permMeta = permItem.getItemMeta();
+            permMeta.setDisplayName((hasPermission ? ChatColor.GREEN : ChatColor.RED) + perm.getDisplayName());
+            permMeta.setLore(Arrays.asList(
+                    ChatColor.GRAY + "Status: " + (hasPermission ? ChatColor.GREEN + "ENABLED" : ChatColor.RED + "DISABLED"),
+                    "",
+                    ChatColor.YELLOW + "Click to " + (hasPermission ? "disable" : "enable") + "!"
+            ));
+            permItem.setItemMeta(permMeta);
+            menu.setItem(i, permItem);
+        }
+
+        player.openInventory(menu);
+    }
+
 
     /**
      * Get pending kick target for a player
