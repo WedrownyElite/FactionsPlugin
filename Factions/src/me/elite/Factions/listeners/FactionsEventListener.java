@@ -52,6 +52,8 @@ public class FactionsEventListener implements Listener {
     private final Map<UUID, String> pendingFactionNames;
     private final Map<UUID, Boolean> playerInFactionGUI = new HashMap<>();
     private final Map<UUID, Set<String>> playerInvitations;
+    private final Map<UUID, Map<String, Long>> playerMessageCooldowns = new HashMap<>();
+    private static final long MESSAGE_COOLDOWN = 5000; // 5 seconds in milliseconds
 
     public FactionsEventListener(FactionsPlugin plugin) {
         this.plugin = plugin;
@@ -120,8 +122,8 @@ public class FactionsEventListener implements Listener {
     @EventHandler
     public void onBlockBreak(BlockBreakEvent event) {
         Player player = event.getPlayer();
-        Chunk chunk = player.getLocation().getChunk();
-        String faction = getFactionAtChunk(player.getWorld(), new ChunkCoord(chunk.getX(), chunk.getZ()));
+        Chunk chunk = event.getBlock().getChunk();
+        String faction = getFactionAtChunk(event.getBlock().getWorld(), new ChunkCoord(chunk.getX(), chunk.getZ()));
         if (faction == null) return;
 
         // Check for bypass permissions
@@ -131,16 +133,30 @@ public class FactionsEventListener implements Listener {
 
         if (faction.equalsIgnoreCase("Spawn") || faction.equalsIgnoreCase("Warzone")) {
             event.setCancelled(true);
-            player.sendMessage(ChatColor.RED + "You cannot break blocks here.");
+            sendCooldownMessage(player,ChatColor.RED + "You cannot break blocks here.");
         } else if (faction.equalsIgnoreCase("Wilderness")) {
             // Wilderness allows everything
             return;
         } else {
             // Check if player is in the faction that owns this claim
             String playerFaction = playerFactions.get(player.getUniqueId());
-            if (playerFaction == null || !playerFaction.equals(faction)) {
-                event.setCancelled(true);
-                player.sendMessage(ChatColor.RED + "You cannot break blocks in " + faction + " territory.");
+            if (playerFaction != null && playerFaction.equals(faction)) {
+                // Player is in the faction - check faction permissions
+                Faction f = factions.get(faction);
+                Rank playerRank = f.members.get(player.getUniqueId());
+
+                if (!f.hasPermission(playerRank, FactionPermission.BREAK_BLOCKS)) {
+                    event.setCancelled(true);
+                    sendCooldownMessage(player,ChatColor.RED + "Your rank doesn't have permission to break blocks.");
+                    return;
+                }
+            } else {
+                // Player is from different faction or no faction - check relation permissions
+                if (!plugin.getRelationManager().hasRelationPermission(player, faction, RelationPermission.BREAK_BLOCKS)) {
+                    event.setCancelled(true);
+                    sendCooldownMessage(player,ChatColor.RED + "You cannot break blocks in " + faction + " territory.");
+                    return;
+                }
             }
         }
     }
@@ -148,8 +164,8 @@ public class FactionsEventListener implements Listener {
     @EventHandler
     public void onBlockPlace(BlockPlaceEvent event) {
         Player player = event.getPlayer();
-        Chunk chunk = player.getLocation().getChunk();
-        String faction = getFactionAtChunk(player.getWorld(), new ChunkCoord(chunk.getX(), chunk.getZ()));
+        Chunk chunk = event.getBlock().getChunk();
+        String faction = getFactionAtChunk(event.getBlock().getWorld(), new ChunkCoord(chunk.getX(), chunk.getZ()));
         if (faction == null) return;
 
         // Check for bypass permissions
@@ -159,16 +175,30 @@ public class FactionsEventListener implements Listener {
 
         if (faction.equalsIgnoreCase("Spawn") || faction.equalsIgnoreCase("Warzone")) {
             event.setCancelled(true);
-            player.sendMessage(ChatColor.RED + "You cannot place blocks here.");
+            sendCooldownMessage(player,ChatColor.RED + "You cannot place blocks here.");
         } else if (faction.equalsIgnoreCase("Wilderness")) {
             // Wilderness allows everything
             return;
         } else {
             // Check if player is in the faction that owns this claim
             String playerFaction = playerFactions.get(player.getUniqueId());
-            if (playerFaction == null || !playerFaction.equals(faction)) {
-                event.setCancelled(true);
-                player.sendMessage(ChatColor.RED + "You cannot place blocks in " + faction + " territory.");
+            if (playerFaction != null && playerFaction.equals(faction)) {
+                // Player is in the faction - check faction permissions
+                Faction f = factions.get(faction);
+                Rank playerRank = f.members.get(player.getUniqueId());
+
+                if (!f.hasPermission(playerRank, FactionPermission.PLACE_BLOCKS)) {
+                    event.setCancelled(true);
+                    sendCooldownMessage(player,ChatColor.RED + "Your rank doesn't have permission to place blocks.");
+                    return;
+                }
+            } else {
+                // Player is from different faction or no faction - check relation permissions
+                if (!plugin.getRelationManager().hasRelationPermission(player, faction, RelationPermission.PLACE_BLOCKS)) {
+                    event.setCancelled(true);
+                    sendCooldownMessage(player,ChatColor.RED + "You cannot place blocks in " + faction + " territory.");
+                    return;
+                }
             }
         }
     }
@@ -176,9 +206,12 @@ public class FactionsEventListener implements Listener {
     @EventHandler
     public void onPlayerInteract(PlayerInteractEvent event) {
         Player player = event.getPlayer();
-        if (player.getLocation() == null) return;
-        Chunk chunk = player.getLocation().getChunk();
-        String faction = getFactionAtChunk(player.getWorld(), new ChunkCoord(chunk.getX(), chunk.getZ()));
+
+        // Check if there's a clicked block
+        if (event.getClickedBlock() == null) return;
+
+        Chunk chunk = event.getClickedBlock().getChunk();
+        String faction = getFactionAtChunk(event.getClickedBlock().getWorld(), new ChunkCoord(chunk.getX(), chunk.getZ()));
         if (faction == null) return;
 
         // Check for bypass permissions
@@ -188,16 +221,30 @@ public class FactionsEventListener implements Listener {
 
         if (faction.equalsIgnoreCase("Spawn") || faction.equalsIgnoreCase("Warzone")) {
             event.setCancelled(true);
-            player.sendMessage(ChatColor.RED + "You cannot interact here.");
+            sendCooldownMessage(player,ChatColor.RED + "You cannot interact here.");
         } else if (faction.equalsIgnoreCase("Wilderness")) {
             // Wilderness allows everything
             return;
         } else {
             // Check if player is in the faction that owns this claim
             String playerFaction = playerFactions.get(player.getUniqueId());
-            if (playerFaction == null || !playerFaction.equals(faction)) {
-                event.setCancelled(true);
-                player.sendMessage(ChatColor.RED + "You cannot interact in " + faction + " territory.");
+            if (playerFaction != null && playerFaction.equals(faction)) {
+                // Player is in the faction - check faction permissions
+                Faction f = factions.get(faction);
+                Rank playerRank = f.members.get(player.getUniqueId());
+
+                if (!f.hasPermission(playerRank, FactionPermission.INTERACT)) {
+                    event.setCancelled(true);
+                    sendCooldownMessage(player,ChatColor.RED + "Your rank doesn't have permission to interact.");
+                    return;
+                }
+            } else {
+                // Player is from different faction or no faction - check relation permissions
+                if (!plugin.getRelationManager().hasRelationPermission(player, faction, RelationPermission.INTERACT)) {
+                    event.setCancelled(true);
+                    sendCooldownMessage(player,ChatColor.RED + "You cannot interact in " + faction + " territory.");
+                    return;
+                }
             }
         }
     }
@@ -227,7 +274,7 @@ public class FactionsEventListener implements Listener {
                 // Wilderness allows everything including PvP
                 return;
             } else {
-                // In faction territory - check if both players are in the same faction
+                // In faction territory - check relation-based PvP rules
                 String damagerFaction = playerFactions.get(damager.getUniqueId());
                 String damagedFaction = playerFactions.get(damaged.getUniqueId());
 
@@ -239,6 +286,17 @@ public class FactionsEventListener implements Listener {
                 // Cancel friendly fire within same faction
                 if (damagerFaction != null && damagerFaction.equals(damagedFaction)) {
                     event.setCancelled(true);
+                    return;
+                }
+
+                // Apply relation-based PvP rules if both players have factions
+                if (damagerFaction != null && damagedFaction != null && !damagerFaction.equals(damagedFaction)) {
+                    me.elite.Factions.data.Relation relation = plugin.getRelationManager().getRelation(damagerFaction, damagedFaction);
+
+                    if (relation == me.elite.Factions.data.Relation.ALLY || relation == me.elite.Factions.data.Relation.TRUCE) {
+                        event.setCancelled(true);
+                        damager.sendMessage(ChatColor.RED + "You cannot attack " + relation.getDisplayName().toLowerCase() + " faction members!");
+                    }
                 }
             }
         }
@@ -320,7 +378,7 @@ public class FactionsEventListener implements Listener {
 
         if (faction.equalsIgnoreCase("Spawn") || faction.equalsIgnoreCase("Warzone")) {
             event.setCancelled(true);
-            player.sendMessage(ChatColor.RED + "You cannot access containers here.");
+            sendCooldownMessage(player,ChatColor.RED + "You cannot access containers here.");
         } else if (faction.equalsIgnoreCase("Wilderness")) {
             // Wilderness allows everything
             return;
@@ -336,14 +394,14 @@ public class FactionsEventListener implements Listener {
                 if (event.getInventory().getType() == org.bukkit.event.inventory.InventoryType.ENDER_CHEST) {
                     if (!f.hasPermission(playerRank, FactionPermission.ENDER_CHEST_ACCESS)) {
                         event.setCancelled(true);
-                        player.sendMessage(ChatColor.RED + "Your rank doesn't have permission to access ender chests.");
+                        sendCooldownMessage(player,ChatColor.RED + "Your rank doesn't have permission to access ender chests.");
                         return;
                     }
                 } else {
                     // Regular container access
                     if (!f.hasPermission(playerRank, FactionPermission.CONTAINER_ACCESS)) {
                         event.setCancelled(true);
-                        player.sendMessage(ChatColor.RED + "Your rank doesn't have permission to access containers.");
+                        sendCooldownMessage(player,ChatColor.RED + "Your rank doesn't have permission to access containers.");
                         return;
                     }
                 }
@@ -356,7 +414,7 @@ public class FactionsEventListener implements Listener {
 
                 if (!plugin.getRelationManager().hasRelationPermission(player, faction, requiredPermission)) {
                     event.setCancelled(true);
-                    player.sendMessage(ChatColor.RED + "You cannot access containers in " + faction + " territory.");
+                    sendCooldownMessage(player,ChatColor.RED + "You cannot access containers in " + faction + " territory.");
                     return;
                 }
             }
@@ -382,7 +440,7 @@ public class FactionsEventListener implements Listener {
 
         if (faction.equalsIgnoreCase("Spawn") || faction.equalsIgnoreCase("Warzone")) {
             event.setCancelled(true);
-            player.sendMessage(ChatColor.RED + "You cannot place spawners here.");
+            sendCooldownMessage(player,ChatColor.RED + "You cannot place spawners here.");
         } else if (faction.equalsIgnoreCase("Wilderness")) {
             // Wilderness allows everything
             return;
@@ -395,14 +453,14 @@ public class FactionsEventListener implements Listener {
                 Rank playerRank = f.members.get(player.getUniqueId());
                 if (!f.hasPermission(playerRank, FactionPermission.PLACE_SPAWNERS)) {
                     event.setCancelled(true);
-                    player.sendMessage(ChatColor.RED + "Your rank doesn't have permission to place spawners.");
+                    sendCooldownMessage(player,ChatColor.RED + "Your rank doesn't have permission to place spawners.");
                     return;
                 }
             } else {
                 // Player is from different faction or no faction - check relation permissions
                 if (!plugin.getRelationManager().hasRelationPermission(player, faction, RelationPermission.PLACE_SPAWNERS)) {
                     event.setCancelled(true);
-                    player.sendMessage(ChatColor.RED + "You cannot place spawners in " + faction + " territory.");
+                    sendCooldownMessage(player,ChatColor.RED + "You cannot place spawners in " + faction + " territory.");
                     return;
                 }
             }
@@ -425,7 +483,7 @@ public class FactionsEventListener implements Listener {
 
         if (faction.equalsIgnoreCase("Spawn") || faction.equalsIgnoreCase("Warzone")) {
             event.setCancelled(true);
-            player.sendMessage(ChatColor.RED + "You cannot break spawners here.");
+            sendCooldownMessage(player,ChatColor.RED + "You cannot break spawners here.");
         } else if (faction.equalsIgnoreCase("Wilderness")) {
             // Wilderness allows everything
             return;
@@ -438,14 +496,14 @@ public class FactionsEventListener implements Listener {
                 Rank playerRank = f.members.get(player.getUniqueId());
                 if (!f.hasPermission(playerRank, FactionPermission.BREAK_SPAWNERS)) {
                     event.setCancelled(true);
-                    player.sendMessage(ChatColor.RED + "Your rank doesn't have permission to break spawners.");
+                    sendCooldownMessage(player,ChatColor.RED + "Your rank doesn't have permission to break spawners.");
                     return;
                 }
             } else {
                 // Player is from different faction or no faction - check relation permissions
                 if (!plugin.getRelationManager().hasRelationPermission(player, faction, RelationPermission.BREAK_SPAWNERS)) {
                     event.setCancelled(true);
-                    player.sendMessage(ChatColor.RED + "You cannot break spawners in " + faction + " territory.");
+                    sendCooldownMessage(player,ChatColor.RED + "You cannot break spawners in " + faction + " territory.");
                     return;
                 }
             }
@@ -477,7 +535,7 @@ public class FactionsEventListener implements Listener {
 
         if (faction.equalsIgnoreCase("Spawn") || faction.equalsIgnoreCase("Warzone")) {
             event.setCancelled(true);
-            player.sendMessage(ChatColor.RED + "You cannot interact with entities here.");
+            sendCooldownMessage(player,ChatColor.RED + "You cannot interact with entities here.");
         } else if (faction.equalsIgnoreCase("Wilderness")) {
             // Wilderness allows everything
             return;
@@ -490,7 +548,7 @@ public class FactionsEventListener implements Listener {
                 Rank playerRank = f.members.get(player.getUniqueId());
                 if (!f.hasPermission(playerRank, FactionPermission.INTERACT)) {
                     event.setCancelled(true);
-                    player.sendMessage(ChatColor.RED + "Your rank doesn't have permission to interact with entities.");
+                    sendCooldownMessage(player,ChatColor.RED + "Your rank doesn't have permission to interact with entities.");
                     return;
                 }
             } else {
@@ -678,8 +736,16 @@ public class FactionsEventListener implements Listener {
             } else if (title.equals(ChatColor.DARK_GRAY + "Relation Requests")) {
                 plugin.getMenuHandler().handleRelationRequestsClick(player, item, event.getClick(), title);
             } else if (title.equals(ChatColor.DARK_GRAY + "Faction Relations")) {
+                plugin.getMenuHandler().handleRelationsViewClick(player, item, event.getClick(), title);
+            } else if (title.startsWith(ChatColor.DARK_RED + "Remove: ")) {
+                // Cancel ALL clicks in removal confirmation GUI
+                event.setCancelled(true);
+
+                // Clear offhand immediately
+                player.getInventory().setItemInOffHand(new ItemStack(Material.AIR));
+
                 if (event.getClick() == ClickType.LEFT) {
-                    plugin.getMenuHandler().handleRelationsViewClick(player, displayName, title);
+                    plugin.getMenuHandler().handleRelationRemovalClick(player, displayName, title);
                 }
             }
             return;
@@ -912,8 +978,6 @@ public class FactionsEventListener implements Listener {
         } else if (displayName.equals(ChatColor.GREEN + "Territory")) {
             player.closeInventory();
             plugin.displayFactionMap(player);
-        } else if (displayName.equals(ChatColor.LIGHT_PURPLE + "Invite Players")) {
-            player.sendMessage(ChatColor.YELLOW + "Invite feature coming soon! Use /f invite <player> for now.");
         } else if (displayName.equals(ChatColor.LIGHT_PURPLE + "Faction Visibility")) {
             // Handle privacy toggle
             Faction faction = factions.get(factionName);
@@ -1082,6 +1146,22 @@ public class FactionsEventListener implements Listener {
 
             // Open kick confirmation dialog
             plugin.getMenuHandler().openKickConfirmation(player, targetPlayer);
+        }
+    }
+
+    /**
+     * Send a message to player with cooldown to prevent spam
+     */
+    private void sendCooldownMessage(Player player, String message) {
+        UUID playerUUID = player.getUniqueId();
+        long currentTime = System.currentTimeMillis();
+
+        Map<String, Long> playerCooldowns = playerMessageCooldowns.computeIfAbsent(playerUUID, k -> new HashMap<>());
+
+        Long lastSent = playerCooldowns.get(message);
+        if (lastSent == null || (currentTime - lastSent) >= MESSAGE_COOLDOWN) {
+            player.sendMessage(message);
+            playerCooldowns.put(message, currentTime);
         }
     }
 }

@@ -22,7 +22,7 @@ public class FactionsTabCompleter implements TabCompleter {
             List<String> commands = new ArrayList<>();
 
             // Basic commands everyone can see
-            commands.addAll(Arrays.asList("create", "claim", "promote", "demote", "desc", "map", "unclaim", "unclaimall", "invite", "kick", "menu", "join", "leave", "disband", "invitations", "privacy", "relation", "ally", "truce"));
+            commands.addAll(Arrays.asList("create", "claim", "promote", "demote", "desc", "map", "unclaim", "unclaimall", "invite", "kick", "menu", "join", "leave", "disband", "invitations", "privacy", "ally", "truce", "enemy", "neutral"));
 
             // Admin commands - only show if player has permission or is op
             if (sender.isOp() || sender.hasPermission("factions.adminclaim")) {
@@ -162,16 +162,6 @@ public class FactionsTabCompleter implements TabCompleter {
                         return Arrays.asList("10", "20", "40", "50", "100");
                     }
                     return Collections.emptyList();
-                case "relation":
-                    // Show faction names for relation command
-                    FactionsPlugin relationPlugin = (FactionsPlugin) Bukkit.getPluginManager().getPlugin("Factions");
-                    if (relationPlugin != null) {
-                        return relationPlugin.getUtilityManager().getAllFactionNames().stream()
-                                .filter(name -> !name.equals(getPlayerFaction(sender)))
-                                .collect(Collectors.toList());
-                    }
-                    return Collections.emptyList();
-
                 case "ally":
                 case "truce":
                     // Show faction names for ally/truce commands
@@ -182,7 +172,16 @@ public class FactionsTabCompleter implements TabCompleter {
                                 .collect(Collectors.toList());
                     }
                     return Collections.emptyList();
-
+                case "enemy":
+                case "neutral":
+                    // Show faction names for these commands
+                    FactionsPlugin enemyPlugin = (FactionsPlugin) Bukkit.getPluginManager().getPlugin("Factions");
+                    if (enemyPlugin != null) {
+                        return enemyPlugin.getUtilityManager().getAllFactionNames().stream()
+                                .filter(name -> !name.equals(getPlayerFaction(sender)))
+                                .collect(Collectors.toList());
+                    }
+                    return Collections.emptyList();
                 default:
                     return Collections.emptyList();
             }

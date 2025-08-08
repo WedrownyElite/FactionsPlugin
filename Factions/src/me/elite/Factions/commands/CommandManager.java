@@ -6,6 +6,7 @@ import me.elite.Factions.data.Rank;
 import me.elite.Factions.FactionsPlugin;
 import me.elite.Factions.data.Relation;
 import me.elite.Factions.data.FactionPermission;
+import me.elite.Factions.data.RelationRequest;
 import org.bukkit.Bukkit;
 import org.bukkit.ChatColor;
 import org.bukkit.World;
@@ -92,19 +93,76 @@ public class CommandManager implements CommandExecutor {
                 return handleCreateTestFactions(player, args);
             case "removetestfactions":
                 return handleRemoveTestFactions(player, args);
-            case "relation":
-                return handleRelation(player, args);
+            case "enemy":
+                return handleEnemy(player, args);
+            case "neutral":
+                return handleNeutral(player, args);
             case "ally":
                 return handleAlly(player, args);
             case "truce":
                 return handleTruce(player, args);
-            case "relations":
-            case "rel":
-                return handleRelationsInfo(player, args);
             default:
                 return false;
         }
     }
+
+    private boolean handleEnemy(Player player, String[] args) {
+        return handleDirectRelationCommand(player, args, Relation.ENEMY);
+    }
+
+    private boolean handleNeutral(Player player, String[] args) {
+        return handleDirectRelationCommand(player, args, Relation.NEUTRAL);
+    }
+
+    private boolean handleDirectRelationCommand(Player player, String[] args, Relation relation) {
+        UUID uuid = player.getUniqueId();
+        String factionName = playerFactions.get(uuid);
+
+        if (factionName == null) {
+            player.sendMessage(ChatColor.RED + "You are not in a faction.");
+            return true;
+        }
+
+        if (args.length < 2) {
+            player.sendMessage(ChatColor.RED + "Usage: /f " + relation.name().toLowerCase() + " <FactionName>");
+            return true;
+        }
+
+        Faction faction = factions.get(factionName);
+        Rank playerRank = faction.members.get(uuid);
+
+        // Check permission
+        if (!faction.hasPermission(playerRank, FactionPermission.SET_RELATIONS)) {
+            player.sendMessage(ChatColor.RED + "You lack permission to set faction relations.");
+            return true;
+        }
+
+        String targetFaction = args[1];
+
+        if (!factions.containsKey(targetFaction)) {
+            player.sendMessage(ChatColor.RED + "Faction '" + targetFaction + "' does not exist.");
+            return true;
+        }
+
+        if (targetFaction.equals(factionName)) {
+            player.sendMessage(ChatColor.RED + "You cannot set relations with your own faction.");
+            return true;
+        }
+
+        boolean success = plugin.getRelationManager().setDirectRelation(factionName, targetFaction, relation, uuid);
+        if (success) {
+            player.sendMessage(ChatColor.GREEN + "Relation with " + targetFaction + " set to: " +
+                    plugin.getRelationManager().getRelationColor(relation) + relation.getDisplayName());
+
+            // Save data
+            plugin.getDataManager().saveFactionData();
+        } else {
+            player.sendMessage(ChatColor.RED + "Failed to set relation.");
+        }
+
+        return true;
+    }
+
     private boolean handleRelationsInfo(Player player, String[] args) {
         UUID uuid = player.getUniqueId();
         String factionName = playerFactions.get(uuid);

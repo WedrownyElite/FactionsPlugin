@@ -469,4 +469,41 @@ public class ClaimManager {
             }
         }.runTaskTimer(plugin, 20L, 1L);
     }
+
+    /**
+     * Check if a player can perform an action in a chunk
+     */
+    public boolean canPlayerActInChunk(Player player, ChunkCoord coord, String action) {
+        String faction = getFactionAtChunk(player.getWorld(), coord);
+        if (faction == null) return true; // No claim = allowed
+
+        if (faction.equalsIgnoreCase("Wilderness")) return true;
+
+        // Check bypass permissions
+        if (plugin.hasPermissionBypass(player, faction, action)) {
+            return true;
+        }
+
+        if (faction.equalsIgnoreCase("Spawn") || faction.equalsIgnoreCase("Warzone")) {
+            return false; // Protected areas
+        }
+
+        String playerFaction = playerFactions.get(player.getUniqueId());
+        if (playerFaction != null && playerFaction.equals(faction)) {
+            return true; // Same faction - individual permissions checked elsewhere
+        }
+
+        // Different faction - check relations
+        return plugin.getRelationManager().canPerformAction(player, faction, getRelationPermissionForAction(action));
+    }
+
+    private me.elite.Factions.data.RelationPermission getRelationPermissionForAction(String action) {
+        switch (action.toLowerCase()) {
+            case "break": return me.elite.Factions.data.RelationPermission.BREAK_BLOCKS;
+            case "place": return me.elite.Factions.data.RelationPermission.PLACE_BLOCKS;
+            case "interact": return me.elite.Factions.data.RelationPermission.INTERACT;
+            case "container": return me.elite.Factions.data.RelationPermission.CONTAINER_ACCESS;
+            default: return me.elite.Factions.data.RelationPermission.INTERACT;
+        }
+    }
 }

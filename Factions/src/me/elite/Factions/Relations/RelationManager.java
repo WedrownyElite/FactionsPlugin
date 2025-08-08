@@ -45,7 +45,27 @@ public class RelationManager {
     }
 
     /**
-     * Set a direct relation (neutral/enemy) - no request needed
+     * Check if a player can perform an action in territory based on their relation
+     */
+    public boolean canPerformAction(Player player, String territoryFaction, RelationPermission permission) {
+        String playerFaction = playerFactions.get(player.getUniqueId());
+
+        // If no player faction, they're neutral
+        if (playerFaction == null) {
+            return hasRelationPermission(player, territoryFaction, permission);
+        }
+
+        // If same faction, always allow (faction rank permissions handled elsewhere)
+        if (playerFaction.equals(territoryFaction)) {
+            return true;
+        }
+
+        // Check relation permissions
+        return hasRelationPermission(player, territoryFaction, permission);
+    }
+
+    /**
+     * Set a direct relation (neutral/enemy) - private relations
      */
     public boolean setDirectRelation(String fromFaction, String toFaction, Relation relation, UUID playerUUID) {
         if (!factions.containsKey(fromFaction) || !factions.containsKey(toFaction)) {
@@ -56,28 +76,32 @@ public class RelationManager {
             return false; // Can't set relation to self
         }
 
-        // Only NEUTRAL and ENEMY can be set directly
+        // Only NEUTRAL and ENEMY can be set directly (private relations)
         if (relation != Relation.NEUTRAL && relation != Relation.ENEMY) {
             return false;
         }
 
-        // Set the relation
-        factionRelations.computeIfAbsent(fromFaction, k -> new HashMap<>()).put(toFaction, relation);
+        // Remove any existing mutual relations (ally/truce) if setting enemy/neutral
+        Map<String, Relation> fromFactionRelations = factionRelations.get(fromFaction);
+        Map<String, Relation> toFactionRelations = factionRelations.get(toFaction);
 
-        // For NEUTRAL and ENEMY, set reciprocal relation
-        if (relation == Relation.NEUTRAL) {
-            factionRelations.computeIfAbsent(toFaction, k -> new HashMap<>()).put(fromFaction, Relation.NEUTRAL);
-        } else if (relation == Relation.ENEMY) {
-            factionRelations.computeIfAbsent(toFaction, k -> new HashMap<>()).put(fromFaction, Relation.ENEMY);
+        if (fromFactionRelations != null && fromFactionRelations.containsKey(toFaction)) {
+            Relation currentRelation = fromFactionRelations.get(toFaction);
+            if (currentRelation == Relation.ALLY || currentRelation == Relation.TRUCE) {
+                // Remove mutual relation
+                fromFactionRelations.remove(toFaction);
+                if (toFactionRelations != null) {
+                    toFactionRelations.remove(fromFaction);
+                }
+            }
         }
 
-        // Notify players
+        // Set the private relation (only affects fromFaction's view of toFaction)
+        factionRelations.computeIfAbsent(fromFaction, k -> new HashMap<>()).put(toFaction, relation);
+
+        // Notify the faction that set the relation
         notifyFactionMembers(fromFaction, ChatColor.YELLOW + "Your faction's relation with " +
                 ChatColor.WHITE + toFaction + ChatColor.YELLOW + " is now: " +
-                getRelationColor(relation) + relation.getDisplayName());
-
-        notifyFactionMembers(toFaction, ChatColor.YELLOW + "Your faction's relation with " +
-                ChatColor.WHITE + fromFaction + ChatColor.YELLOW + " is now: " +
                 getRelationColor(relation) + relation.getDisplayName());
 
         return true;
@@ -131,7 +155,7 @@ public class RelationManager {
     }
 
     /**
-     * Accept a relation request
+     * Accept a relation request - creates mutual relations
      */
     public boolean acceptRelationRequest(String toFaction, String fromFaction, Relation relation, UUID playerUUID) {
         List<RelationRequest> requests = pendingRequests.get(toFaction);
@@ -153,7 +177,18 @@ public class RelationManager {
             pendingRequests.remove(toFaction);
         }
 
-        // Set the mutual relation
+        // Remove any existing private relations between these factions
+        Map<String, Relation> fromFactionRelations = factionRelations.get(fromFaction);
+        Map<String, Relation> toFactionRelations = factionRelations.get(toFaction);
+
+        if (fromFactionRelations != null) {
+            fromFactionRelations.remove(toFaction);
+        }
+        if (toFactionRelations != null) {
+            toFactionRelations.remove(fromFaction);
+        }
+
+        // Set the mutual relation (public relation)
         factionRelations.computeIfAbsent(fromFaction, k -> new HashMap<>()).put(toFaction, relation);
         factionRelations.computeIfAbsent(toFaction, k -> new HashMap<>()).put(fromFaction, relation);
 
@@ -206,6 +241,57 @@ public class RelationManager {
         notifyFactionMembers(toFaction, ChatColor.YELLOW + "Rejected " +
                 getRelationColor(relation) + relation.getDisplayName() + ChatColor.YELLOW +
                 " request from " + ChatColor.WHITE + fromFaction + ChatColor.GRAY + " (by " + rejecterName + ")");
+
+        return true;
+    }
+
+    /**
+     * Remove a relation between two factions
+     */
+    public boolean removeRelation(String fromFaction, String toFaction, UUID playerUUID) {
+        if (!factions.containsKey(fromFaction) || !factions.containsKey(toFaction)) {
+            return false;
+        }
+
+        if (fromFaction.equals(toFaction)) {
+            return false;
+        }
+
+        Map<String, Relation> fromFactionRelations = factionRelations.get(fromFaction);
+        Map<String, Relation> toFactionRelations = factionRelations.get(toFaction);
+
+        if (fromFactionRelations == null || !fromFactionRelations.containsKey(toFaction)) {
+            return false; // No relation exists
+        }
+
+        Relation currentRelation = fromFactionRelations.get(toFaction);
+
+        // Remove the relation
+        fromFactionRelations.remove(toFaction);
+        if (fromFactionRelations.isEmpty()) {
+            factionRelations.remove(fromFaction);
+        }
+
+        // If it was a mutual relation (ally/truce), remove from both sides
+        if ((currentRelation == Relation.ALLY || currentRelation == Relation.TRUCE) && toFactionRelations != null) {
+            toFactionRelations.remove(fromFaction);
+            if (toFactionRelations.isEmpty()) {
+                factionRelations.remove(toFaction);
+            }
+
+            // Notify both factions for mutual relations
+            Player remover = Bukkit.getPlayer(playerUUID);
+            String removerName = remover != null ? remover.getName() : "Unknown";
+
+            notifyFactionMembers(toFaction, ChatColor.RED + "Your " +
+                    getRelationColor(currentRelation) + currentRelation.getDisplayName() + ChatColor.RED +
+                    " relation with " + ChatColor.WHITE + fromFaction + ChatColor.RED + " has been removed by " + removerName + ".");
+        }
+
+        // Notify the faction that removed the relation
+        notifyFactionMembers(fromFaction, ChatColor.YELLOW + "Removed relation with " +
+                ChatColor.WHITE + toFaction + ChatColor.YELLOW + ". They are now " +
+                ChatColor.WHITE + "Neutral" + ChatColor.YELLOW + ".");
 
         return true;
     }
@@ -275,10 +361,10 @@ public class RelationManager {
             return true; // Handle faction member permissions elsewhere
         }
 
-        // Get the relation between player's faction and territory faction
+        // Get the relation from the territory faction's perspective
         Relation relation = Relation.NEUTRAL; // Default for factionless players
         if (playerFaction != null) {
-            relation = getRelation(playerFaction, territoryFaction);
+            relation = getRelation(territoryFaction, playerFaction); // Note: territory faction first
         }
 
         // Check if the territory faction allows this relation to perform the action

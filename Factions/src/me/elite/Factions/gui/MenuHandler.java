@@ -1099,6 +1099,10 @@ public class MenuHandler {
                 break;
         }
 
+        // Add right-click instruction
+        lore.add("");
+        lore.add(ChatColor.RED + "Right click to remove relation");
+
         skullMeta.setLore(lore);
         head.setItemMeta(skullMeta);
 
@@ -1108,12 +1112,64 @@ public class MenuHandler {
     /**
      * Handle relations view menu clicks
      */
-    public void handleRelationsViewClick(Player player, String displayName, String title) {
+    public void handleRelationsViewClick(Player player, ItemStack item, ClickType clickType, String title) {
+        if (item.getItemMeta() == null) return;
+        String displayName = item.getItemMeta().getDisplayName();
+
         if (displayName.equals(ChatColor.GRAY + "← Back")) {
             String factionName = playerFactions.get(player.getUniqueId());
             openFactionMenu(player, factionName);
+            return;
         }
-        // Relations view is read-only, so no other interactions needed
+
+        // Handle right-click for relation removal
+        if (clickType == ClickType.RIGHT && item.getType() == Material.PLAYER_HEAD) {
+            String factionName = playerFactions.get(player.getUniqueId());
+            String targetFaction = ChatColor.stripColor(displayName);
+
+            // Check if player has permission
+            Faction faction = factions.get(factionName);
+            Rank playerRank = faction.members.get(player.getUniqueId());
+            if (!faction.hasPermission(playerRank, FactionPermission.SET_RELATIONS)) {
+                player.sendMessage(ChatColor.RED + "You lack permission to manage faction relations.");
+                return;
+            }
+
+            // Get current relation
+            Relation currentRelation = plugin.getRelationManager().getRelation(factionName, targetFaction);
+            if (currentRelation == Relation.NEUTRAL) {
+                player.sendMessage(ChatColor.RED + "No relation to remove with " + targetFaction + ".");
+                return;
+            }
+
+            openRelationRemovalConfirmation(player, targetFaction, currentRelation);
+        }
+    }
+
+    /**
+     * Handle relation removal confirmation clicks
+     */
+    public void handleRelationRemovalClick(Player player, String displayName, String title) {
+        String factionName = playerFactions.get(player.getUniqueId());
+        String targetFaction = title.replace(ChatColor.DARK_RED + "Remove: ", "");
+
+        if (displayName.equals(ChatColor.RED + "" + ChatColor.BOLD + "REMOVE RELATION")) {
+            boolean success = plugin.getRelationManager().removeRelation(factionName, targetFaction, player.getUniqueId());
+
+            if (success) {
+                player.sendMessage(ChatColor.GREEN + "Removed relation with " + targetFaction + "!");
+                plugin.getDataManager().saveFactionData();
+            } else {
+                player.sendMessage(ChatColor.RED + "Failed to remove relation.");
+            }
+
+            // Return to relations view
+            openRelationsViewMenu(player, factionName);
+
+        } else if (displayName.equals(ChatColor.GREEN + "" + ChatColor.BOLD + "CANCEL")) {
+            // Return to relations view
+            openRelationsViewMenu(player, factionName);
+        }
     }
 
     /**
@@ -1579,6 +1635,64 @@ public class MenuHandler {
         } else if (displayName.equals(ChatColor.BLUE + "View Relations")) {
             openRelationsViewMenu(player, factionName);
         }
+    }
+
+    /**
+     * Open relation removal confirmation
+     */
+    public void openRelationRemovalConfirmation(Player player, String targetFaction, Relation currentRelation) {
+        Inventory confirmMenu = Bukkit.createInventory(null, 27, ChatColor.DARK_RED + "Remove: " + targetFaction);
+
+        // Fill with black glass
+        ItemStack blackGlass = new ItemStack(Material.BLACK_STAINED_GLASS_PANE);
+        ItemMeta glassMeta = blackGlass.getItemMeta();
+        glassMeta.setDisplayName(" ");
+        blackGlass.setItemMeta(glassMeta);
+
+        for (int i = 0; i < 27; i++) {
+            confirmMenu.setItem(i, blackGlass);
+        }
+
+        // Confirm button
+        ItemStack confirm = new ItemStack(Material.RED_CONCRETE);
+        ItemMeta confirmMeta = confirm.getItemMeta();
+        confirmMeta.setDisplayName(ChatColor.RED + "" + ChatColor.BOLD + "REMOVE RELATION");
+        confirmMeta.setLore(Arrays.asList(
+                ChatColor.GRAY + "Remove " + plugin.getRelationManager().getRelationColor(currentRelation) +
+                        currentRelation.getDisplayName() + ChatColor.GRAY + " relation",
+                ChatColor.GRAY + "with " + ChatColor.WHITE + targetFaction,
+                "",
+                ChatColor.RED + "They will become Neutral!"
+        ));
+        confirm.setItemMeta(confirmMeta);
+        confirmMenu.setItem(11, confirm);
+
+        // Cancel button
+        ItemStack cancel = new ItemStack(Material.GREEN_CONCRETE);
+        ItemMeta cancelMeta = cancel.getItemMeta();
+        cancelMeta.setDisplayName(ChatColor.GREEN + "" + ChatColor.BOLD + "CANCEL");
+        cancelMeta.setLore(Arrays.asList(
+                ChatColor.GRAY + "Keep the current relation",
+                "",
+                ChatColor.GREEN + "Go back to relations menu"
+        ));
+        cancel.setItemMeta(cancelMeta);
+        confirmMenu.setItem(15, cancel);
+
+        // Info item
+        ItemStack info = new ItemStack(Material.PAPER);
+        ItemMeta infoMeta = info.getItemMeta();
+        infoMeta.setDisplayName(ChatColor.YELLOW + "Remove Relation?");
+        infoMeta.setLore(Arrays.asList(
+                ChatColor.GRAY + "Target: " + ChatColor.WHITE + targetFaction,
+                ChatColor.GRAY + "Current: " + plugin.getRelationManager().getRelationColor(currentRelation) + currentRelation.getDisplayName(),
+                "",
+                ChatColor.RED + "This action cannot be undone!"
+        ));
+        info.setItemMeta(infoMeta);
+        confirmMenu.setItem(13, info);
+
+        player.openInventory(confirmMenu);
     }
 
     /**
