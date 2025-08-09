@@ -73,13 +73,7 @@ public class FactionCreationManager {
 
             // Alternative: Use chat input instead
             player.closeInventory();
-            MessageManager.sendInfo(player, "═══════════════════════════════════");
-            MessageManager.sendSuccess(player, "" + ChatColor.BOLD + "CREATE FACTION");
-            MessageManager.sendInfo(player, "═══════════════════════════════════");
-            MessageManager.sendBasicMessage(player, ChatColor.WHITE + "Please enter your desired faction name:");
-            MessageManager.sendBasicMessage(player, ChatColor.WHITE + "• Type your faction name in chat");
-            MessageManager.sendBasicMessage(player, ChatColor.WHITE + "• Type " + ChatColor.RED + "cancel" + ChatColor.GRAY + " to abort");
-            MessageManager.sendInfo(player, "═══════════════════════════════════");
+            MessageManager.sendGUIFactionCreation(player);
 
             // Clean up the temporary block
             new BukkitRunnable() {

@@ -1477,7 +1477,7 @@ public class MenuHandler {
 
             if (target.isOnline()) {
                 Player onlineTarget = (Player) target;
-                MessageManager.sendKicked(onlineTarget, player.getName(), factionName);
+                MessageManager.sendKicked(onlineTarget, factionName, player.getName());
 
                 plugin.getEventListener().onPlayerLeaveFaction(onlineTarget);
             }
@@ -1491,7 +1491,7 @@ public class MenuHandler {
                 public void run() {
                     openMembersMenu(player, factionName);
                 }
-            }.runTaskLater(plugin, 20L);
+            }.runTaskLater(plugin, 1L);
 
         } else if (displayName.equals(ChatColor.GREEN + "" + ChatColor.BOLD + "CANCEL")) {
             // Cancel kick

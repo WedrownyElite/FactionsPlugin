@@ -230,19 +230,19 @@ public class ClaimManager {
                 line.append(UNIQUE_CHARS[random.nextInt(UNIQUE_CHARS.length)]);
             }
 
-            MessageManager.sendBasicMessage(player, line.toString());
+            MessageManager.sendBlankMessage(player, line.toString());
         }
 
         // Display legend
         if (hasSpawn) {
-            MessageManager.sendBasicMessage(player,ChatColor.AQUA + "# " + ChatColor.WHITE + "Spawn");
+            MessageManager.sendBlankMessage(player,ChatColor.AQUA + "# " + ChatColor.WHITE + "Spawn");
         }
         if (hasWarzone) {
-            MessageManager.sendBasicMessage(player,ChatColor.DARK_RED + "# " + ChatColor.WHITE + "Warzone");
+            MessageManager.sendBlankMessage(player,ChatColor.DARK_RED + "# " + ChatColor.WHITE + "Warzone");
         }
         if (!factionColors.isEmpty()) {
             for (Map.Entry<String, ChatColor> entry : factionColors.entrySet()) {
-                MessageManager.sendBasicMessage(player,entry.getValue() + "# " + ChatColor.WHITE + entry.getKey());
+                MessageManager.sendBlankMessage(player,entry.getValue() + "# " + ChatColor.WHITE + entry.getKey());
             }
         }
     }

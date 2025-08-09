@@ -40,8 +40,9 @@ public final class MessageManager {
     }
 
     public static void sendInvitationReceived(Player target, String senderName, String factionName) {
-        target.sendMessage(PREFIX + ChatColor.GREEN + "You have been invited to faction " + factionName + " by " + senderName + "!");
-        target.sendMessage(PREFIX + ChatColor.YELLOW + "Use /f join " + factionName + " to join, or /f invites to see all invitations.");
+        target.sendMessage(PREFIX + ChatColor.GREEN + "You have been invited to " + ChatColor.BOLD + factionName + ChatColor.RESET + ChatColor.GREEN + " by " + senderName + "!");
+        target.sendMessage(PREFIX + ChatColor.YELLOW + "Use " + ChatColor.YELLOW + "/f join " + factionName + ChatColor.GREEN +
+                " to join, or " + ChatColor.YELLOW + "/f invites " + ChatColor.GREEN + "to see all invitations.");
     }
 
     // Promotion/Demotion messages
@@ -67,7 +68,7 @@ public final class MessageManager {
     }
 
     public static void sendKickSuccess(Player kicker, String targetName, String factionName) {
-        kicker.sendMessage(PREFIX + ChatColor.GREEN + "Successfully kicked " + targetName + " from " + factionName + "!");
+        kicker.sendMessage(PREFIX + ChatColor.GREEN + "Successfully kicked " + targetName + " from " + ChatColor.BOLD + factionName + ChatColor.RESET + ChatColor.GREEN +"!");
     }
 
     // Member notifications
@@ -83,6 +84,13 @@ public final class MessageManager {
         member.sendMessage(PREFIX + ChatColor.YELLOW + playerName + " made the faction " + privacy + "!");
     }
 
+    public static void sendMemberOwnerTransferSuccess(Player member, Player previousOwner, String newOwner, String factionName) {
+        member.sendMessage(ChatColor.YELLOW + "═══ FACTION ANNOUNCEMENT ═══");
+        member.sendMessage(ChatColor.WHITE + previousOwner.getDisplayName() + " has transferred ownership");
+        member.sendMessage(ChatColor.WHITE + "of " + factionName + " to " + newOwner + "!");
+        member.sendMessage(ChatColor.YELLOW + "════════════════════════════");
+    }
+
     public static void sendMemberInfoMessage(Player member, String message) {
         member.sendMessage(PREFIX + ChatColor.YELLOW + message);
     }
@@ -96,8 +104,8 @@ public final class MessageManager {
     }
 
     // Faction disbanding
-    public static void sendFactionDisbanded(Player member, String factionName, String disbander) {
-        member.sendMessage(PREFIX + ChatColor.RED + "Faction " + factionName + " has been disbanded by " + disbander + "!");
+    public static void sendMemberFactionDisbanded(Player member, String factionName, String disbander) {
+        member.sendMessage(PREFIX + ChatColor.RED + ChatColor.BOLD + factionName + ChatColor.RESET + ChatColor.RED + " has been disbanded by " + disbander + "!");
     }
 
     public static void sendDisbandSuccess(Player disbander, String factionName) {
@@ -114,9 +122,14 @@ public final class MessageManager {
         player.sendMessage(PREFIX + ChatColor.RED + message);
     }
 
-    // Blank message
+    // Basic message
     public static void sendBasicMessage(Player player, String message) {
         player.sendMessage(PREFIX + message);
+    }
+
+    // Blank message (no prefix)
+    public static void sendBlankMessage(Player player, String message) {
+        player.sendMessage(message);
     }
 
     // Success messages
@@ -127,6 +140,57 @@ public final class MessageManager {
     // Info messages
     public static void sendInfo(Player player, String message) {
         player.sendMessage(PREFIX + ChatColor.YELLOW + message);
+    }
+
+    // Faction GUI Creation Messages
+    public static void sendGUIFactionCreation(Player player) {
+        player.sendMessage(ChatColor.YELLOW + "═══════════════════════════════════");
+        player.sendMessage(ChatColor.GREEN + "" + ChatColor.GOLD + "CREATE FACTION");
+        player.sendMessage(ChatColor.YELLOW + "═══════════════════════════════════");
+        player.sendMessage(ChatColor.WHITE + "Please enter your desired faction name:");
+        player.sendMessage(ChatColor.WHITE + "• Type your faction name in chat");
+        player.sendMessage(ChatColor.WHITE + "• Type " + ChatColor.RED + "cancel" + ChatColor.GRAY + " to abort");
+        player.sendMessage(ChatColor.YELLOW + "═══════════════════════════════════");
+    }
+
+    // Ownership Transfer Warning Message
+    public static void sendOwnerTransferWarning(Player player, String target, String factionName) {
+        player.sendMessage(ChatColor.YELLOW + "═══════════════════════════════════");
+        player.sendMessage(ChatColor.RED + "" + ChatColor.BOLD + "⚠ OWNERSHIP TRANSFER WARNING ⚠");
+        player.sendMessage(ChatColor.YELLOW + "═══════════════════════════════════");
+        player.sendMessage(ChatColor.WHITE + "You are about to transfer ownership of");
+        player.sendMessage(ChatColor.BOLD + factionName + ChatColor.WHITE + " to " + ChatColor.YELLOW + target + ChatColor.WHITE + ".");
+        player.sendMessage(ChatColor.YELLOW + "");
+        player.sendMessage(ChatColor.RED + "This will:");
+        player.sendMessage(ChatColor.RED + "• Make " + target + " the new OWNER");
+        player.sendMessage(ChatColor.RED + "• Demote you to ADMIN rank");
+        player.sendMessage(ChatColor.RED + "• Cannot be undone without their permission");
+        player.sendMessage(ChatColor.YELLOW + "");
+        player.sendMessage(ChatColor.YELLOW + "Type " + ChatColor.GREEN + "/f confirm " + factionName +
+                ChatColor.YELLOW + " to proceed");
+        player.sendMessage(ChatColor.YELLOW + "Type " + ChatColor.RED + "/f cancel" +
+                ChatColor.YELLOW + " to cancel this transfer");
+        player.sendMessage(ChatColor.WHITE + "This confirmation will expire in 30 seconds");
+        player.sendMessage(ChatColor.YELLOW + "═══════════════════════════════════");
+    }
+
+    // Ownership Transfer Success Message
+    public static void sendOwnerTransferSuccess(Player player, Player target, String factionName) {
+        player.sendMessage(ChatColor.GREEN + "═══════════════════════════════════");
+        player.sendMessage(ChatColor.GREEN + "" + ChatColor.BOLD + "OWNERSHIP TRANSFERRED");
+        player.sendMessage(ChatColor.GREEN + "═══════════════════════════════════");
+        player.sendMessage(ChatColor.WHITE + "You have transferred ownership of " + ChatColor.BOLD + factionName);
+        player.sendMessage(ChatColor.WHITE + "to " + ChatColor.YELLOW + target.getDisplayName() + ChatColor.WHITE + ".");
+        player.sendMessage(ChatColor.WHITE + "You are now an " + ChatColor.BLUE + "ADMIN" + ChatColor.WHITE + ".");
+        player.sendMessage(ChatColor.GREEN + "═══════════════════════════════════");
+
+        target.sendMessage(ChatColor.GREEN + "═══════════════════════════════════");
+        target.sendMessage(ChatColor.GREEN + "" + ChatColor.BOLD + "YOU ARE NOW THE OWNER!");
+        target.sendMessage(ChatColor.GREEN + "═══════════════════════════════════");
+        target.sendMessage(ChatColor.WHITE + player.getName() + " has transferred ownership");
+        target.sendMessage(ChatColor.WHITE + "of " + ChatColor.BOLD + factionName + ChatColor.WHITE + " to you!");
+        target.sendMessage(ChatColor.WHITE + "You now have full control of the faction.");
+        target.sendMessage(ChatColor.GREEN + "═══════════════════════════════════");
     }
 
     private MessageManager() {

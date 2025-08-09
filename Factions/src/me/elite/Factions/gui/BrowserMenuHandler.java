@@ -407,18 +407,19 @@ public class BrowserMenuHandler {
         // Check if can join (public or invited)
         boolean canJoin = faction.isPublic;
         Set<String> invites = playerInvitations.get(uuid);
-        if (!canJoin && invites != null && invites.contains(factionName)) {
-            canJoin = true;
-            // Remove invitation
+        boolean hasInvitation = invites != null && invites.contains(factionName);
+
+        if (!canJoin && !hasInvitation) {
+            MessageManager.sendError(player, "You cannot join this faction.");
+            return;
+        }
+
+        // Remove the invitation regardless of how they're joining (public or invited)
+        if (hasInvitation) {
             invites.remove(factionName);
             if (invites.isEmpty()) {
                 playerInvitations.remove(uuid);
             }
-        }
-
-        if (!canJoin) {
-            MessageManager.sendError(player, "You cannot join this faction.");
-            return;
         }
 
         // Join the faction

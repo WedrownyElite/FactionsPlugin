@@ -9,6 +9,7 @@ import me.elite.Factions.data.Rank;
 import me.elite.Factions.data.RelationPermission;
 import me.elite.Factions.territory.ChunkCoord;
 import me.elite.Factions.utils.ChatUtils;
+import me.elite.Factions.utils.MessageManager;
 
 // Bukkit imports
 import org.bukkit.Bukkit;
@@ -270,14 +271,14 @@ public class FactionsEventListener implements Listener {
             // 1) SPAWN PROTECTION
             if (FactionsConstants.SPAWN.equalsIgnoreCase(faction)) {
                 event.setCancelled(true);
-                damager.sendMessage(ChatColor.RED + "PvP is disabled in Spawn!");
+                MessageManager.sendError(damager,"PvP is disabled in Spawn!");
                 return;
             }
 
             // 2) RELATIONSHIP CHECKS
             if (damagerFaction != null && damagerFaction.equals(damagedFaction)) {
                 event.setCancelled(true);
-                damager.sendMessage(ChatColor.RED + "You cannot attack your faction members!");
+                MessageManager.sendError(damager,"You cannot attack your faction members!");
                 return;
             }
 
@@ -287,12 +288,12 @@ public class FactionsEventListener implements Listener {
 
                 if (relation == me.elite.Factions.data.Relation.ALLY) {
                     event.setCancelled(true);
-                    damager.sendMessage(ChatColor.RED + "You cannot attack allied faction members!");
+                    MessageManager.sendError(damager,"You cannot attack allied faction members!");
                     return;
                 }
                 if (relation == me.elite.Factions.data.Relation.TRUCE) {
                     event.setCancelled(true);
-                    damager.sendMessage(ChatColor.RED + "You cannot attack truced faction members!");
+                    MessageManager.sendError(damager,"You cannot attack truced faction members!");
                     return;
                 }
             }
@@ -301,7 +302,7 @@ public class FactionsEventListener implements Listener {
             if (FactionsConstants.WARZONE.equalsIgnoreCase(faction)) {
                 if (hasPermissionBypass(damager, faction, "pvp_disable")) {
                     event.setCancelled(true);
-                    damager.sendMessage(ChatColor.YELLOW + "You have PvP protection in Warzone.");
+                    MessageManager.sendInfo(damager,"You have PvP protection in Warzone.");
                     return;
                 }
             }
@@ -585,7 +586,7 @@ public class FactionsEventListener implements Listener {
                 // Player is from different faction or no faction - check relation permissions
                 if (!plugin.getRelationManager().hasRelationPermission(player, faction, RelationPermission.INTERACT)) {
                     event.setCancelled(true);
-                    player.sendMessage(ChatColor.RED + "You cannot interact with entities in " + faction + " territory.");
+                    MessageManager.sendError(player,"You cannot interact with entities in " + faction + " territory.");
                     return;
                 }
             }
@@ -846,7 +847,7 @@ public class FactionsEventListener implements Listener {
                 new BukkitRunnable() {
                     @Override
                     public void run() {
-                        player.sendMessage(ChatColor.RED + "Faction creation cancelled.");
+                        MessageManager.sendError(player,"Faction creation cancelled.");
                         openFactionsMenu(player); // Reopen the menu
                     }
                 }.runTask(plugin);
@@ -858,26 +859,38 @@ public class FactionsEventListener implements Listener {
                 new BukkitRunnable() {
                     @Override
                     public void run() {
-                        player.sendMessage(ChatColor.RED + "Faction name cannot be empty!");
-                        player.sendMessage(ChatColor.YELLOW + "Please enter a valid faction name or type 'cancel':");
+                        MessageManager.sendError(player,"Faction name cannot be empty!");
+                        MessageManager.sendInfo(player,"Please enter a valid faction name or type 'cancel':");
                     }
                 }.runTask(plugin);
                 return;
             }
 
-            // Validate faction name
+            // Validate faction name format
             if (!ChatUtils.isValidFactionName(message)) {
                 new BukkitRunnable() {
                     @Override
                     public void run() {
                         if (message.length() > FactionsConstants.MAX_FACTION_NAME_LENGTH) {
-                            player.sendMessage(ChatColor.RED + "Faction name is too long! Maximum " + FactionsConstants.MAX_FACTION_NAME_LENGTH + " characters.");
+                            MessageManager.sendError(player, "Faction name is too long! Maximum " + FactionsConstants.MAX_FACTION_NAME_LENGTH + " characters.");
                         } else if (!message.matches("[a-zA-Z0-9_]+")) {
-                            player.sendMessage(ChatColor.RED + "Faction name can only contain letters, numbers, and underscores!");
+                            MessageManager.sendError(player,"Faction name can only contain letters, numbers, and underscores!");
                         } else {
-                            player.sendMessage(ChatColor.RED + "Invalid faction name!");
+                            MessageManager.sendError(player,"Invalid faction name!");
                         }
-                        player.sendMessage(ChatColor.YELLOW + "Please enter a valid name or type 'cancel':");
+                        MessageManager.sendInfo(player,"Please enter a valid name or type 'cancel':");
+                    }
+                }.runTask(plugin);
+                return;
+            }
+
+            // Check if faction name already exists
+            if (factions.containsKey(message)) {
+                new BukkitRunnable() {
+                    @Override
+                    public void run() {
+                        MessageManager.sendError(player,"A faction with the name '" + message + "' already exists!");
+                        MessageManager.sendInfo(player,"Please choose a different name or type 'cancel':");
                     }
                 }.runTask(plugin);
                 return;
@@ -885,6 +898,13 @@ public class FactionsEventListener implements Listener {
 
             // Store the name and ask for confirmation
             pendingFactionNames.put(uuid, message);
+
+            new BukkitRunnable() {
+                @Override
+                public void run() {
+                    openFactionCreationConfirmation(player, message);
+                }
+            }.runTask(plugin);
 
             new BukkitRunnable() {
                 @Override
@@ -988,7 +1008,7 @@ public class FactionsEventListener implements Listener {
         for (UUID memberUUID : faction.members.keySet()) {
             Player member = Bukkit.getPlayer(memberUUID);
             if (member != null) {
-                member.sendMessage(ChatColor.RED + "Faction " + factionName + " has been disbanded by " + disbander.getName() + "!");
+                MessageManager.sendMemberFactionDisbanded(member, factionName, disbander.getDisplayName());
 
                 // UPDATE NAMETAGS when faction is disbanded
                 plugin.getEventListener().onPlayerLeaveFaction(member);
@@ -1012,7 +1032,7 @@ public class FactionsEventListener implements Listener {
         // Remove faction
         factions.remove(factionName);
 
-        disbander.sendMessage(ChatColor.GREEN + "Faction " + factionName + " has been disbanded.");
+        MessageManager.sendDisbandSuccess(disbander, factionName);
 
         // Save data
         plugin.getDataManager().saveFactionData();
@@ -1063,7 +1083,7 @@ public class FactionsEventListener implements Listener {
 
         Long lastSent = playerCooldowns.get(message);
         if (lastSent == null || (currentTime - lastSent) >= FactionsConstants.MESSAGE_COOLDOWN) {
-            player.sendMessage(message);
+            MessageManager.sendError(player, message);
             playerCooldowns.put(message, currentTime);
         }
     }

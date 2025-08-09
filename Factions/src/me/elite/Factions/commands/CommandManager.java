@@ -709,23 +709,7 @@ public class CommandManager implements CommandExecutor {
                 // Initiate ownership transfer confirmation
                 pendingOwnershipTransfers.put(uuid, targetName);
 
-                MessageManager.sendInfo(player, "═══════════════════════════════════");
-                MessageManager.sendError(player, "" + ChatColor.BOLD + "⚠ OWNERSHIP TRANSFER WARNING ⚠");
-                MessageManager.sendInfo(player, "═══════════════════════════════════");
-                MessageManager.sendBasicMessage(player, ChatColor.WHITE + "You are about to transfer ownership of");
-                MessageManager.sendBasicMessage(player, ChatColor.BOLD + factionName + ChatColor.WHITE + " to " + ChatColor.YELLOW + targetName + ChatColor.WHITE + ".");
-                MessageManager.sendInfo(player,"");
-                MessageManager.sendError(player, "This will:");
-                MessageManager.sendError(player, "• Make " + targetName + " the new OWNER");
-                MessageManager.sendError(player, "• Demote you to ADMIN rank");
-                MessageManager.sendError(player, "• Cannot be undone without their permission");
-                MessageManager.sendInfo(player,"");
-                MessageManager.sendInfo(player, "Type " + ChatColor.GREEN + "/f confirm " + factionName +
-                        ChatColor.YELLOW + " to proceed");
-                MessageManager.sendInfo(player, "Type " + ChatColor.RED + "/f cancel" +
-                        ChatColor.YELLOW + " to cancel this transfer");
-                MessageManager.sendBasicMessage(player, ChatColor.WHITE + "This confirmation will expire in 30 seconds");
-                MessageManager.sendInfo(player, "═══════════════════════════════════");
+                MessageManager.sendOwnerTransferWarning(player, targetName, factionName);
 
                 // Schedule expiration of the confirmation
                 Bukkit.getScheduler().runTaskLater(plugin, () -> {
@@ -907,31 +891,16 @@ public class CommandManager implements CommandExecutor {
         faction.members.put(uuid, Rank.ADMIN);       // Demote current owner to ADMIN
         faction.owner = targetUUID;                  // Update faction owner field
 
-        // Send messages
-        MessageManager.sendSuccess(player, "═══════════════════════════════════");
-        MessageManager.sendSuccess(player, "" + ChatColor.BOLD + "OWNERSHIP TRANSFERRED");
-        MessageManager.sendSuccess(player, "═══════════════════════════════════");
-        MessageManager.sendBasicMessage(player, ChatColor.WHITE + "You have transferred ownership of " + ChatColor.BOLD + factionName);
-        MessageManager.sendBasicMessage(player, ChatColor.WHITE + "to " + ChatColor.YELLOW + targetName + ChatColor.WHITE + ".");
-        MessageManager.sendBasicMessage(player, ChatColor.WHITE + "You are now an " + ChatColor.BLUE + "ADMIN" + ChatColor.WHITE + ".");
-        MessageManager.sendSuccess(player, "═══════════════════════════════════");
 
-        MessageManager.sendSuccess(target, "═══════════════════════════════════");
-        MessageManager.sendSuccess(target,"" + ChatColor.BOLD + "YOU ARE NOW THE OWNER!");
-        MessageManager.sendSuccess(target, "═══════════════════════════════════");
-        MessageManager.sendBasicMessage(target, ChatColor.WHITE + player.getName() + " has transferred ownership");
-        MessageManager.sendBasicMessage(target, ChatColor.WHITE + "of " + ChatColor.BOLD + factionName + ChatColor.WHITE + " to you!");
-        MessageManager.sendBasicMessage(target, ChatColor.WHITE + "You now have full control of the faction.");
-        MessageManager.sendSuccess(target, "═══════════════════════════════════");
+
+        // Send messages
+        MessageManager.sendOwnerTransferSuccess(player, target, factionName);
 
         // Notify all other faction members
         for (UUID memberUUID : faction.members.keySet()) {
             Player member = Bukkit.getPlayer(memberUUID);
             if (member != null && !member.equals(player) && !member.equals(target)) {
-                MessageManager.sendMemberInfoMessage(member, "═══ FACTION ANNOUNCEMENT ═══");
-                MessageManager.sendMemberWhiteMessage(member, player.getName() + " has transferred ownership");
-                MessageManager.sendMemberWhiteMessage(member, "of " + factionName + " to " + targetName + "!");
-                MessageManager.sendMemberInfoMessage(member,"════════════════════════════");
+                MessageManager.sendMemberOwnerTransferSuccess(member, player, targetName, factionName);
             }
         }
 
@@ -1210,18 +1179,19 @@ public class CommandManager implements CommandExecutor {
         // Check if faction is public or player has invitation
         boolean canJoin = faction.isPublic;
         Set<String> invites = playerInvitations.get(uuid);
-        if (!canJoin && invites != null && invites.contains(factionName)) {
-            canJoin = true;
-            // Remove the invitation since they're joining
+        boolean hasInvitation = invites != null && invites.contains(factionName);
+
+        if (!canJoin && !hasInvitation) {
+            MessageManager.sendError(player, "You cannot join " + factionName + ". This faction is private and you haven't been invited.");
+            return true;
+        }
+
+        // Remove the invitation regardless of how they're joining (public or invited)
+        if (hasInvitation) {
             invites.remove(factionName);
             if (invites.isEmpty()) {
                 playerInvitations.remove(uuid);
             }
-        }
-
-        if (!canJoin) {
-            MessageManager.sendError(player, "You cannot join " + factionName + ". This faction is private and you haven't been invited.");
-            return true;
         }
 
         // Join the faction
@@ -1237,7 +1207,7 @@ public class CommandManager implements CommandExecutor {
         for (UUID memberUUID : faction.members.keySet()) {
             Player member = Bukkit.getPlayer(memberUUID);
             if (member != null && !member.equals(player)) {
-                MessageManager.sendFactionJoined(member, player.getName());
+                MessageManager.sendMemberJoined(member, player.getName());
             }
         }
 
@@ -1335,7 +1305,7 @@ public class CommandManager implements CommandExecutor {
         for (UUID memberUUID : faction.members.keySet()) {
             Player member = Bukkit.getPlayer(memberUUID);
             if (member != null) {
-                MessageManager.sendFactionDisbanded(member, factionName, disbander.getDisplayName());
+                MessageManager.sendMemberFactionDisbanded(member, factionName, disbander.getDisplayName());
             }
             playerFactions.remove(memberUUID);
         }
