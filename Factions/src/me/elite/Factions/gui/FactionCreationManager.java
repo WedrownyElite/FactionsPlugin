@@ -4,6 +4,7 @@ import me.elite.Factions.FactionsPlugin;
 import me.elite.Factions.data.Faction;
 import me.elite.Factions.data.Rank;
 import me.elite.Factions.constants.FactionsConstants;
+import me.elite.Factions.utils.MessageManager;
 import org.bukkit.Bukkit;
 import org.bukkit.ChatColor;
 import org.bukkit.Location;
@@ -72,13 +73,13 @@ public class FactionCreationManager {
 
             // Alternative: Use chat input instead
             player.closeInventory();
-            player.sendMessage(ChatColor.YELLOW + "═══════════════════════════════════");
-            player.sendMessage(ChatColor.GREEN + "" + ChatColor.BOLD + "CREATE FACTION");
-            player.sendMessage(ChatColor.YELLOW + "═══════════════════════════════════");
-            player.sendMessage(ChatColor.WHITE + "Please enter your desired faction name:");
-            player.sendMessage(ChatColor.GRAY + "• Type your faction name in chat");
-            player.sendMessage(ChatColor.GRAY + "• Type " + ChatColor.RED + "cancel" + ChatColor.GRAY + " to abort");
-            player.sendMessage(ChatColor.YELLOW + "═══════════════════════════════════");
+            MessageManager.sendInfo(player, "═══════════════════════════════════");
+            MessageManager.sendSuccess(player, "" + ChatColor.BOLD + "CREATE FACTION");
+            MessageManager.sendInfo(player, "═══════════════════════════════════");
+            MessageManager.sendBasicMessage(player, ChatColor.WHITE + "Please enter your desired faction name:");
+            MessageManager.sendBasicMessage(player, ChatColor.WHITE + "• Type your faction name in chat");
+            MessageManager.sendBasicMessage(player, ChatColor.WHITE + "• Type " + ChatColor.RED + "cancel" + ChatColor.GRAY + " to abort");
+            MessageManager.sendInfo(player, "═══════════════════════════════════");
 
             // Clean up the temporary block
             new BukkitRunnable() {
@@ -162,13 +163,11 @@ public class FactionCreationManager {
                 playerFactions.put(uuid, factionName);
 
                 player.closeInventory();
-                player.sendMessage(ChatColor.GREEN + "Successfully created faction: " + ChatColor.BOLD + factionName);
-                player.sendMessage(ChatColor.YELLOW + "You are now the owner of " + factionName + "!");
-                player.sendMessage(ChatColor.GRAY + "Use " + ChatColor.YELLOW + "/f menu" + ChatColor.GRAY + " to access faction features.");
+                MessageManager.sendFactionCreated(player, factionName);
 
 
             } else if (factions.containsKey(factionName)) {
-                player.sendMessage(ChatColor.RED + "A faction with that name already exists!");
+                MessageManager.sendError(player, "A faction with that name already exists!");
                 player.closeInventory();
             }
 
@@ -183,7 +182,7 @@ public class FactionCreationManager {
             player.closeInventory();
 
             // CHANGED: Don't automatically open the menu, let player decide
-            player.sendMessage(ChatColor.YELLOW + "Faction creation cancelled.");
+            MessageManager.sendInfo(player, "Faction creation cancelled.");
         }
     }
 }

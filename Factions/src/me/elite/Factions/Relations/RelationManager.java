@@ -2,6 +2,7 @@ package me.elite.Factions.Relations;
 
 import me.elite.Factions.FactionsPlugin;
 import me.elite.Factions.data.*;
+import me.elite.Factions.utils.MessageManager;
 import org.bukkit.Bukkit;
 import org.bukkit.ChatColor;
 import org.bukkit.entity.Player;
@@ -138,7 +139,7 @@ public class RelationManager {
         if (currentRelation == relation) {
             Player sender = Bukkit.getPlayer(playerUUID);
             if (sender != null) {
-                sender.sendMessage(ChatColor.YELLOW + "You already have a " +
+                MessageManager.sendInfo(sender, "You already have a " +
                         getRelationColor(relation) + relation.getDisplayName() +
                         ChatColor.YELLOW + " relation with " + toFaction + "!");
             }
@@ -165,7 +166,7 @@ public class RelationManager {
                         existingRequest.requestedRelation == relation) {
                     Player sender = Bukkit.getPlayer(playerUUID);
                     if (sender != null) {
-                        sender.sendMessage(ChatColor.YELLOW + "You already have a pending " +
+                        MessageManager.sendInfo(sender, "You already have a pending " +
                                 getRelationColor(relation) + relation.getDisplayName() +
                                 ChatColor.YELLOW + " request to " + toFaction + "!");
                     }
@@ -199,6 +200,33 @@ public class RelationManager {
                 " request from " + ChatColor.WHITE + fromFaction + ChatColor.GRAY + " (by " + senderName + ")");
 
         return true;
+    }
+
+    /**
+     * Remove all relations involving a specific faction (used when faction is disbanded)
+     */
+    public void removeAllRelationsForFaction(String factionName) {
+        // Remove relations where this faction is the key
+        factionRelations.remove(factionName);
+
+        // Remove relations where this faction is the target
+        for (Map<String, Relation> relations : factionRelations.values()) {
+            relations.remove(factionName);
+        }
+
+        // Remove pending requests involving this faction
+        pendingRequests.remove(factionName);
+        for (List<RelationRequest> requests : pendingRequests.values()) {
+            requests.removeIf(request -> request.fromFaction.equals(factionName));
+        }
+
+        // Clean up empty request lists
+        pendingRequests.entrySet().removeIf(entry -> entry.getValue().isEmpty());
+
+        // Trigger nametag updates for all affected factions
+        Bukkit.getScheduler().runTaskLater(plugin, () -> {
+            plugin.getNametagManager().refreshAllNametags();
+        }, 5L);
     }
 
     /**
@@ -400,7 +428,7 @@ public class RelationManager {
         for (UUID memberUUID : faction.members.keySet()) {
             Player member = Bukkit.getPlayer(memberUUID);
             if (member != null && member.isOnline()) {
-                member.sendMessage(message);
+                MessageManager.sendMemberBasicMessage(member, message);
             }
         }
     }

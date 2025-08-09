@@ -12,6 +12,7 @@ import me.elite.Factions.data.RelationRequest;
 import me.elite.Factions.Relations.RelationManager;
 import me.elite.Factions.utils.ChatUtils;
 import me.elite.Factions.gui.BrowserMenuHandler;
+import me.elite.Factions.utils.MessageManager;
 
 // External libraries
 import com.mojang.authlib.GameProfile;
@@ -806,16 +807,16 @@ public class MenuHandler {
         Rank playerRank = faction.members.get(player.getUniqueId());
 
         if (!faction.hasPermission(playerRank, FactionPermission.SET_RELATIONS)) {
-            player.sendMessage(ChatColor.RED + "You lack permission to manage faction relations.");
+            MessageManager.sendError(player, "You lack permission to manage faction relations.");
             return;
         }
 
         boolean success = plugin.getRelationManager().removeRelation(factionName, targetFaction, player.getUniqueId());
         if (success) {
-            player.sendMessage(ChatColor.GREEN + "Removed relation with " + targetFaction + "!");
+            MessageManager.sendSuccess(player, "Removed relation with " + targetFaction + "!");
             plugin.getDataManager().saveFactionData();
         } else {
-            player.sendMessage(ChatColor.RED + "Failed to remove relation.");
+            MessageManager.sendError(player, "Failed to remove relation.");
         }
 
         // Refresh the menu with current pages
@@ -829,7 +830,7 @@ public class MenuHandler {
         Rank playerRank = faction.members.get(player.getUniqueId());
 
         if (!faction.hasPermission(playerRank, FactionPermission.SET_RELATIONS)) {
-            player.sendMessage(ChatColor.RED + "You lack permission to manage faction relations.");
+            MessageManager.sendError(player, "You lack permission to manage faction relations.");
             return;
         }
 
@@ -837,13 +838,13 @@ public class MenuHandler {
                 factionName, request.fromFaction, request.requestedRelation, player.getUniqueId());
 
         if (success) {
-            player.sendMessage(ChatColor.GREEN + "Accepted " +
+            MessageManager.sendSuccess(player,ChatColor.GREEN + "Accepted " +
                     RelationManager.getRelationColor(request.requestedRelation) +
                     request.requestedRelation.getDisplayName() + ChatColor.GREEN +
                     " request from " + request.fromFaction + "!");
             plugin.getDataManager().saveFactionData();
         } else {
-            player.sendMessage(ChatColor.RED + "Failed to accept request.");
+            MessageManager.sendError(player, "Failed to accept request.");
         }
 
         // Refresh the menu with current pages
@@ -857,7 +858,7 @@ public class MenuHandler {
         Rank playerRank = faction.members.get(player.getUniqueId());
 
         if (!faction.hasPermission(playerRank, FactionPermission.SET_RELATIONS)) {
-            player.sendMessage(ChatColor.RED + "You lack permission to manage faction relations.");
+            MessageManager.sendError(player,"You lack permission to manage faction relations.");
             return;
         }
 
@@ -865,13 +866,13 @@ public class MenuHandler {
                 factionName, request.fromFaction, request.requestedRelation, player.getUniqueId());
 
         if (success) {
-            player.sendMessage(ChatColor.YELLOW + "Rejected " +
+            MessageManager.sendInfo(player,"Rejected " +
                     RelationManager.getRelationColor(request.requestedRelation) +
                     request.requestedRelation.getDisplayName() + ChatColor.YELLOW +
                     " request from " + request.fromFaction + ".");
             plugin.getDataManager().saveFactionData();
         } else {
-            player.sendMessage(ChatColor.RED + "Failed to reject request.");
+            MessageManager.sendError(player,"Failed to reject request.");
         }
 
         // Refresh the menu with current pages
@@ -1065,8 +1066,7 @@ public class MenuHandler {
 
             if (playerRank == Rank.OWNER || playerRank == Rank.ADMIN) {
                 faction.isPublic = !faction.isPublic;
-                player.sendMessage(ChatColor.GREEN + "Faction visibility changed to: " +
-                        (faction.isPublic ? ChatColor.GREEN + "Public" : ChatColor.RED + "Private"));
+                MessageManager.sendFactionPrivacyToggle(player, faction.isPublic);
 
                 // Save the data
                 plugin.getDataManager().saveFactionData();
@@ -1074,7 +1074,7 @@ public class MenuHandler {
                 // Reopen menu to show updated status
                 openFactionMenu(player, factionName);
             } else {
-                player.sendMessage(ChatColor.RED + "You don't have permission to change faction visibility.");
+                MessageManager.sendError(player,"You don't have permission to change faction visibility.");
             }
         } else if (displayName.equals(ChatColor.RED + "Leave Faction")) {
             player.closeInventory();
@@ -1165,7 +1165,7 @@ public class MenuHandler {
         try {
             targetRank = Rank.valueOf(rankName);
         } catch (IllegalArgumentException e) {
-            player.sendMessage(ChatColor.RED + "Error: Invalid rank detected.");
+            MessageManager.sendError(player, "Error: Invalid rank detected.");
             return;
         }
 
@@ -1185,10 +1185,10 @@ public class MenuHandler {
                 if (displayName.contains("🔒")) {
                     // This is a locked permission - explain why it can't be changed
                     if (!faction.hasPermission(playerRank, permission)) {
-                        player.sendMessage(ChatColor.RED + "You cannot toggle " + permission.getDisplayName() +
+                        MessageManager.sendError(player,"You cannot toggle " + permission.getDisplayName() +
                                 " because your rank (" + playerRank.name() + ") doesn't have this permission.");
                     } else {
-                        player.sendMessage(ChatColor.RED + "You cannot modify permissions for this rank.");
+                        MessageManager.sendError(player,"You cannot modify permissions for this rank.");
                     }
                     return;
                 }
@@ -1208,7 +1208,7 @@ public class MenuHandler {
                 openRankPermissionsGUI(player, factionName, targetRank);
 
                 boolean hasPermission = faction.hasPermission(targetRank, permission);
-                player.sendMessage(ChatColor.GREEN + (hasPermission ? "Enabled" : "Disabled") +
+                MessageManager.sendSuccess(player,(hasPermission ? "Enabled" : "Disabled") +
                         " " + permission.getDisplayName() + " for " + targetRank.name() + " rank!");
                 return;
             }
@@ -1221,16 +1221,16 @@ public class MenuHandler {
     private boolean canModifyRankPermissions(Player player, Rank playerRank, Rank targetRank, Faction faction) {
         // Check if player has permission to manage permissions at all
         if (playerRank != Rank.OWNER && !faction.hasPermission(playerRank, FactionPermission.MANAGE_PERMISSIONS)) {
-            player.sendMessage(ChatColor.RED + "You lack permission to manage faction permissions.");
+            MessageManager.sendError(player,"You lack permission to manage faction permissions.");
             return false;
         }
 
         // Cannot modify permissions for your own rank or higher (unless you're owner)
         if (playerRank != Rank.OWNER && targetRank.ordinal() >= playerRank.ordinal()) {
             if (targetRank == playerRank) {
-                player.sendMessage(ChatColor.RED + "You cannot modify permissions for your own rank.");
+                MessageManager.sendError(player,"You cannot modify permissions for your own rank.");
             } else {
-                player.sendMessage(ChatColor.RED + "You cannot modify permissions for ranks equal to or higher than yours.");
+                MessageManager.sendError(player,"You cannot modify permissions for ranks equal to or higher than yours.");
             }
             return false;
         }
@@ -1251,7 +1251,7 @@ public class MenuHandler {
 
         // If the player's rank doesn't have this permission, they cannot grant it to lower ranks
         if (!faction.hasPermission(playerRank, permission)) {
-            player.sendMessage(ChatColor.RED + "You cannot toggle " + permission.getDisplayName() +
+            MessageManager.sendError(player,"You cannot toggle " + permission.getDisplayName() +
                     " because your rank (" + playerRank.name() + ") doesn't have this permission.");
             return false;
         }
@@ -1317,7 +1317,7 @@ public class MenuHandler {
                 }
             }
             if (relation == null) {
-                player.sendMessage(ChatColor.RED + "Error: Invalid relation detected.");
+                MessageManager.sendError(player,"Error: Invalid relation detected.");
                 return;
             }
         }
@@ -1334,7 +1334,7 @@ public class MenuHandler {
                 // Reopen the menu to show updated permissions
                 openRelationPermissionsGUI(player, factionName, relation);
 
-                player.sendMessage(ChatColor.GREEN + "Toggled " + permission.getDisplayName() +
+                MessageManager.sendSuccess(player,"Toggled " + permission.getDisplayName() +
                         " for " + relation.getDisplayName() + " relations!");
                 return;
             }
@@ -1357,7 +1357,7 @@ public class MenuHandler {
             Player targetPlayer = Bukkit.getPlayerExact(playerName);
 
             if (targetPlayer == null) {
-                player.sendMessage(ChatColor.RED + "Player " + playerName + " is no longer online.");
+                MessageManager.sendError(player,"Player " + playerName + " is no longer online.");
                 return;
             }
 
@@ -1366,7 +1366,7 @@ public class MenuHandler {
 
             // Check if player is already in a faction
             if (playerFactions.containsKey(targetUUID)) {
-                player.sendMessage(ChatColor.RED + playerName + " is already in a faction.");
+                MessageManager.sendError(player,playerName + " is already in a faction.");
                 return;
             }
 
@@ -1375,16 +1375,15 @@ public class MenuHandler {
             Set<String> invites = playerInvitations.get(targetUUID);
 
             if (invites.contains(factionName)) {
-                player.sendMessage(ChatColor.YELLOW + playerName + " has already been invited to " + factionName + ".");
+                MessageManager.sendInfo(player,playerName + " has already been invited to " + factionName + ".");
                 return;
             }
 
             invites.add(factionName);
 
             // Notify both players
-            player.sendMessage(ChatColor.GREEN + "Successfully invited " + playerName + " to " + factionName + "!");
-            targetPlayer.sendMessage(ChatColor.GREEN + "You have been invited to faction " + factionName + " by " + player.getName() + "!");
-            targetPlayer.sendMessage(ChatColor.YELLOW + "Use /f join " + factionName + " to join, or /f invites to see all invitations.");
+            MessageManager.sendInvitationSent(player, playerName, factionName);
+            MessageManager.sendInvitationReceived(targetPlayer, player.getName(), factionName);
 
             // Save data
             plugin.getDataManager().saveFactionData();
@@ -1430,17 +1429,17 @@ public class MenuHandler {
         // Check rank permissions for kicking
         Rank targetRank = faction.members.get(targetPlayer.getUniqueId());
         if (playerRank == Rank.ADMIN && (targetRank == Rank.ADMIN || targetRank == Rank.OWNER)) {
-            player.sendMessage(ChatColor.RED + "You cannot kick a player of equal or higher rank.");
+            MessageManager.sendError(player, "You cannot kick a player of equal or higher rank.");
             return;
         }
         if (targetRank == Rank.OWNER) {
-            player.sendMessage(ChatColor.RED + "You cannot kick the faction owner.");
+            MessageManager.sendError(player, "You cannot kick the faction owner.");
             return;
         }
 
         if (clickType == ClickType.LEFT) {
             // Manage rank - implement later
-            player.sendMessage(ChatColor.YELLOW + "Rank management coming soon! Use /f promote or /f demote for now.");
+            MessageManager.sendInfo(player, "Rank management coming soon! Use /f promote or /f demote for now.");
         } else if (clickType == ClickType.RIGHT) {
             // Open kick confirmation dialog
             openKickConfirmation(player, targetPlayer);
@@ -1453,7 +1452,7 @@ public class MenuHandler {
 
         if (targetUUID == null) {
             player.closeInventory();
-            player.sendMessage(ChatColor.RED + "Error: No pending kick operation found.");
+            MessageManager.sendError(player, "Error: No pending kick operation found.");
             return;
         }
 
@@ -1474,11 +1473,11 @@ public class MenuHandler {
 
             // Notify both players
             player.closeInventory();
-            player.sendMessage(ChatColor.GREEN + "Successfully kicked " + targetName + " from " + factionName + "!");
+            MessageManager.sendKickSuccess(player, targetName, factionName);
 
             if (target.isOnline()) {
                 Player onlineTarget = (Player) target;
-                onlineTarget.sendMessage(ChatColor.RED + "You have been kicked from faction " + factionName + " by " + player.getName() + "!");
+                MessageManager.sendKicked(onlineTarget, player.getName(), factionName);
 
                 plugin.getEventListener().onPlayerLeaveFaction(onlineTarget);
             }
@@ -1516,15 +1515,13 @@ public class MenuHandler {
                 playerFactions.put(uuid, factionName);
 
                 player.closeInventory();
-                player.sendMessage(ChatColor.GREEN + "Successfully created faction: " + ChatColor.BOLD + factionName);
-                player.sendMessage(ChatColor.YELLOW + "You are now the owner of " + factionName + "!");
-                player.sendMessage(ChatColor.GRAY + "Use " + ChatColor.YELLOW + "/f menu" + ChatColor.GRAY + " to access faction features.");
+                MessageManager.sendFactionCreated(player, factionName);
 
                 // REMOVED: Automatic menu opening
                 // No longer automatically opens the faction menu
 
             } else if (factions.containsKey(factionName)) {
-                player.sendMessage(ChatColor.RED + "A faction with that name already exists!");
+                MessageManager.sendError(player, "A faction with that name already exists!");
                 // Don't open any menu, just close the current one
                 player.closeInventory();
             }
@@ -1539,7 +1536,7 @@ public class MenuHandler {
             plugin.getPendingFactionNames().remove(uuid);
             player.closeInventory();
 
-            player.sendMessage(ChatColor.YELLOW + "Faction creation cancelled.");
+            MessageManager.sendInfo(player, "Faction creation cancelled.");
         }
     }
 
@@ -1549,7 +1546,7 @@ public class MenuHandler {
     public void handleResetPermissionsClick(Player player, String title, boolean isRankPermissions) {
         String factionName = playerFactions.get(player.getUniqueId());
         if (factionName == null) {
-            player.sendMessage(ChatColor.RED + "You are not in a faction.");
+            MessageManager.sendError(player, "You are not in a faction.");
             return;
         }
 
@@ -1558,7 +1555,7 @@ public class MenuHandler {
 
         // Check if player has permission to manage permissions
         if (playerRank != Rank.OWNER && !faction.hasPermission(playerRank, FactionPermission.MANAGE_PERMISSIONS)) {
-            player.sendMessage(ChatColor.RED + "You lack permission to reset faction permissions.");
+            MessageManager.sendError(player, "You lack permission to reset faction permissions.");
             return;
         }
 
@@ -1569,19 +1566,19 @@ public class MenuHandler {
             try {
                 targetRank = Rank.valueOf(rankName);
             } catch (IllegalArgumentException e) {
-                player.sendMessage(ChatColor.RED + "Error: Invalid rank detected.");
+                MessageManager.sendError(player, "Error: Invalid rank detected.");
                 return;
             }
 
             // Check if player can modify this rank's permissions
             if (!canModifyRankPermissionsCheck(playerRank, targetRank, faction)) {
                 if (playerRank != Rank.OWNER && !faction.hasPermission(playerRank, FactionPermission.MANAGE_PERMISSIONS)) {
-                    player.sendMessage(ChatColor.RED + "You lack permission to manage faction permissions.");
+                    MessageManager.sendError(player, "You lack permission to manage faction permissions.");
                 } else if (targetRank.ordinal() >= playerRank.ordinal()) {
                     if (targetRank == playerRank) {
-                        player.sendMessage(ChatColor.RED + "You cannot reset permissions for your own rank.");
+                        MessageManager.sendError(player, "You cannot reset permissions for your own rank.");
                     } else {
-                        player.sendMessage(ChatColor.RED + "You cannot reset permissions for ranks equal to or higher than yours.");
+                        MessageManager.sendError(player, "You cannot reset permissions for ranks equal to or higher than yours.");
                     }
                 }
                 return;
@@ -1605,7 +1602,7 @@ public class MenuHandler {
                     }
                 }
                 if (relation == null) {
-                    player.sendMessage(ChatColor.RED + "Error: Invalid relation detected.");
+                    MessageManager.sendError(player, "Error: Invalid relation detected.");
                     return;
                 }
             }
@@ -1670,33 +1667,33 @@ public class MenuHandler {
 
         // Send feedback to player
         if (!permissionsReset.isEmpty()) {
-            player.sendMessage(ChatColor.GREEN + "Successfully reset " + permissionsReset.size() +
+            MessageManager.sendSuccess(player,"Successfully reset " + permissionsReset.size() +
                     " permissions for " + targetRank.name() + " rank to default!");
 
             if (permissionsReset.size() <= 5) {
                 // Show individual permissions if not too many
                 for (FactionPermission perm : permissionsReset) {
                     boolean enabled = defaultPermissions.contains(perm);
-                    player.sendMessage(ChatColor.GRAY + "  • " + perm.getDisplayName() + ": " +
+                    MessageManager.sendBasicMessage(player, ChatColor.WHITE + "  • " + perm.getDisplayName() + ": " +
                             (enabled ? ChatColor.GREEN + "ENABLED" : ChatColor.RED + "DISABLED"));
                 }
             }
         }
 
         if (!permissionsSkipped.isEmpty()) {
-            player.sendMessage(ChatColor.YELLOW + "Skipped " + permissionsSkipped.size() +
+            MessageManager.sendInfo(player, "Skipped " + permissionsSkipped.size() +
                     " permissions you don't have access to:");
 
             if (permissionsSkipped.size() <= 5) {
                 for (FactionPermission perm : permissionsSkipped) {
-                    player.sendMessage(ChatColor.GRAY + "  • " + ChatColor.RED + perm.getDisplayName() +
+                    MessageManager.sendBasicMessage(player, ChatColor.WHITE + "  • " + ChatColor.RED + perm.getDisplayName() +
                             ChatColor.GRAY + " (you lack this permission)");
                 }
             }
         }
 
         if (permissionsReset.isEmpty() && permissionsSkipped.isEmpty()) {
-            player.sendMessage(ChatColor.YELLOW + targetRank.name() + " rank permissions are already at default (or you cannot modify any of them).");
+            MessageManager.sendInfo(player, targetRank.name() + " rank permissions are already at default (or you cannot modify any of them).");
         }
 
         // Reopen the permissions GUI to show changes
@@ -1761,35 +1758,35 @@ public class MenuHandler {
 
         // Send feedback to player
         if (!permissionsReset.isEmpty()) {
-            player.sendMessage(ChatColor.GREEN + "Successfully reset " + permissionsReset.size() +
+            MessageManager.sendSuccess(player, "Successfully reset " + permissionsReset.size() +
                     " permissions for " + relation.getDisplayName() + " relations to default!");
 
             if (permissionsReset.size() <= 5) {
                 // Show individual permissions if not too many
                 for (RelationPermission perm : permissionsReset) {
                     boolean enabled = defaultPermissions.contains(perm);
-                    player.sendMessage(ChatColor.GRAY + "  • " + perm.getDisplayName() + ": " +
+                    MessageManager.sendBasicMessage(player, ChatColor.WHITE + "  • " + perm.getDisplayName() + ": " +
                             (enabled ? ChatColor.GREEN + "ENABLED" : ChatColor.RED + "DISABLED"));
                 }
             }
         }
 
         if (!permissionsSkipped.isEmpty()) {
-            player.sendMessage(ChatColor.YELLOW + "Skipped " + permissionsSkipped.size() +
+            MessageManager.sendInfo(player, "Skipped " + permissionsSkipped.size() +
                     " permissions you don't have equivalent access to:");
 
             if (permissionsSkipped.size() <= 5) {
                 for (RelationPermission perm : permissionsSkipped) {
                     FactionPermission equiv = getEquivalentFactionPermission(perm);
                     String reason = equiv != null ? "you lack " + equiv.getDisplayName() : "no equivalent permission";
-                    player.sendMessage(ChatColor.GRAY + "  • " + ChatColor.RED + perm.getDisplayName() +
+                    MessageManager.sendBasicMessage(player, ChatColor.WHITE + "  • " + ChatColor.RED + perm.getDisplayName() +
                             ChatColor.GRAY + " (" + reason + ")");
                 }
             }
         }
 
         if (permissionsReset.isEmpty() && permissionsSkipped.isEmpty()) {
-            player.sendMessage(ChatColor.YELLOW + relation.getDisplayName() + " relation permissions are already at default (or you cannot modify any of them).");
+            MessageManager.sendInfo(player, relation.getDisplayName() + " relation permissions are already at default (or you cannot modify any of them).");
         }
 
         // Reopen the permissions GUI to show changes
@@ -1918,7 +1915,7 @@ public class MenuHandler {
             playerFactions.remove(player.getUniqueId());
 
             player.closeInventory();
-            player.sendMessage(ChatColor.GREEN + "You have left faction " + factionName + ".");
+            MessageManager.sendFactionLeft(player, factionName);
 
             plugin.getEventListener().onPlayerLeaveFaction(player);
 
@@ -1926,7 +1923,7 @@ public class MenuHandler {
             for (UUID memberUUID : faction.members.keySet()) {
                 Player member = Bukkit.getPlayer(memberUUID);
                 if (member != null) {
-                    member.sendMessage(ChatColor.YELLOW + player.getName() + " has left the faction.");
+                    MessageManager.sendMemberLeft(member, player.getName());
                 }
             }
 

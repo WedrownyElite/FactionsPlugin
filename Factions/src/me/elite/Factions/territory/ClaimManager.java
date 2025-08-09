@@ -3,6 +3,7 @@ package me.elite.Factions.territory;
 import me.elite.Factions.FactionsPlugin;
 import me.elite.Factions.data.Faction;
 import me.elite.Factions.constants.FactionsConstants;
+import me.elite.Factions.utils.MessageManager;
 import org.bukkit.Bukkit;
 import org.bukkit.ChatColor;
 import org.bukkit.Chunk;
@@ -41,12 +42,12 @@ public class ClaimManager {
         ChunkCoord coord = new ChunkCoord(chunk.getX(), chunk.getZ());
         String existingClaim = claims.get(coord);
         if (existingClaim != null && !existingClaim.equalsIgnoreCase("Wilderness")) {
-            player.sendMessage("This chunk is already claimed by: " + existingClaim);
+            MessageManager.sendError(player,"This chunk is already claimed by: " + existingClaim);
             return false;
         }
 
         claims.put(coord, factionName);
-        player.sendMessage("Chunk claimed for faction: " + factionName);
+        MessageManager.sendSuccess(player,"Chunk claimed for faction: " + factionName);
         return true;
     }
 
@@ -55,25 +56,25 @@ public class ClaimManager {
         String world = player.getWorld().getName();
         Map<ChunkCoord, String> claims = worldClaims.get(world);
         if (claims == null) {
-            player.sendMessage("No claims found in this world.");
+            MessageManager.sendError(player,"No claims found in this world.");
             return false;
         }
 
         ChunkCoord coord = new ChunkCoord(chunk.getX(), chunk.getZ());
         String currentOwner = claims.get(coord);
         if (currentOwner == null) {
-            player.sendMessage("This chunk is not claimed.");
+            MessageManager.sendError(player,"This chunk is not claimed.");
             return false;
         }
 
         if (!currentOwner.equals(factionName)) {
-            player.sendMessage("This chunk is not owned by your faction.");
+            MessageManager.sendError(player,"This chunk is not owned by your faction.");
             return false;
         }
 
         claims.remove(coord);
         claims.put(coord, "Wilderness");
-        player.sendMessage("Chunk unclaimed and returned to Wilderness.");
+        MessageManager.sendInfo(player,"Chunk unclaimed and returned to Wilderness.");
         return true;
     }
 
@@ -81,7 +82,7 @@ public class ClaimManager {
         String world = player.getWorld().getName();
         Map<ChunkCoord, String> claims = worldClaims.get(world);
         if (claims == null) {
-            player.sendMessage("No claims found in this world.");
+            MessageManager.sendError(player,"No claims found in this world.");
             return 0;
         }
 
@@ -97,9 +98,9 @@ public class ClaimManager {
         }
 
         if (unclaimedCount == 0) {
-            player.sendMessage("Your faction has no claims in this world.");
+            MessageManager.sendError(player,"Your faction has no claims in this world.");
         } else {
-            player.sendMessage("Unclaimed " + unclaimedCount + " chunks and returned them to Wilderness.");
+            MessageManager.sendInfo(player,"Unclaimed " + unclaimedCount + " chunks and returned them to Wilderness.");
         }
         return unclaimedCount;
     }
@@ -117,7 +118,7 @@ public class ClaimManager {
         Map<ChunkCoord, String> claims = worldClaims.get(world);
         claims.put(new ChunkCoord(chunk.getX(), chunk.getZ()), factionName);
 
-        player.sendMessage(ChatColor.GREEN + "Chunk claimed for faction: " + factionName);
+        MessageManager.sendSuccess(player, "Chunk claimed for faction: " + factionName);
         return true;
     }
 
@@ -126,20 +127,20 @@ public class ClaimManager {
         String world = player.getWorld().getName();
         Map<ChunkCoord, String> claims = worldClaims.get(world);
         if (claims == null) {
-            player.sendMessage("No claims found in this world.");
+            MessageManager.sendError(player,"No claims found in this world.");
             return false;
         }
 
         ChunkCoord coord = new ChunkCoord(chunk.getX(), chunk.getZ());
         String currentOwner = claims.get(coord);
         if (currentOwner == null) {
-            player.sendMessage("This chunk is not claimed.");
+            MessageManager.sendError(player,"This chunk is not claimed.");
             return false;
         }
 
         claims.remove(coord);
         claims.put(coord, "Wilderness");
-        player.sendMessage(ChatColor.GREEN + "Chunk unclaimed from " + currentOwner + " and returned to Wilderness.");
+        MessageManager.sendSuccess(player, "Chunk unclaimed from " + currentOwner + " and returned to Wilderness.");
         return true;
     }
 
@@ -147,7 +148,7 @@ public class ClaimManager {
         String world = player.getWorld().getName();
         Map<ChunkCoord, String> claims = worldClaims.get(world);
         if (claims == null) {
-            player.sendMessage("No claims found in this world.");
+            MessageManager.sendError(player,"No claims found in this world.");
             return 0;
         }
 
@@ -163,9 +164,9 @@ public class ClaimManager {
         }
 
         if (unclaimedCount == 0) {
-            player.sendMessage("Faction '" + targetFaction + "' has no claims in this world.");
+            MessageManager.sendError(player,"Faction '" + targetFaction + "' has no claims in this world.");
         } else {
-            player.sendMessage(ChatColor.GREEN + "Unclaimed " + unclaimedCount + " chunks from " + targetFaction + " and returned them to Wilderness.");
+            MessageManager.sendSuccess(player, "Unclaimed " + unclaimedCount + " chunks from " + targetFaction + " and returned them to Wilderness.");
         }
         return unclaimedCount;
     }
@@ -193,7 +194,7 @@ public class ClaimManager {
         boolean hasSpawn = false;
         boolean hasWarzone = false;
 
-        player.sendMessage(ChatColor.GRAY + "Faction Map (North ↑):");
+        MessageManager.sendBasicMessage(player,ChatColor.GRAY + "Faction Map (North ↑):");
 
         for (int dz = -radiusZ; dz <= radiusZ; dz++) {
             StringBuilder line = new StringBuilder();
@@ -229,19 +230,19 @@ public class ClaimManager {
                 line.append(UNIQUE_CHARS[random.nextInt(UNIQUE_CHARS.length)]);
             }
 
-            player.sendMessage(line.toString());
+            MessageManager.sendBasicMessage(player, line.toString());
         }
 
         // Display legend
         if (hasSpawn) {
-            player.sendMessage(ChatColor.AQUA + "# " + ChatColor.WHITE + "Spawn");
+            MessageManager.sendBasicMessage(player,ChatColor.AQUA + "# " + ChatColor.WHITE + "Spawn");
         }
         if (hasWarzone) {
-            player.sendMessage(ChatColor.DARK_RED + "# " + ChatColor.WHITE + "Warzone");
+            MessageManager.sendBasicMessage(player,ChatColor.DARK_RED + "# " + ChatColor.WHITE + "Warzone");
         }
         if (!factionColors.isEmpty()) {
             for (Map.Entry<String, ChatColor> entry : factionColors.entrySet()) {
-                player.sendMessage(entry.getValue() + "# " + ChatColor.WHITE + entry.getKey());
+                MessageManager.sendBasicMessage(player,entry.getValue() + "# " + ChatColor.WHITE + entry.getKey());
             }
         }
     }
@@ -321,8 +322,8 @@ public class ClaimManager {
                     plugin.getLogger().info("Processed " + String.format("%,d", processedChunks) + " chunks");
 
                     if (requester.isOnline()) {
-                        requester.sendMessage(ChatColor.GREEN + "Wilderness initialization completed for " + worldName + "!");
-                        requester.sendMessage(ChatColor.GREEN + "Processed " + String.format("%,d", processedChunks) + " chunks in " + (elapsed / 1000.0) + " seconds");
+                        MessageManager.sendSuccess(requester, "Wilderness initialization completed for " + worldName + "!");
+                        MessageManager.sendSuccess(requester, "Processed " + String.format("%,d", processedChunks) + " chunks in " + (elapsed / 1000.0) + " seconds");
                     }
 
                     // Save data
@@ -447,9 +448,9 @@ public class ClaimManager {
                             plugin.getLogger().info("==================================================");
 
                             if (requester.isOnline()) {
-                                requester.sendMessage(ChatColor.GREEN + "Wilderness initialization completed for ALL worlds!");
-                                requester.sendMessage(ChatColor.GREEN + "Total: " + String.format("%,d", totalProcessedChunks) + " chunks across " + worlds.size() + " worlds");
-                                requester.sendMessage(ChatColor.GREEN + "Time: " + (totalTime / 1000.0) + " seconds");
+                                MessageManager.sendSuccess(requester, "Wilderness initialization completed for ALL worlds!");
+                                MessageManager.sendSuccess(requester, "Total: " + String.format("%,d", totalProcessedChunks) + " chunks across " + worlds.size() + " worlds");
+                                MessageManager.sendSuccess(requester, "Time: " + (totalTime / 1000.0) + " seconds");
                             }
 
                             plugin.getDataManager().saveFactionData();

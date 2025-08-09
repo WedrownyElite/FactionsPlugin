@@ -4,6 +4,7 @@ import me.elite.Factions.FactionsPlugin;
 import me.elite.Factions.constants.FactionsConstants;
 import me.elite.Factions.data.Faction;
 import me.elite.Factions.data.Rank;
+import me.elite.Factions.utils.MessageManager;
 import org.bukkit.Bukkit;
 import org.bukkit.ChatColor;
 import org.bukkit.Material;
@@ -392,13 +393,13 @@ public class BrowserMenuHandler {
         UUID uuid = player.getUniqueId();
 
         if (playerFactions.containsKey(uuid)) {
-            player.sendMessage(ChatColor.RED + "You are already in a faction.");
+            MessageManager.sendError(player, "You are already in a faction.");
             return;
         }
 
         Faction faction = factions.get(factionName);
         if (faction == null) {
-            player.sendMessage(ChatColor.RED + "Faction no longer exists.");
+            MessageManager.sendError(player, "Faction no longer exists.");
             player.closeInventory();
             return;
         }
@@ -416,7 +417,7 @@ public class BrowserMenuHandler {
         }
 
         if (!canJoin) {
-            player.sendMessage(ChatColor.RED + "You cannot join this faction.");
+            MessageManager.sendError(player, "You cannot join this faction.");
             return;
         }
 
@@ -425,8 +426,7 @@ public class BrowserMenuHandler {
         playerFactions.put(uuid, factionName);
 
         player.closeInventory();
-        player.sendMessage(ChatColor.GREEN + "Successfully joined faction " + ChatColor.BOLD + factionName + ChatColor.GREEN + "!");
-        player.sendMessage(ChatColor.YELLOW + "Welcome to " + factionName + "! Use " + ChatColor.YELLOW + "/f menu" + ChatColor.YELLOW + " to access faction features.");
+        MessageManager.sendFactionJoined(player, factionName);
 
         // UPDATE NAMETAGS when player joins faction
         plugin.getEventListener().onPlayerJoinFaction(player);
@@ -435,7 +435,7 @@ public class BrowserMenuHandler {
         for (UUID memberUUID : faction.members.keySet()) {
             Player member = Bukkit.getPlayer(memberUUID);
             if (member != null && !member.equals(player)) {
-                member.sendMessage(ChatColor.GREEN + player.getName() + " has joined the faction!");
+                MessageManager.sendMemberJoined(member, player.getName());
             }
         }
 

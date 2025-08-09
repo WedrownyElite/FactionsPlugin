@@ -1001,6 +1001,8 @@ public class FactionsEventListener implements Listener {
             worldClaim.entrySet().removeIf(entry -> entry.getValue().equals(factionName));
         }
 
+        plugin.getRelationManager().removeAllRelationsForFaction(factionName);
+
         // Remove faction from invitations
         for (Set<String> invites : playerInvitations.values()) {
             invites.remove(factionName);
