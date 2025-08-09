@@ -144,7 +144,6 @@ public class FactionsTabCompleter implements TabCompleter {
                 }
                 return Collections.emptyList();
 
-            // (Leave other cases as-is if they already returned contextual lists or empty list)
             default:
                 return Collections.emptyList();
         }

@@ -434,136 +434,6 @@ public class MenuHandler {
         player.openInventory(menu);
     }
 
-    private void openFactionBrowser(Player player, int publicPage, int invitePage) {
-        Inventory menu = Bukkit.createInventory(null, 54, ChatColor.DARK_GRAY + "Browse Factions"); // 6 rows (max allowed)
-
-        // Fill with black glass panes
-        ItemStack blackGlass = new ItemStack(Material.BLACK_STAINED_GLASS_PANE);
-        ItemMeta glassMeta = blackGlass.getItemMeta();
-        glassMeta.setDisplayName(" ");
-        blackGlass.setItemMeta(glassMeta);
-
-        for (int i = 0; i < 54; i++) { // Changed from 63 to 54
-            menu.setItem(i, blackGlass);
-        }
-
-        // Row 1: Public factions header
-        ItemStack publicHeader = createCustomHead("eyJ0ZXh0dXJlcyI6eyJTS0lOIjp7InVybCI6Imh0dHA6Ly90ZXh0dXJlcy5taW5lY3JhZnQubmV0L3RleHR1cmUvZmM2MjExMGQ4MTg4NDQxZDIxNzk0NDM0ZjY3ZDEyYTAyMWI3NDAyYzhkYWE0MmQ0ZmVhMzIzZTdlMTllMGJiNyJ9fX0=");
-        ItemMeta publicHeaderMeta = publicHeader.getItemMeta();
-        publicHeaderMeta.setDisplayName(ChatColor.GREEN + "" + ChatColor.BOLD + "PUBLIC FACTIONS");
-        publicHeaderMeta.setLore(Arrays.asList(
-                ChatColor.GRAY + "These factions are open to everyone",
-                ChatColor.GRAY + "Click on any faction to join!"
-        ));
-        publicHeader.setItemMeta(publicHeaderMeta);
-        menu.setItem(0, publicHeader);
-
-        // Get public factions
-        List<String> publicFactions = new ArrayList<>();
-        for (Map.Entry<String, Faction> entry : factions.entrySet()) {
-            if (entry.getValue().isPublic) {
-                publicFactions.add(entry.getKey());
-            }
-        }
-
-        // Public factions section (rows 2-3, slots 9-26)
-        int publicSlotsPerPage = 18; // 2 rows * 9 slots
-        int publicStartIndex = publicPage * publicSlotsPerPage;
-        int publicSlot = 9; // Start of row 2
-
-        for (int i = publicStartIndex; i < Math.min(publicStartIndex + publicSlotsPerPage, publicFactions.size()); i++) {
-            String factionName = publicFactions.get(i);
-            Faction faction = factions.get(factionName);
-            ItemStack factionHead = createFactionHead(factionName, faction, true);
-            menu.setItem(publicSlot, factionHead);
-            publicSlot++;
-            if (publicSlot == 18) publicSlot = 18; // Skip to next row
-            if (publicSlot >= 27) break; // Don't go beyond allocated space
-        }
-
-        // Row 4: Invitations header and navigation
-        ItemStack inviteHeader = createCustomHead("eyJ0ZXh0dXJlcyI6eyJTS0lOIjp7InVybCI6Imh0dHA6Ly90ZXh0dXJlcy5taW5lY3JhZnQubmV0L3RleHR1cmUvMzQ1ZmQxNzRmMjUwMzdiN2Y5ZWNhNzMzY2ZkMDQ2YThiNjM1MTEyMDI2NDg1MzcwNWJjYWE1YjYzZTE3YzE3In19fQ==");
-        ItemMeta inviteHeaderMeta = inviteHeader.getItemMeta();
-        inviteHeaderMeta.setDisplayName(ChatColor.YELLOW + "" + ChatColor.BOLD + "YOUR INVITATIONS");
-        inviteHeaderMeta.setLore(Arrays.asList(
-                ChatColor.GRAY + "Factions that have invited you",
-                ChatColor.GRAY + "Click on any faction to join!"
-        ));
-        inviteHeader.setItemMeta(inviteHeaderMeta);
-        menu.setItem(27, inviteHeader);
-
-        // Public faction navigation (in row 4)
-        boolean hasMorePublicFactions = (publicStartIndex + publicSlotsPerPage) < publicFactions.size();
-        boolean hasPublicPreviousPage = publicPage > 0;
-
-        if (hasPublicPreviousPage) {
-            ItemStack leftArrow = createCustomHead("eyJ0ZXh0dXJlcyI6eyJTS0lOIjp7InVybCI6Imh0dHA6Ly90ZXh0dXJlcy5taW5lY3JhZnQubmV0L3RleHR1cmUvZGUxZGZjMTFhODM3MTExZDIyYjAwMWExNDQ2MWY5YTdmYzA5MzUyMmY4OGM1OGZhZWZkNmFkZWZmY2Q0ZTlhYiJ9fX0=");
-            ItemMeta leftMeta = leftArrow.getItemMeta();
-            leftMeta.setDisplayName(ChatColor.GRAY + "← Previous Public Factions");
-            leftMeta.setLore(Arrays.asList(ChatColor.DARK_GRAY + "Page " + publicPage + " of " + ((publicFactions.size() - 1) / publicSlotsPerPage + 1)));
-            leftArrow.setItemMeta(leftMeta);
-            menu.setItem(34, leftArrow);
-        }
-
-        if (hasMorePublicFactions) {
-            ItemStack rightArrow = createCustomHead("eyJ0ZXh0dXJlcyI6eyJTS0lOIjp7InVybCI6Imh0dHA6Ly90ZXh0dXJlcy5taW5lY3JhZnQubmV0L3RleHR1cmUvN2M2OWQ0MTA3NmE4ZGVhNGYwNmQzZjFhOWFjNDdjYzk5Njk4OGI3NGEwOTEzYWIyYWMxYTc0Y2FmNzA4MTkxOCJ9fX0=");
-            ItemMeta rightMeta = rightArrow.getItemMeta();
-            rightMeta.setDisplayName(ChatColor.GRAY + "Next Public Factions →");
-            rightMeta.setLore(Arrays.asList(ChatColor.DARK_GRAY + "Page " + (publicPage + 2) + " of " + ((publicFactions.size() - 1) / publicSlotsPerPage + 1)));
-            rightArrow.setItemMeta(rightMeta);
-            menu.setItem(35, rightArrow);
-        }
-
-        // Get player invitations
-        Set<String> playerInvites = playerInvitations.get(player.getUniqueId());
-        List<String> invitedFactions = playerInvites != null ? new ArrayList<>(playerInvites) : new ArrayList<>();
-
-        // Invitations section (rows 5-6, slots 36-53)
-        int inviteSlotsPerPage = 18; // 2 rows * 9 slots
-        int inviteStartIndex = invitePage * inviteSlotsPerPage;
-        int inviteSlot = 36; // Start of row 5
-
-        for (int i = inviteStartIndex; i < Math.min(inviteStartIndex + inviteSlotsPerPage, invitedFactions.size()); i++) {
-            String factionName = invitedFactions.get(i);
-            Faction faction = factions.get(factionName);
-            if (faction != null) {
-                ItemStack factionHead = createFactionHead(factionName, faction, false);
-                menu.setItem(inviteSlot, factionHead);
-                inviteSlot++;
-                if (inviteSlot == 45) inviteSlot = 45; // Skip to next row
-                if (inviteSlot >= 54) break; // Don't go beyond allocated space (changed from 54 to 54)
-            }
-        }
-
-        // Row 6: Bottom navigation (changed from row 7)
-        ItemStack backButton = createBackButton();
-        menu.setItem(45, backButton); // Changed from slot 54 to 45
-
-        // Invitation navigation (in row 6) - adjusted slot numbers
-        boolean hasMoreInvitations = (inviteStartIndex + inviteSlotsPerPage) < invitedFactions.size();
-        boolean hasInvitePreviousPage = invitePage > 0;
-
-        if (hasInvitePreviousPage) {
-            ItemStack leftArrow = createCustomHead("eyJ0ZXh0dXJlcyI6eyJTS0lOIjp7InVybCI6Imh0dHA6Ly90ZXh0dXJlcy5taW5lY3JhZnQubmV0L3RleHR1cmUvZGUxZGZjMTFhODM3MTExZDIyYjAwMWExNDQ2MWY5YTdmYzA5MzUyMmY4OGM1OGZhZWZkNmFkZWZmY2Q0ZTlhYiJ9fX0=");
-            ItemMeta leftMeta = leftArrow.getItemMeta();
-            leftMeta.setDisplayName(ChatColor.GRAY + "← Previous Invitations");
-            leftMeta.setLore(Arrays.asList(ChatColor.DARK_GRAY + "Page " + invitePage + " of " + ((invitedFactions.size() - 1) / inviteSlotsPerPage + 1)));
-            leftArrow.setItemMeta(leftMeta);
-            menu.setItem(52, leftArrow); // Changed from slot 61 to 52
-        }
-
-        if (hasMoreInvitations) {
-            ItemStack rightArrow = createCustomHead("eyJ0ZXh0dXJlcyI6eyJTS0lOIjp7InVybCI6Imh0dHA6Ly90ZXh0dXJlcy5taW5lY3JhZnQubmV0L3RleHR1cmUvN2M2OWQ0MTA3NmE4ZGVhNGYwNmQzZjFhOWFjNDdjYzk5Njk4OGI3NGEwOTEzYWIyYWMxYTc0Y2FmNzA4MTkxOCJ9fX0=");
-            ItemMeta rightMeta = rightArrow.getItemMeta();
-            rightMeta.setDisplayName(ChatColor.GRAY + "Next Invitations →");
-            rightMeta.setLore(Arrays.asList(ChatColor.DARK_GRAY + "Page " + (invitePage + 2) + " of " + ((invitedFactions.size() - 1) / inviteSlotsPerPage + 1)));
-            rightArrow.setItemMeta(rightMeta);
-            menu.setItem(53, rightArrow); // Changed from slot 62 to 53
-        }
-
-        player.openInventory(menu);
-    }
-
     /**
      * Create a custom player head with base64 texture
      */
@@ -829,54 +699,6 @@ public class MenuHandler {
     }
 
     /**
-     * Open the relation requests menu
-     */
-    public void openRelationRequestsMenu(Player player, String factionName) {
-        List<RelationRequest> requests = plugin.getRelationManager().getPendingRequests(factionName);
-
-        Inventory menu = Bukkit.createInventory(null, 54, ChatColor.DARK_GRAY + "Relation Requests");
-
-        // Fill bottom row with black glass panes
-        ItemStack blackGlass = new ItemStack(Material.BLACK_STAINED_GLASS_PANE);
-        ItemMeta glassMeta = blackGlass.getItemMeta();
-        glassMeta.setDisplayName(" ");
-        blackGlass.setItemMeta(glassMeta);
-
-        for (int i = 45; i < 54; i++) {
-            menu.setItem(i, blackGlass);
-        }
-
-        // Back button
-        ItemStack backButton = createBackButton();
-        menu.setItem(45, backButton);
-
-        if (requests.isEmpty()) {
-            // No requests message
-            ItemStack noRequests = new ItemStack(Material.BARRIER);
-            ItemMeta noRequestsMeta = noRequests.getItemMeta();
-            noRequestsMeta.setDisplayName(ChatColor.RED + "No Pending Requests");
-            noRequestsMeta.setLore(Arrays.asList(
-                    ChatColor.GRAY + "Your faction has no pending",
-                    ChatColor.GRAY + "relation requests at this time."
-            ));
-            noRequests.setItemMeta(noRequestsMeta);
-            menu.setItem(22, noRequests); // Center
-        } else {
-            // Display requests (slots 0-44, excluding slot 45 for back button)
-            int slot = 0;
-            for (RelationRequest request : requests) {
-                if (slot >= 45) break; // Don't overwrite back button
-
-                ItemStack requestItem = createRelationRequestItem(request);
-                menu.setItem(slot, requestItem);
-                slot++;
-            }
-        }
-
-        player.openInventory(menu);
-    }
-
-    /**
      * Create an item representing a relation request
      */
     private ItemStack createRelationRequestItem(RelationRequest request) {
@@ -929,140 +751,182 @@ public class MenuHandler {
         return head;
     }
 
-    /**
-     * Handle relation requests menu clicks
-     */
-    public void handleRelationRequestsClick(Player player, ItemStack item, ClickType clickType, String title) {
-        if (item.getItemMeta() == null) return;
-        String displayName = item.getItemMeta().getDisplayName();
-
-        // Handle back button
-        if (displayName.equals(ChatColor.GRAY + "← Back")) {
-            String factionName = playerFactions.get(player.getUniqueId());
-            openFactionMenu(player, factionName);
-            return;
-        }
-
-        // Handle request clicks
-        if (item.getType() == Material.PLAYER_HEAD && (clickType == ClickType.LEFT || clickType == ClickType.RIGHT)) {
-            String factionName = playerFactions.get(player.getUniqueId());
-            String fromFactionName = ChatColor.stripColor(displayName);
-
-            // Find the request based on the faction name
-            List<RelationRequest> requests = plugin.getRelationManager().getPendingRequests(factionName);
-            RelationRequest targetRequest = null;
-
-            for (RelationRequest request : requests) {
-                if (request.fromFaction.equals(fromFactionName)) {
-                    targetRequest = request;
-                    break;
-                }
-            }
-
-            if (targetRequest == null) {
-                player.sendMessage(ChatColor.RED + "Request not found or has expired.");
-                openRelationRequestsMenu(player, factionName); // Refresh menu
-                return;
-            }
-
-            if (clickType == ClickType.LEFT) {
-                // Accept request
-                boolean success = plugin.getRelationManager().acceptRelationRequest(
-                        factionName, targetRequest.fromFaction, targetRequest.requestedRelation, player.getUniqueId());
-
-                if (success) {
-                    player.sendMessage(ChatColor.GREEN + "Accepted " +
-                            RelationManager.getRelationColor(targetRequest.requestedRelation) +
-                            targetRequest.requestedRelation.getDisplayName() + ChatColor.GREEN +
-                            " request from " + fromFactionName + "!");
-
-                    // Save data
-                    plugin.getDataManager().saveFactionData();
-                } else {
-                    player.sendMessage(ChatColor.RED + "Failed to accept request.");
-                }
-
-            } else if (clickType == ClickType.RIGHT) {
-                // Reject request
-                boolean success = plugin.getRelationManager().rejectRelationRequest(
-                        factionName, targetRequest.fromFaction, targetRequest.requestedRelation, player.getUniqueId());
-
-                if (success) {
-                    player.sendMessage(ChatColor.YELLOW + "Rejected " +
-                            RelationManager.getRelationColor(targetRequest.requestedRelation) +
-                            targetRequest.requestedRelation.getDisplayName() + ChatColor.YELLOW +
-                            " request from " + fromFactionName + ".");
-
-                    // Save data
-                    plugin.getDataManager().saveFactionData();
-                } else {
-                    player.sendMessage(ChatColor.RED + "Failed to reject request.");
-                }
-            }
-
-            // Refresh the menu
-            openRelationRequestsMenu(player, factionName);
-        }
+    public void openRelationsViewMenu(Player player, String factionName) {
+        openRelationsViewMenu(player, factionName, 0, 0); // Default to page 0 for both
     }
 
-    /**
-     * Open the relations view menu
-     */
-    public void openRelationsViewMenu(Player player, String factionName) {
-        Map<String, Relation> relations = plugin.getRelationManager().getFactionRelations(factionName);
+    public void openRelationsViewMenu(Player player, String factionName, int relationsPage, int requestsPage) {
+        Map<String, Relation> allRelations = plugin.getRelationManager().getFactionRelations(factionName);
+        List<RelationRequest> allRequests = plugin.getRelationManager().getPendingRequests(factionName);
 
-        Inventory menu = Bukkit.createInventory(null, 54, ChatColor.DARK_GRAY + "Faction Relations");
+        // Convert relations to list for pagination
+        List<Map.Entry<String, Relation>> relationsList = new ArrayList<>(allRelations.entrySet());
 
-        // Fill bottom row with black glass panes
+        Inventory menu = Bukkit.createInventory(null, 54, ChatColor.DARK_GRAY + "Relations & Requests");
+
+        // Fill divider rows with black glass
         ItemStack blackGlass = new ItemStack(Material.BLACK_STAINED_GLASS_PANE);
         ItemMeta glassMeta = blackGlass.getItemMeta();
         glassMeta.setDisplayName(" ");
         blackGlass.setItemMeta(glassMeta);
 
-        for (int i = 45; i < 54; i++) {
+        // Fill top row (0-8), middle row (18-26), and bottom row (45-53)
+        for (int i = 0; i < 9; i++) {
             menu.setItem(i, blackGlass);
+            menu.setItem(27 + i, blackGlass);
+            menu.setItem(45 + i, blackGlass);
         }
 
         // Back button
         ItemStack backButton = createBackButton();
         menu.setItem(45, backButton);
 
-        if (relations.isEmpty()) {
-            // No relations message
+        // Header sections
+        ItemStack relationsHeader = new ItemStack(Material.COMPASS);
+        ItemMeta relationsHeaderMeta = relationsHeader.getItemMeta();
+        relationsHeaderMeta.setDisplayName(ChatColor.BLUE + "" + ChatColor.BOLD + "CURRENT RELATIONS");
+        relationsHeaderMeta.setLore(Arrays.asList(
+                ChatColor.GRAY + "Your faction's active relations",
+                ChatColor.GRAY + "Right-click any relation to remove it"
+        ));
+        relationsHeader.setItemMeta(relationsHeaderMeta);
+        menu.setItem(0, relationsHeader);
+
+        ItemStack requestsHeader = new ItemStack(Material.PAPER);
+        ItemMeta requestsHeaderMeta = requestsHeader.getItemMeta();
+        requestsHeaderMeta.setDisplayName(ChatColor.GOLD + "" + ChatColor.BOLD + "PENDING REQUESTS");
+        requestsHeaderMeta.setLore(Arrays.asList(
+                ChatColor.GRAY + "Relation requests awaiting your response",
+                ChatColor.GRAY + "Left-click to accept, Right-click to reject"
+        ));
+        requestsHeader.setItemMeta(requestsHeaderMeta);
+        menu.setItem(27, requestsHeader);
+
+        // Relations pagination (slots 9-26, 1 row = 9 slots)
+        int relationsPerPage = 9;
+        int relationsStartIndex = relationsPage * relationsPerPage;
+        int relationsEndIndex = Math.min(relationsStartIndex + relationsPerPage, relationsList.size());
+        int relationsTotalPages = Math.max(1, (relationsList.size() - 1) / relationsPerPage + 1);
+
+        // Display current relations (slots 9-26)
+        if (relationsList.isEmpty()) {
             ItemStack noRelations = new ItemStack(Material.RED_CONCRETE);
             ItemMeta noRelationsMeta = noRelations.getItemMeta();
             noRelationsMeta.setDisplayName(ChatColor.GRAY + "No Relations");
             noRelationsMeta.setLore(Arrays.asList(
-                    ChatColor.GRAY + "Your faction has no special",
-                    ChatColor.GRAY + "relations with other factions.",
-                    "",
-                    ChatColor.GRAY + "All other factions are " + ChatColor.WHITE + "Neutral",
-                    ChatColor.GRAY + "by default."
+                    ChatColor.GRAY + "Your faction has no special relations",
+                    ChatColor.GRAY + "All other factions are " + ChatColor.WHITE + "Neutral"
             ));
             noRelations.setItemMeta(noRelationsMeta);
-            menu.setItem(22, noRelations); // Center
+            menu.setItem(13, noRelations); // Center of relations area
         } else {
-            // Display relations (slots 0-44, excluding slot 45 for back button)
-            int slot = 0;
-
-            // Group relations by type
-            Map<Relation, List<String>> groupedRelations = new HashMap<>();
-            for (Map.Entry<String, Relation> entry : relations.entrySet()) {
-                groupedRelations.computeIfAbsent(entry.getValue(), k -> new ArrayList<>()).add(entry.getKey());
+            int relationSlot = 9;
+            for (int i = relationsStartIndex; i < relationsEndIndex && relationSlot <= 26; i++) {
+                Map.Entry<String, Relation> entry = relationsList.get(i);
+                ItemStack relationItem = createRelationViewItem(entry.getKey(), entry.getValue());
+                menu.setItem(relationSlot, relationItem);
+                relationSlot++;
             }
 
-            // Display each relation type
-            for (Relation relationType : Arrays.asList(Relation.ALLY, Relation.TRUCE, Relation.ENEMY, Relation.NEUTRAL)) {
-                List<String> factionsWithRelation = groupedRelations.get(relationType);
-                if (factionsWithRelation == null || factionsWithRelation.isEmpty()) continue;
+            // Relations navigation arrows
+            if (relationsPage > 0) {
+                ItemStack leftArrow = createCustomHead("eyJ0ZXh0dXJlcyI6eyJTS0lOIjp7InVybCI6Imh0dHA6Ly90ZXh0dXJlcy5taW5lY3JhZnQubmV0L3RleHR1cmUvZGUxZGZjMTFhODM3MTExZDIyYjAwMWExNDQ2MWY5YTdmYzA5MzUyMmY4OGM1OGZhZWZkNmFkZWZmY2Q0ZTlhYiJ9fX0=");
+                ItemMeta leftMeta = leftArrow.getItemMeta();
+                leftMeta.setDisplayName(ChatColor.GRAY + "← Previous Relations");
+                leftMeta.setLore(Arrays.asList(
+                        ChatColor.DARK_GRAY + "Relations Page " + (relationsPage) + " of " + relationsTotalPages,
+                        ChatColor.GRAY + "Click to go to previous page"
+                ));
+                leftArrow.setItemMeta(leftMeta);
+                menu.setItem(1, leftArrow); // Top left area
+            }
 
-                for (String targetFaction : factionsWithRelation) {
-                    if (slot >= 45) break; // Don't overwrite back button
+            if (relationsPage < relationsTotalPages - 1) {
+                ItemStack rightArrow = createCustomHead("eyJ0ZXh0dXJlcyI6eyJTS0lOIjp7InVybCI6Imh0dHA6Ly90ZXh0dXJlcy5taW5lY3JhZnQubmV0L3RleHR1cmUvN2M2OWQ0MTA3NmE4ZGVhNGYwNmQzZjFhOWFjNDdjYzk5Njk4OGI3NGEwOTEzYWIyYWMxYTc0Y2FmNzA4MTkxOCJ9fX0=");
+                ItemMeta rightMeta = rightArrow.getItemMeta();
+                rightMeta.setDisplayName(ChatColor.GRAY + "Next Relations →");
+                rightMeta.setLore(Arrays.asList(
+                        ChatColor.DARK_GRAY + "Relations Page " + (relationsPage + 2) + " of " + relationsTotalPages,
+                        ChatColor.GRAY + "Click to go to next page"
+                ));
+                rightArrow.setItemMeta(rightMeta);
+                menu.setItem(7, rightArrow); // Top right area
+            }
 
-                    ItemStack relationItem = createRelationViewItem(targetFaction, relationType);
-                    menu.setItem(slot, relationItem);
-                    slot++;
-                }
+            // Page info for relations
+            if (relationsTotalPages > 1) {
+                ItemStack pageInfo = new ItemStack(Material.PAPER);
+                ItemMeta pageMeta = pageInfo.getItemMeta();
+                pageMeta.setDisplayName(ChatColor.YELLOW + "Relations Page " + (relationsPage + 1) + "/" + relationsTotalPages);
+                pageMeta.setLore(Arrays.asList(
+                        ChatColor.GRAY + "Showing " + (relationsEndIndex - relationsStartIndex) + " of " + relationsList.size() + " relations"
+                ));
+                pageInfo.setItemMeta(pageMeta);
+                menu.setItem(4, pageInfo); // Top center
+            }
+        }
+
+        // Requests pagination (slots 27-44, 2 rows = 18 slots)
+        int requestsPerPage = 18;
+        int requestsStartIndex = requestsPage * requestsPerPage;
+        int requestsEndIndex = Math.min(requestsStartIndex + requestsPerPage, allRequests.size());
+        int requestsTotalPages = Math.max(1, (allRequests.size() - 1) / requestsPerPage + 1);
+
+        // Display pending requests (slots 27-44)
+        if (allRequests.isEmpty()) {
+            ItemStack noRequests = new ItemStack(Material.RED_CONCRETE);
+            ItemMeta noRequestsMeta = noRequests.getItemMeta();
+            noRequestsMeta.setDisplayName(ChatColor.GRAY + "No Pending Requests");
+            noRequestsMeta.setLore(Arrays.asList(
+                    ChatColor.GRAY + "No factions want to ally with you",
+                    ChatColor.GRAY + "How sad! Maybe be nicer to them?"
+            ));
+            noRequests.setItemMeta(noRequestsMeta);
+            menu.setItem(40, noRequests); // Center of requests area
+        } else {
+            int requestSlot = 36;
+            for (int i = requestsStartIndex; i < requestsEndIndex && requestSlot <= 44; i++) {
+                RelationRequest request = allRequests.get(i);
+                ItemStack requestItem = createRelationRequestItem(request);
+                menu.setItem(requestSlot, requestItem);
+                requestSlot++;
+            }
+
+            // Requests navigation arrows
+            if (requestsPage > 0) {
+                ItemStack leftArrow = createCustomHead("eyJ0ZXh0dXJlcyI6eyJTS0lOIjp7InVybCI6Imh0dHA6Ly90ZXh0dXJlcy5taW5lY3JhZnQubmV0L3RleHR1cmUvZGUxZGZjMTFhODM3MTExZDIyYjAwMWExNDQ2MWY5YTdmYzA5MzUyMmY4OGM1OGZhZWZkNmFkZWZmY2Q0ZTlhYiJ9fX0=");
+                ItemMeta leftMeta = leftArrow.getItemMeta();
+                leftMeta.setDisplayName(ChatColor.GRAY + "← Previous Requests");
+                leftMeta.setLore(Arrays.asList(
+                        ChatColor.DARK_GRAY + "Requests Page " + (requestsPage) + " of " + requestsTotalPages,
+                        ChatColor.GRAY + "Click to go to previous page"
+                ));
+                leftArrow.setItemMeta(leftMeta);
+                menu.setItem(19, leftArrow); // Requests header area left
+            }
+
+            if (requestsPage < requestsTotalPages - 1) {
+                ItemStack rightArrow = createCustomHead("eyJ0ZXh0dXJlcyI6eyJTS0lOIjp7InVybCI6Imh0dHA6Ly90ZXh0dXJlcy5taW5lY3JhZnQubmV0L3RleHR1cmUvN2M2OWQ0MTA3NmE4ZGVhNGYwNmQzZjFhOWFjNDdjYzk5Njk4OGI3NGEwOTEzYWIyYWMxYTc0Y2FmNzA4MTkxOCJ9fX0=");
+                ItemMeta rightMeta = rightArrow.getItemMeta();
+                rightMeta.setDisplayName(ChatColor.GRAY + "Next Requests →");
+                rightMeta.setLore(Arrays.asList(
+                        ChatColor.DARK_GRAY + "Requests Page " + (requestsPage + 2) + " of " + requestsTotalPages,
+                        ChatColor.GRAY + "Click to go to next page"
+                ));
+                rightArrow.setItemMeta(rightMeta);
+                menu.setItem(25, rightArrow); // Requests header area right
+            }
+
+            // Page info for requests
+            if (requestsTotalPages > 1) {
+                ItemStack pageInfo = new ItemStack(Material.PAPER);
+                ItemMeta pageMeta = pageInfo.getItemMeta();
+                pageMeta.setDisplayName(ChatColor.YELLOW + "Requests Page " + (requestsPage + 1) + "/" + requestsTotalPages);
+                pageMeta.setLore(Arrays.asList(
+                        ChatColor.GRAY + "Showing " + (requestsEndIndex - requestsStartIndex) + " of " + allRequests.size() + " requests"
+                ));
+                pageInfo.setItemMeta(pageMeta);
+                menu.setItem(22, pageInfo); // Requests header center
             }
         }
 
@@ -1137,9 +1001,8 @@ public class MenuHandler {
 
         return head;
     }
-
     /**
-     * Handle relations view menu clicks
+     * Handle the combined relations view menu clicks - FIXED VERSION
      */
     public void handleRelationsViewClick(Player player, ItemStack item, ClickType clickType, String title) {
         if (item.getItemMeta() == null) return;
@@ -1151,76 +1014,193 @@ public class MenuHandler {
             return;
         }
 
-        // Handle clicks on faction relations
+        // Handle navigation arrows
+        if (displayName.contains("Previous") || displayName.contains("Next")) {
+            handleRelationsNavigation(player, displayName);
+            return;
+        }
+
+        // Handle clicks on relations and requests
         if (item.getType() == Material.PLAYER_HEAD) {
             String factionName = playerFactions.get(player.getUniqueId());
             String targetFaction = ChatColor.stripColor(displayName);
 
-            // Check if player has permission
-            Faction faction = factions.get(factionName);
-            Rank playerRank = faction.members.get(player.getUniqueId());
-            if (!faction.hasPermission(playerRank, FactionPermission.SET_RELATIONS)) {
-                player.sendMessage(ChatColor.RED + "You lack permission to manage faction relations.");
+            // Check if this is a current relation or a pending request
+            Map<String, Relation> relations = plugin.getRelationManager().getFactionRelations(factionName);
+            List<RelationRequest> requests = plugin.getRelationManager().getPendingRequests(factionName);
+
+            // First check if it's a current relation
+            if (relations.containsKey(targetFaction)) {
+                if (clickType == ClickType.RIGHT) {
+                    handleRelationRemoval(player, factionName, targetFaction);
+                }
+                // Left clicks on relations do nothing
                 return;
             }
 
-            if (clickType == ClickType.LEFT) {
-                // Quick set to neutral (remove relation)
-                boolean success = plugin.getRelationManager().setDirectRelation(factionName, targetFaction, Relation.NEUTRAL, player.getUniqueId());
-                if (success) {
-                    player.sendMessage(ChatColor.GREEN + "Set relation with " + targetFaction + " to Neutral!");
-                    plugin.getDataManager().saveFactionData();
-                    openRelationsViewMenu(player, factionName);
-                } else {
-                    player.sendMessage(ChatColor.RED + "Failed to set relation.");
+            // Check if it's a pending request
+            RelationRequest targetRequest = null;
+            for (RelationRequest request : requests) {
+                if (request.fromFaction.equals(targetFaction)) {
+                    targetRequest = request;
+                    break;
                 }
-            } else if (clickType == ClickType.RIGHT) {
-                // Get current relation for confirmation dialog
-                Relation currentRelation = plugin.getRelationManager().getRelation(factionName, targetFaction);
-                if (currentRelation == Relation.NEUTRAL) {
-                    player.sendMessage(ChatColor.RED + "No relation to remove with " + targetFaction + ".");
-                    return;
+            }
+
+            if (targetRequest != null) {
+                if (clickType == ClickType.LEFT) {
+                    handleRequestAcceptance(player, factionName, targetRequest);
+                } else if (clickType == ClickType.RIGHT) {
+                    handleRequestRejection(player, factionName, targetRequest);
                 }
-                openRelationRemovalConfirmation(player, targetFaction, currentRelation);
             }
         }
     }
 
     /**
-     * Handle relation removal confirmation clicks
+     * Handle navigation arrows in relations GUI
      */
-    public void handleRelationRemovalClick(Player player, String displayName, String title) {
+    private void handleRelationsNavigation(Player player, String displayName) {
         String factionName = playerFactions.get(player.getUniqueId());
 
-        // Extract target faction from title
-        String targetFaction = title.replace(ChatColor.DARK_RED + "Remove: ", "");
+        // Parse current pages from the current inventory
+        int currentRelationsPage = getCurrentRelationsPage(player);
+        int currentRequestsPage = getCurrentRequestsPage(player);
 
-        if (displayName.equals(ChatColor.RED + "" + ChatColor.BOLD + "REMOVE RELATION")) {
-            // Check permission again for security
-            Faction faction = factions.get(factionName);
-            Rank playerRank = faction.members.get(player.getUniqueId());
-            if (!faction.hasPermission(playerRank, FactionPermission.SET_RELATIONS)) {
-                player.sendMessage(ChatColor.RED + "You lack permission to manage faction relations.");
-                player.closeInventory();
-                return;
-            }
-
-            boolean success = plugin.getRelationManager().removeRelation(factionName, targetFaction, player.getUniqueId());
-
-            if (success) {
-                player.sendMessage(ChatColor.GREEN + "Removed relation with " + targetFaction + "!");
-                plugin.getDataManager().saveFactionData();
-            } else {
-                player.sendMessage(ChatColor.RED + "Failed to remove relation.");
-            }
-
-            // Return to relations view
-            openRelationsViewMenu(player, factionName);
-
-        } else if (displayName.equals(ChatColor.GREEN + "" + ChatColor.BOLD + "CANCEL")) {
-            // Return to relations view without making changes
-            openRelationsViewMenu(player, factionName);
+        if (displayName.equals(ChatColor.GRAY + "← Previous Relations")) {
+            openRelationsViewMenu(player, factionName, Math.max(0, currentRelationsPage - 1), currentRequestsPage);
+        } else if (displayName.equals(ChatColor.GRAY + "Next Relations →")) {
+            openRelationsViewMenu(player, factionName, currentRelationsPage + 1, currentRequestsPage);
+        } else if (displayName.equals(ChatColor.GRAY + "← Previous Requests")) {
+            openRelationsViewMenu(player, factionName, currentRelationsPage, Math.max(0, currentRequestsPage - 1));
+        } else if (displayName.equals(ChatColor.GRAY + "Next Requests →")) {
+            openRelationsViewMenu(player, factionName, currentRelationsPage, currentRequestsPage + 1);
         }
+    }
+
+    /**
+     * Get current relations page from GUI
+     */
+    private int getCurrentRelationsPage(Player player) {
+        ItemStack pageItem = player.getOpenInventory().getItem(4); // Relations page info slot
+        if (pageItem != null && pageItem.hasItemMeta() && pageItem.getItemMeta().hasDisplayName()) {
+            String displayName = pageItem.getItemMeta().getDisplayName();
+            String stripped = ChatColor.stripColor(displayName);
+            if (stripped.startsWith("Relations Page ")) {
+                try {
+                    String[] parts = stripped.split(" ");
+                    if (parts.length >= 3) {
+                        String pageStr = parts[2].split("/")[0];
+                        return Integer.parseInt(pageStr) - 1; // Convert to 0-based
+                    }
+                } catch (NumberFormatException e) {
+                    // Fallback
+                }
+            }
+        }
+        return 0;
+    }
+
+    /**
+     * Get current requests page from GUI
+     */
+    private int getCurrentRequestsPage(Player player) {
+        ItemStack pageItem = player.getOpenInventory().getItem(22); // Requests page info slot
+        if (pageItem != null && pageItem.hasItemMeta() && pageItem.getItemMeta().hasDisplayName()) {
+            String displayName = pageItem.getItemMeta().getDisplayName();
+            String stripped = ChatColor.stripColor(displayName);
+            if (stripped.startsWith("Requests Page ")) {
+                try {
+                    String[] parts = stripped.split(" ");
+                    if (parts.length >= 3) {
+                        String pageStr = parts[2].split("/")[0];
+                        return Integer.parseInt(pageStr) - 1; // Convert to 0-based
+                    }
+                } catch (NumberFormatException e) {
+                    // Fallback
+                }
+            }
+        }
+        return 0;
+    }
+
+    private void handleRelationRemoval(Player player, String factionName, String targetFaction) {
+        Faction faction = factions.get(factionName);
+        Rank playerRank = faction.members.get(player.getUniqueId());
+
+        if (!faction.hasPermission(playerRank, FactionPermission.SET_RELATIONS)) {
+            player.sendMessage(ChatColor.RED + "You lack permission to manage faction relations.");
+            return;
+        }
+
+        boolean success = plugin.getRelationManager().removeRelation(factionName, targetFaction, player.getUniqueId());
+        if (success) {
+            player.sendMessage(ChatColor.GREEN + "Removed relation with " + targetFaction + "!");
+            plugin.getDataManager().saveFactionData();
+        } else {
+            player.sendMessage(ChatColor.RED + "Failed to remove relation.");
+        }
+
+        // Refresh the menu with current pages
+        int relationsPage = getCurrentRelationsPage(player);
+        int requestsPage = getCurrentRequestsPage(player);
+        openRelationsViewMenu(player, factionName, relationsPage, requestsPage);
+    }
+
+    private void handleRequestAcceptance(Player player, String factionName, RelationRequest request) {
+        Faction faction = factions.get(factionName);
+        Rank playerRank = faction.members.get(player.getUniqueId());
+
+        if (!faction.hasPermission(playerRank, FactionPermission.SET_RELATIONS)) {
+            player.sendMessage(ChatColor.RED + "You lack permission to manage faction relations.");
+            return;
+        }
+
+        boolean success = plugin.getRelationManager().acceptRelationRequest(
+                factionName, request.fromFaction, request.requestedRelation, player.getUniqueId());
+
+        if (success) {
+            player.sendMessage(ChatColor.GREEN + "Accepted " +
+                    RelationManager.getRelationColor(request.requestedRelation) +
+                    request.requestedRelation.getDisplayName() + ChatColor.GREEN +
+                    " request from " + request.fromFaction + "!");
+            plugin.getDataManager().saveFactionData();
+        } else {
+            player.sendMessage(ChatColor.RED + "Failed to accept request.");
+        }
+
+        // Refresh the menu with current pages
+        int relationsPage = getCurrentRelationsPage(player);
+        int requestsPage = getCurrentRequestsPage(player);
+        openRelationsViewMenu(player, factionName, relationsPage, requestsPage);
+    }
+
+    private void handleRequestRejection(Player player, String factionName, RelationRequest request) {
+        Faction faction = factions.get(factionName);
+        Rank playerRank = faction.members.get(player.getUniqueId());
+
+        if (!faction.hasPermission(playerRank, FactionPermission.SET_RELATIONS)) {
+            player.sendMessage(ChatColor.RED + "You lack permission to manage faction relations.");
+            return;
+        }
+
+        boolean success = plugin.getRelationManager().rejectRelationRequest(
+                factionName, request.fromFaction, request.requestedRelation, player.getUniqueId());
+
+        if (success) {
+            player.sendMessage(ChatColor.YELLOW + "Rejected " +
+                    RelationManager.getRelationColor(request.requestedRelation) +
+                    request.requestedRelation.getDisplayName() + ChatColor.YELLOW +
+                    " request from " + request.fromFaction + ".");
+            plugin.getDataManager().saveFactionData();
+        } else {
+            player.sendMessage(ChatColor.RED + "Failed to reject request.");
+        }
+
+        // Refresh the menu with current pages
+        int relationsPage = getCurrentRelationsPage(player);
+        int requestsPage = getCurrentRequestsPage(player);
+        openRelationsViewMenu(player, factionName, relationsPage, requestsPage);
     }
 
     /**
@@ -1392,59 +1372,6 @@ public class MenuHandler {
         confirmMenu.setItem(13, playerHead);
 
         kicker.openInventory(confirmMenu);
-    }
-
-    public void openFactionCreationConfirmation(Player player, String factionName) {
-        Inventory confirmMenu = Bukkit.createInventory(null, 27, ChatColor.DARK_GRAY + "Confirm: " + factionName);
-
-        // Fill with black glass
-        ItemStack blackGlass = new ItemStack(Material.BLACK_STAINED_GLASS_PANE);
-        ItemMeta glassMeta = blackGlass.getItemMeta();
-        glassMeta.setDisplayName(" ");
-        blackGlass.setItemMeta(glassMeta);
-
-        for (int i = 0; i < 27; i++) {
-            confirmMenu.setItem(i, blackGlass);
-        }
-
-        // Confirm button
-        ItemStack confirm = new ItemStack(Material.GREEN_CONCRETE);
-        ItemMeta confirmMeta = confirm.getItemMeta();
-        confirmMeta.setDisplayName(ChatColor.GREEN + "" + ChatColor.BOLD + "CONFIRM");
-        confirmMeta.setLore(Arrays.asList(
-                ChatColor.GRAY + "Create faction: " + ChatColor.WHITE + factionName,
-                "",
-                ChatColor.GREEN + "Click to create your faction!"
-        ));
-        confirm.setItemMeta(confirmMeta);
-        confirmMenu.setItem(11, confirm);
-
-        // Cancel button
-        ItemStack cancel = new ItemStack(Material.RED_CONCRETE);
-        ItemMeta cancelMeta = cancel.getItemMeta();
-        cancelMeta.setDisplayName(ChatColor.RED + "" + ChatColor.BOLD + "CANCEL");
-        cancelMeta.setLore(Arrays.asList(
-                ChatColor.GRAY + "Cancel faction creation",
-                "",
-                ChatColor.RED + "Click to go back to menu"
-        ));
-        cancel.setItemMeta(cancelMeta);
-        confirmMenu.setItem(15, cancel);
-
-        // Info item
-        ItemStack info = new ItemStack(Material.PAPER);
-        ItemMeta infoMeta = info.getItemMeta();
-        infoMeta.setDisplayName(ChatColor.YELLOW + "Faction Name: " + factionName);
-        infoMeta.setLore(Arrays.asList(
-                ChatColor.GRAY + "Are you sure you want to",
-                ChatColor.GRAY + "create this faction?",
-                "",
-                ChatColor.YELLOW + "This action cannot be undone!"
-        ));
-        info.setItemMeta(infoMeta);
-        confirmMenu.setItem(13, info);
-
-        player.openInventory(confirmMenu);
     }
 
     // Menu click handlers
@@ -1675,68 +1602,10 @@ public class MenuHandler {
         } else if (displayName.equals(ChatColor.GRAY + "← Back")) {
             player.closeInventory();
         } else if (displayName.equals(ChatColor.GOLD + "Relation Requests")) {
-            openRelationRequestsMenu(player, factionName);
+            openRelationsViewMenu(player, factionName);
         } else if (displayName.equals(ChatColor.BLUE + "View Relations")) {
             openRelationsViewMenu(player, factionName);
         }
-    }
-
-    /**
-     * Open relation removal confirmation
-     */
-    public void openRelationRemovalConfirmation(Player player, String targetFaction, Relation currentRelation) {
-        Inventory confirmMenu = Bukkit.createInventory(null, 27, ChatColor.DARK_RED + "Remove: " + targetFaction);
-
-        // Fill with black glass
-        ItemStack blackGlass = new ItemStack(Material.BLACK_STAINED_GLASS_PANE);
-        ItemMeta glassMeta = blackGlass.getItemMeta();
-        glassMeta.setDisplayName(" ");
-        blackGlass.setItemMeta(glassMeta);
-
-        for (int i = 0; i < 27; i++) {
-            confirmMenu.setItem(i, blackGlass);
-        }
-
-        // Confirm button
-        ItemStack confirm = new ItemStack(Material.RED_CONCRETE);
-        ItemMeta confirmMeta = confirm.getItemMeta();
-        confirmMeta.setDisplayName(ChatColor.RED + "" + ChatColor.BOLD + "REMOVE RELATION");
-        confirmMeta.setLore(Arrays.asList(
-                ChatColor.GRAY + "Remove " + plugin.getRelationManager().getRelationColor(currentRelation) +
-                        currentRelation.getDisplayName() + ChatColor.GRAY + " relation",
-                ChatColor.GRAY + "with " + ChatColor.WHITE + targetFaction,
-                "",
-                ChatColor.RED + "They will become Neutral!"
-        ));
-        confirm.setItemMeta(confirmMeta);
-        confirmMenu.setItem(11, confirm);
-
-        // Cancel button
-        ItemStack cancel = new ItemStack(Material.GREEN_CONCRETE);
-        ItemMeta cancelMeta = cancel.getItemMeta();
-        cancelMeta.setDisplayName(ChatColor.GREEN + "" + ChatColor.BOLD + "CANCEL");
-        cancelMeta.setLore(Arrays.asList(
-                ChatColor.GRAY + "Keep the current relation",
-                "",
-                ChatColor.GREEN + "Go back to relations menu"
-        ));
-        cancel.setItemMeta(cancelMeta);
-        confirmMenu.setItem(15, cancel);
-
-        // Info item
-        ItemStack info = new ItemStack(Material.PAPER);
-        ItemMeta infoMeta = info.getItemMeta();
-        infoMeta.setDisplayName(ChatColor.YELLOW + "Remove Relation?");
-        infoMeta.setLore(Arrays.asList(
-                ChatColor.GRAY + "Target: " + ChatColor.WHITE + targetFaction,
-                ChatColor.GRAY + "Current: " + plugin.getRelationManager().getRelationColor(currentRelation) + currentRelation.getDisplayName(),
-                "",
-                ChatColor.RED + "This action cannot be undone!"
-        ));
-        info.setItemMeta(infoMeta);
-        confirmMenu.setItem(13, info);
-
-        player.openInventory(confirmMenu);
     }
 
     /**
@@ -1895,47 +1764,6 @@ public class MenuHandler {
             player.sendMessage(ChatColor.RED + "You cannot toggle " + permission.getDisplayName() +
                     " because your rank (" + playerRank.name() + ") doesn't have this permission.");
             return false;
-        }
-
-        return true;
-    }
-
-    /**
-     * Check if a player can modify relation permissions
-     */
-    private boolean canModifyRelationPermissions(Player player, Rank playerRank, Faction faction) {
-        // Check if player has permission to manage permissions at all
-        if (playerRank != Rank.OWNER && !faction.hasPermission(playerRank, FactionPermission.MANAGE_PERMISSIONS)) {
-            player.sendMessage(ChatColor.RED + "You lack permission to manage faction permissions.");
-            return false;
-        }
-
-        return true;
-    }
-
-    /**
-     * Check if a player can toggle a specific relation permission
-     */
-    private boolean canToggleRelationPermission(Player player, Rank playerRank, Relation targetRelation,
-                                                RelationPermission permission, Faction faction) {
-
-        // Owners can do anything
-        if (playerRank == Rank.OWNER) {
-            return true;
-        }
-
-        // Get the equivalent faction permission for this relation permission
-        FactionPermission equivalentFactionPermission = getEquivalentFactionPermission(permission);
-
-        if (equivalentFactionPermission != null) {
-            // If the player's rank doesn't have the equivalent faction permission,
-            // they cannot grant the relation permission
-            if (!faction.hasPermission(playerRank, equivalentFactionPermission)) {
-                player.sendMessage(ChatColor.RED + "You cannot toggle " + permission.getDisplayName() +
-                        " because your rank (" + playerRank.name() + ") doesn't have the equivalent permission (" +
-                        equivalentFactionPermission.getDisplayName() + ").");
-                return false;
-            }
         }
 
         return true;
@@ -3085,13 +2913,6 @@ public class MenuHandler {
 
         resetButton.setItemMeta(skullMeta);
         return resetButton;
-    }
-
-    /**
-     * Get pending kick target for a player
-     */
-    public UUID getPendingKickTarget(UUID kickerUUID) {
-        return pendingKicks.get(kickerUUID);
     }
 
     /**
