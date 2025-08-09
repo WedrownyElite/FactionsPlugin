@@ -2,6 +2,7 @@ package me.elite.Factions.nametags;
 
 import me.elite.Factions.FactionsPlugin;
 import me.elite.Factions.data.Relation;
+import me.elite.Factions.constants.FactionsConstants;
 import org.bukkit.Bukkit;
 import org.bukkit.ChatColor;
 import org.bukkit.entity.Player;
@@ -27,9 +28,6 @@ public class PacketNametagManager {
     private Method sendPacketMethod;
     private Method getHandleMethod;
     private Field playerConnectionField;
-
-    // Team management
-    private static final String TEAM_PREFIX = "fac_";
 
     public PacketNametagManager(FactionsPlugin plugin) {
         this.plugin = plugin;
@@ -90,7 +88,7 @@ public class PacketNametagManager {
             String suffix = getRelationSuffix(target, viewer);
 
             // Create a unique team name for this target player
-            String teamName = TEAM_PREFIX + target.getName().toLowerCase();
+            String teamName = FactionsConstants.TEAM_PREFIX + target.getName().toLowerCase();
             if (teamName.length() > 16) {
                 teamName = teamName.substring(0, 16);
             }
@@ -121,9 +119,9 @@ public class PacketNametagManager {
      */
     private void removePlayerFromTeam(Player viewer, Player target) {
         try {
-            String teamName = TEAM_PREFIX + target.getName().toLowerCase();
-            if (teamName.length() > 16) {
-                teamName = teamName.substring(0, 16);
+            String teamName = FactionsConstants.TEAM_PREFIX + target.getName().toLowerCase();
+            if (teamName.length() > FactionsConstants.MAX_TEAM_NAME_LENGTH) {
+                teamName = teamName.substring(0, FactionsConstants.MAX_TEAM_NAME_LENGTH);
             }
 
             Object packet = packetPlayOutScoreboardTeamClass.newInstance();
@@ -311,7 +309,7 @@ public class PacketNametagManager {
 
         // Same faction = green F (with space before)
         if (targetFaction.equals(viewerFaction)) {
-            return " " + ChatColor.GREEN + "F";
+            return FactionsConstants.FACTION_SUFFIX;
         }
 
         // Different factions - check relations
@@ -319,11 +317,11 @@ public class PacketNametagManager {
 
         switch (relation) {
             case ALLY:
-                return " " + ChatColor.LIGHT_PURPLE + "A";
+                return FactionsConstants.ALLY_SUFFIX;
             case TRUCE:
-                return " " + ChatColor.BLUE + "T";
+                return FactionsConstants.TRUCE_SUFFIX;
             case ENEMY:
-                return " " + ChatColor.RED + "E";
+                return FactionsConstants.ENEMY_SUFFIX;
             case NEUTRAL:
             default:
                 return "";

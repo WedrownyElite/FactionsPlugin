@@ -1434,25 +1434,6 @@ public class CommandManager implements CommandExecutor {
         return true;
     }
 
-    // Add this helper method to CommandManager:
-
-    private String formatTimeString(long milliseconds) {
-        long seconds = milliseconds / 1000;
-        long minutes = seconds / 60;
-        long hours = minutes / 60;
-        long days = hours / 24;
-
-        if (days > 0) {
-            return days + " day" + (days == 1 ? "" : "s");
-        } else if (hours > 0) {
-            return hours + " hour" + (hours == 1 ? "" : "s");
-        } else if (minutes > 0) {
-            return minutes + " minute" + (minutes == 1 ? "" : "s");
-        } else {
-            return seconds + " second" + (seconds == 1 ? "" : "s");
-        }
-    }
-
     private String getDebugSuffix(Player viewer, Player target) {
         String viewerFaction = playerFactions.get(viewer.getUniqueId());
         String targetFaction = playerFactions.get(target.getUniqueId());

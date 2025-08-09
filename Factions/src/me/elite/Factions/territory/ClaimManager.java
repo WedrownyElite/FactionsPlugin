@@ -2,6 +2,7 @@ package me.elite.Factions.territory;
 
 import me.elite.Factions.FactionsPlugin;
 import me.elite.Factions.data.Faction;
+import me.elite.Factions.constants.FactionsConstants;
 import org.bukkit.Bukkit;
 import org.bukkit.ChatColor;
 import org.bukkit.Chunk;

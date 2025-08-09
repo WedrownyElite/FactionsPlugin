@@ -3,6 +3,7 @@ package me.elite.Factions.gui;
 import me.elite.Factions.FactionsPlugin;
 import me.elite.Factions.data.Faction;
 import me.elite.Factions.data.Rank;
+import me.elite.Factions.constants.FactionsConstants;
 import org.bukkit.Bukkit;
 import org.bukkit.ChatColor;
 import org.bukkit.Location;
@@ -93,7 +94,7 @@ public class FactionCreationManager {
      * Open the faction creation confirmation menu
      */
     public void openFactionCreationConfirmation(Player player, String factionName) {
-        Inventory confirmMenu = Bukkit.createInventory(null, 27, ChatColor.DARK_GRAY + "Confirm: " + factionName);
+        Inventory confirmMenu = Bukkit.createInventory(null, FactionsConstants.MEDIUM_GUI_SIZE, ChatColor.DARK_GRAY + "Confirm: " + factionName);
 
         // Fill with black glass
         ItemStack blackGlass = new ItemStack(Material.BLACK_STAINED_GLASS_PANE);
@@ -101,7 +102,7 @@ public class FactionCreationManager {
         glassMeta.setDisplayName(" ");
         blackGlass.setItemMeta(glassMeta);
 
-        for (int i = 0; i < 27; i++) {
+        for (int i = 0; i < FactionsConstants.MEDIUM_GUI_SIZE; i++) {
             confirmMenu.setItem(i, blackGlass);
         }
 

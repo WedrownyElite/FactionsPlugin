@@ -13,6 +13,7 @@ import me.elite.Factions.territory.ClaimManager;
 import me.elite.Factions.utils.FactionUtilityManager;
 import me.elite.Factions.Relations.RelationManager;
 import me.elite.Factions.nametags.PacketNametagManager;
+import me.elite.Factions.gui.BrowserMenuHandler;
 
 import org.bukkit.Bukkit;
 import org.bukkit.Chunk;
@@ -45,6 +46,7 @@ public class FactionsPlugin extends JavaPlugin implements Listener {
     private FactionUtilityManager utilityManager;
     private RelationManager relationManager;
     private PacketNametagManager nametagManager;
+    private BrowserMenuHandler browserMenuHandler;
 
     @Override
     public void onEnable() {
@@ -62,6 +64,7 @@ public class FactionsPlugin extends JavaPlugin implements Listener {
         eventListener = new FactionsEventListener(this);
         relationManager = new RelationManager(this);
         nametagManager = new PacketNametagManager(this);
+        browserMenuHandler = new BrowserMenuHandler(this);
 
         // Load data
         dataManager.loadFactionData();
@@ -96,6 +99,8 @@ public class FactionsPlugin extends JavaPlugin implements Listener {
     public Map<UUID, Set<String>> getPlayerInvitations() {
         return playerInvitations;
     }
+
+    public BrowserMenuHandler getBrowserMenuHandler() {return browserMenuHandler;}
 
     public FactionsEventListener getEventListener() {return eventListener;}
 

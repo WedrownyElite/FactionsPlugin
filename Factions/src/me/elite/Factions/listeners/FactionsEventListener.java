@@ -1,45 +1,49 @@
 package me.elite.Factions.listeners;
 
+// Factions imports
 import me.elite.Factions.FactionsPlugin;
+import me.elite.Factions.constants.FactionsConstants;
 import me.elite.Factions.data.Faction;
-import me.elite.Factions.data.Rank;
-import me.elite.Factions.territory.ChunkCoord;
 import me.elite.Factions.data.FactionPermission;
+import me.elite.Factions.data.Rank;
 import me.elite.Factions.data.RelationPermission;
-import me.elite.Factions.Relations.RelationManager;
+import me.elite.Factions.territory.ChunkCoord;
+import me.elite.Factions.utils.ChatUtils;
+
+// Bukkit imports
+import org.bukkit.Bukkit;
 import org.bukkit.ChatColor;
 import org.bukkit.Chunk;
 import org.bukkit.Material;
+import org.bukkit.OfflinePlayer;
+import org.bukkit.World;
+import org.bukkit.entity.ArmorStand;
+import org.bukkit.entity.ItemFrame;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
+import org.bukkit.event.EventPriority;
+import org.bukkit.event.Listener;
+import org.bukkit.event.block.Action;
 import org.bukkit.event.block.BlockBreakEvent;
 import org.bukkit.event.block.BlockPlaceEvent;
 import org.bukkit.event.entity.CreatureSpawnEvent;
 import org.bukkit.event.entity.EntityDamageByEntityEvent;
+import org.bukkit.event.inventory.ClickType;
 import org.bukkit.event.inventory.InventoryClickEvent;
+import org.bukkit.event.inventory.InventoryOpenEvent;
+import org.bukkit.event.player.PlayerInteractEntityEvent;
 import org.bukkit.event.player.PlayerInteractEvent;
 import org.bukkit.event.player.PlayerMoveEvent;
 import org.bukkit.inventory.ItemStack;
-import org.bukkit.scheduler.BukkitRunnable;
-import org.bukkit.World;
-import org.bukkit.event.Listener;
-import org.bukkit.event.inventory.ClickType;
 import org.bukkit.inventory.meta.SkullMeta;
-import org.bukkit.OfflinePlayer;
-import org.bukkit.event.EventPriority;
-import org.bukkit.Bukkit;
-import org.bukkit.block.Container;
-import org.bukkit.event.block.Action;
-import org.bukkit.event.player.PlayerInteractEntityEvent;
-import org.bukkit.event.inventory.InventoryOpenEvent;
-import org.bukkit.entity.ItemFrame;
-import org.bukkit.entity.ArmorStand;
+import org.bukkit.scheduler.BukkitRunnable;
 
-import java.util.Set;
+// Java imports
 import java.util.HashMap;
-import java.util.Map;
-import java.util.UUID;
 import java.util.HashSet;
+import java.util.Map;
+import java.util.Set;
+import java.util.UUID;
 
 
 public class FactionsEventListener implements Listener {
@@ -53,7 +57,6 @@ public class FactionsEventListener implements Listener {
     private final Map<UUID, Boolean> playerInFactionGUI = new HashMap<>();
     private final Map<UUID, Set<String>> playerInvitations;
     private final Map<UUID, Map<String, Long>> playerMessageCooldowns = new HashMap<>();
-    private static final long MESSAGE_COOLDOWN = 5000; // 5 seconds in milliseconds
 
     public FactionsEventListener(FactionsPlugin plugin) {
         this.plugin = plugin;
@@ -99,12 +102,12 @@ public class FactionsEventListener implements Listener {
         String oldFaction = lastCoord != null ? claims.get(lastCoord) : null;
 
         if (newFaction != null && !newFaction.equals(oldFaction)) {
-            if (newFaction.equalsIgnoreCase("Spawn")) {
-                player.sendTitle(ChatColor.AQUA + "Spawn", ChatColor.GREEN + "You're safe here", 10, 60, 10);
-            } else if (newFaction.equalsIgnoreCase("Warzone")) {
-                player.sendTitle(ChatColor.RED + "" + ChatColor.BOLD + "Warzone", ChatColor.WHITE + "Careful, PvP is allowed here", 10, 60, 10);
-            } else if (newFaction.equalsIgnoreCase("Wilderness")) {
-                player.sendTitle(ChatColor.GREEN + "Wilderness", ChatColor.WHITE + "Unclaimed land - claim it or do whatever you want!", 10, 60, 10);
+            if (newFaction.equalsIgnoreCase(FactionsConstants.SPAWN)) {
+                player.sendTitle(ChatColor.AQUA + FactionsConstants.SPAWN, ChatColor.GREEN + "You're safe here", 10, 60, 10);
+            } else if (newFaction.equalsIgnoreCase(FactionsConstants.WARZONE)) {
+                player.sendTitle(ChatColor.RED + "" + ChatColor.BOLD + FactionsConstants.WARZONE, ChatColor.WHITE + "Careful, PvP is allowed here", 10, 60, 10);
+            } else if (newFaction.equalsIgnoreCase(FactionsConstants.WILDERNESS)) {
+                player.sendTitle(ChatColor.GREEN + FactionsConstants.WILDERNESS, ChatColor.WHITE + "Unclaimed land - claim it or do whatever you want!", 10, 60, 10);
             } else {
                 Faction f = factions.get(newFaction);
                 if (f != null) {
@@ -127,10 +130,10 @@ public class FactionsEventListener implements Listener {
             return; // Allow the action
         }
 
-        if (faction.equalsIgnoreCase("Spawn") || faction.equalsIgnoreCase("Warzone")) {
+        if (faction.equalsIgnoreCase(FactionsConstants.SPAWN) || faction.equalsIgnoreCase(FactionsConstants.WARZONE)) {
             event.setCancelled(true);
             sendCooldownMessage(player,ChatColor.RED + "You cannot break blocks here.");
-        } else if (faction.equalsIgnoreCase("Wilderness")) {
+        } else if (faction.equalsIgnoreCase(FactionsConstants.WILDERNESS)) {
             // Wilderness allows everything
             return;
         } else {
@@ -169,10 +172,10 @@ public class FactionsEventListener implements Listener {
             return; // Allow the action
         }
 
-        if (faction.equalsIgnoreCase("Spawn") || faction.equalsIgnoreCase("Warzone")) {
+        if (faction.equalsIgnoreCase(FactionsConstants.SPAWN) || faction.equalsIgnoreCase(FactionsConstants.WARZONE)) {
             event.setCancelled(true);
             sendCooldownMessage(player,ChatColor.RED + "You cannot place blocks here.");
-        } else if (faction.equalsIgnoreCase("Wilderness")) {
+        } else if (faction.equalsIgnoreCase(FactionsConstants.WILDERNESS)) {
             // Wilderness allows everything
             return;
         } else {
@@ -222,10 +225,10 @@ public class FactionsEventListener implements Listener {
             return; // Allow the action
         }
 
-        if (faction.equalsIgnoreCase("Spawn") || faction.equalsIgnoreCase("Warzone")) {
+        if (faction.equalsIgnoreCase(FactionsConstants.SPAWN) || faction.equalsIgnoreCase(FactionsConstants.WARZONE)) {
             event.setCancelled(true);
             sendCooldownMessage(player,ChatColor.RED + "You cannot interact here.");
-        } else if (faction.equalsIgnoreCase("Wilderness")) {
+        } else if (faction.equalsIgnoreCase(FactionsConstants.WILDERNESS)) {
             // Wilderness allows everything
             return;
         } else {
@@ -265,7 +268,7 @@ public class FactionsEventListener implements Listener {
             String damagedFaction = playerFactions.get(damaged.getUniqueId());
 
             // 1) SPAWN PROTECTION
-            if ("Spawn".equalsIgnoreCase(faction)) {
+            if (FactionsConstants.SPAWN.equalsIgnoreCase(faction)) {
                 event.setCancelled(true);
                 damager.sendMessage(ChatColor.RED + "PvP is disabled in Spawn!");
                 return;
@@ -295,7 +298,7 @@ public class FactionsEventListener implements Listener {
             }
 
             // 3) TERRITORY-SPECIFIC CHECKS
-            if ("Warzone".equalsIgnoreCase(faction)) {
+            if (FactionsConstants.WARZONE.equalsIgnoreCase(faction)) {
                 if (hasPermissionBypass(damager, faction, "pvp_disable")) {
                     event.setCancelled(true);
                     damager.sendMessage(ChatColor.YELLOW + "You have PvP protection in Warzone.");
@@ -304,7 +307,7 @@ public class FactionsEventListener implements Listener {
             }
 
             // Check bypass for any territory
-            if (hasPermissionBypass(damager, faction != null ? faction : "wilderness", "pvp")) {
+            if (hasPermissionBypass(damager, faction != null ? faction : FactionsConstants.WILDERNESS, "pvp")) {
                 return; // Allow PvP
             }
 
@@ -326,7 +329,7 @@ public class FactionsEventListener implements Listener {
             }
 
             // Block in spawn & warzone
-            if ("Spawn".equalsIgnoreCase(faction) || "Warzone".equalsIgnoreCase(faction)) {
+            if (FactionsConstants.SPAWN.equalsIgnoreCase(faction) || FactionsConstants.WARZONE.equalsIgnoreCase(faction)) {
                 event.setCancelled(true);
             }
         }
@@ -358,7 +361,7 @@ public class FactionsEventListener implements Listener {
         if (faction == null) return;
 
         // Cancel natural mob spawning in Spawn and Warzone only
-        if ((faction.equalsIgnoreCase("Spawn") || faction.equalsIgnoreCase("Warzone"))
+        if ((faction.equalsIgnoreCase(FactionsConstants.SPAWN) || faction.equalsIgnoreCase(FactionsConstants.WARZONE))
                 && event.getSpawnReason() != CreatureSpawnEvent.SpawnReason.CUSTOM
                 && event.getSpawnReason() != CreatureSpawnEvent.SpawnReason.SPAWNER_EGG
                 && event.getSpawnReason() != CreatureSpawnEvent.SpawnReason.SPAWNER) {
@@ -403,10 +406,10 @@ public class FactionsEventListener implements Listener {
             return; // Allow the action
         }
 
-        if (faction.equalsIgnoreCase("Spawn") || faction.equalsIgnoreCase("Warzone")) {
+        if (faction.equalsIgnoreCase(FactionsConstants.SPAWN) || faction.equalsIgnoreCase(FactionsConstants.WARZONE)) {
             event.setCancelled(true);
             sendCooldownMessage(player,ChatColor.RED + "You cannot access containers here.");
-        } else if (faction.equalsIgnoreCase("Wilderness")) {
+        } else if (faction.equalsIgnoreCase(FactionsConstants.WILDERNESS)) {
             // Wilderness allows everything
             return;
         } else {
@@ -465,10 +468,10 @@ public class FactionsEventListener implements Listener {
             return; // Allow the action
         }
 
-        if (faction.equalsIgnoreCase("Spawn") || faction.equalsIgnoreCase("Warzone")) {
+        if (faction.equalsIgnoreCase(FactionsConstants.SPAWN) || faction.equalsIgnoreCase(FactionsConstants.WARZONE)) {
             event.setCancelled(true);
             sendCooldownMessage(player,ChatColor.RED + "You cannot place spawners here.");
-        } else if (faction.equalsIgnoreCase("Wilderness")) {
+        } else if (faction.equalsIgnoreCase(FactionsConstants.WILDERNESS)) {
             // Wilderness allows everything
             return;
         } else {
@@ -508,10 +511,10 @@ public class FactionsEventListener implements Listener {
             return; // Allow the action
         }
 
-        if (faction.equalsIgnoreCase("Spawn") || faction.equalsIgnoreCase("Warzone")) {
+        if (faction.equalsIgnoreCase(FactionsConstants.SPAWN) || faction.equalsIgnoreCase(FactionsConstants.WARZONE)) {
             event.setCancelled(true);
             sendCooldownMessage(player,ChatColor.RED + "You cannot break spawners here.");
-        } else if (faction.equalsIgnoreCase("Wilderness")) {
+        } else if (faction.equalsIgnoreCase(FactionsConstants.WILDERNESS)) {
             // Wilderness allows everything
             return;
         } else {
@@ -560,10 +563,10 @@ public class FactionsEventListener implements Listener {
             return; // Allow the action
         }
 
-        if (faction.equalsIgnoreCase("Spawn") || faction.equalsIgnoreCase("Warzone")) {
+        if (faction.equalsIgnoreCase(FactionsConstants.SPAWN) || faction.equalsIgnoreCase(FactionsConstants.WARZONE)) {
             event.setCancelled(true);
             sendCooldownMessage(player,ChatColor.RED + "You cannot interact with entities here.");
-        } else if (faction.equalsIgnoreCase("Wilderness")) {
+        } else if (faction.equalsIgnoreCase(FactionsConstants.WILDERNESS)) {
             // Wilderness allows everything
             return;
         } else {
@@ -730,15 +733,15 @@ public class FactionsEventListener implements Listener {
                 }
             } else if (title.equals(ChatColor.DARK_GRAY + "Browse Factions")) {
                 if (event.getClick() == ClickType.LEFT) {
-                    plugin.getMenuHandler().handleFactionBrowserClick(player, displayName);
+                    plugin.getBrowserMenuHandler().handleFactionBrowserClick(player, displayName);
                 }
             } else if (title.equals(ChatColor.DARK_GRAY + "Public Factions")) {
                 if (event.getClick() == ClickType.LEFT) {
-                    plugin.getMenuHandler().handlePublicFactionsBrowserClick(player, displayName, event.getSlot());
+                    plugin.getBrowserMenuHandler().handlePublicFactionsBrowserClick(player, displayName, event.getSlot());
                 }
             } else if (title.equals(ChatColor.DARK_GRAY + "Your Invitations")) {
                 if (event.getClick() == ClickType.LEFT) {
-                    plugin.getMenuHandler().handleInvitationsBrowserClick(player, displayName, event.getSlot());
+                    plugin.getBrowserMenuHandler().handleInvitationsBrowserClick(player, displayName, event.getSlot());
                 }
             } else if (title.equals(ChatColor.DARK_GRAY + "Invite Players")) {
                 if (event.getClick() == ClickType.LEFT) {
@@ -862,24 +865,18 @@ public class FactionsEventListener implements Listener {
                 return;
             }
 
-            // Check if name is too long
-            if (message.length() > 16) {
+            // Validate faction name
+            if (!ChatUtils.isValidFactionName(message)) {
                 new BukkitRunnable() {
                     @Override
                     public void run() {
-                        player.sendMessage(ChatColor.RED + "Faction name is too long! Maximum 16 characters.");
-                        player.sendMessage(ChatColor.YELLOW + "Please enter a shorter name or type 'cancel':");
-                    }
-                }.runTask(plugin);
-                return;
-            }
-
-            // Check for invalid characters
-            if (!message.matches("[a-zA-Z0-9_]+")) {
-                new BukkitRunnable() {
-                    @Override
-                    public void run() {
-                        player.sendMessage(ChatColor.RED + "Faction name can only contain letters, numbers, and underscores!");
+                        if (message.length() > FactionsConstants.MAX_FACTION_NAME_LENGTH) {
+                            player.sendMessage(ChatColor.RED + "Faction name is too long! Maximum " + FactionsConstants.MAX_FACTION_NAME_LENGTH + " characters.");
+                        } else if (!message.matches("[a-zA-Z0-9_]+")) {
+                            player.sendMessage(ChatColor.RED + "Faction name can only contain letters, numbers, and underscores!");
+                        } else {
+                            player.sendMessage(ChatColor.RED + "Invalid faction name!");
+                        }
                         player.sendMessage(ChatColor.YELLOW + "Please enter a valid name or type 'cancel':");
                     }
                 }.runTask(plugin);
@@ -1063,7 +1060,7 @@ public class FactionsEventListener implements Listener {
         Map<String, Long> playerCooldowns = playerMessageCooldowns.computeIfAbsent(playerUUID, k -> new HashMap<>());
 
         Long lastSent = playerCooldowns.get(message);
-        if (lastSent == null || (currentTime - lastSent) >= MESSAGE_COOLDOWN) {
+        if (lastSent == null || (currentTime - lastSent) >= FactionsConstants.MESSAGE_COOLDOWN) {
             player.sendMessage(message);
             playerCooldowns.put(message, currentTime);
         }
