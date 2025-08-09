@@ -40,6 +40,8 @@ public class MenuHandler {
     private final Map<String, Faction> factions;
     private final Map<UUID, String> playerFactions;
     private final Map<UUID, Set<String>> playerInvitations;
+    private Rank targetCurrentRank;
+    private Rank currentManagerRank;
 
     // Track pending kick confirmations
     private final Map<UUID, UUID> pendingKicks = new HashMap<>(); // kicker -> target
@@ -1438,8 +1440,8 @@ public class MenuHandler {
         }
 
         if (clickType == ClickType.LEFT) {
-            // Manage rank - implement later
-            MessageManager.sendInfo(player, "Rank management coming soon! Use /f promote or /f demote for now.");
+            // Open rank management GUI
+            openRankManagementGUI(player, targetPlayer, factionName);
         } else if (clickType == ClickType.RIGHT) {
             // Open kick confirmation dialog
             openKickConfirmation(player, targetPlayer);
@@ -1500,6 +1502,303 @@ public class MenuHandler {
             // Return to members menu
             openMembersMenu(player, factionName);
         }
+    }
+
+    /**
+     * Open rank management GUI for a specific player
+     */
+    public void openRankManagementGUI(Player manager, OfflinePlayer target, String factionName) {
+        Faction faction = factions.get(factionName);
+        if (faction == null) return;
+
+        String targetName = target.getName();
+        if (targetName == null) targetName = "Unknown Player";
+
+        Inventory menu = Bukkit.createInventory(null, 27, ChatColor.DARK_GRAY + "Manage: " + targetName);
+
+        // Fill with black glass
+        ItemStack blackGlass = new ItemStack(Material.BLACK_STAINED_GLASS_PANE);
+        ItemMeta glassMeta = blackGlass.getItemMeta();
+        glassMeta.setDisplayName(" ");
+        blackGlass.setItemMeta(glassMeta);
+
+        for (int i = 0; i < 27; i++) {
+            menu.setItem(i, blackGlass);
+        }
+
+        Rank managerRank = faction.members.get(manager.getUniqueId());
+        Rank targetRank = faction.members.get(target.getUniqueId());
+
+        // ADD THESE LINES HERE - Store ranks for use in helper methods
+        this.targetCurrentRank = targetRank;
+        this.currentManagerRank = managerRank;
+
+        // Create rank items (slots 11-15 for the 5 ranks)
+        Rank[] ranks = {Rank.OWNER, Rank.ADMIN, Rank.MOD, Rank.MEMBER, Rank.RECRUIT};
+        int[] slots = {11, 12, 13, 14, 15};
+
+        for (int i = 0; i < ranks.length; i++) {
+            Rank rank = ranks[i];
+            boolean isCurrentRank = (targetRank == rank);
+            boolean canPromoteTo = canPromoteToRank(managerRank, targetRank, rank, manager.getUniqueId().equals(target.getUniqueId()));
+
+            ItemStack rankItem = createRankItem(rank, isCurrentRank, canPromoteTo, faction);
+            menu.setItem(slots[i], rankItem);
+        }
+
+        // Target player info in center top
+        ItemStack playerInfo = new ItemStack(Material.PLAYER_HEAD);
+        SkullMeta playerSkullMeta = (SkullMeta) playerInfo.getItemMeta();
+        playerSkullMeta.setOwningPlayer(target);
+        playerSkullMeta.setDisplayName(ChatColor.YELLOW + targetName);
+        playerSkullMeta.setLore(Arrays.asList(
+                ChatColor.GRAY + "Current Rank: " + ChatColor.WHITE + targetRank.name(),
+                ChatColor.GRAY + "Status: " + (target.isOnline() ? ChatColor.GREEN + "Online" : ChatColor.RED + "Offline"),
+                "",
+                ChatColor.YELLOW + "Select a rank below to promote/demote"
+        ));
+        playerInfo.setItemMeta(playerSkullMeta);
+        menu.setItem(4, playerInfo);
+
+        // Back button
+        ItemStack backButton = createBackButton();
+        menu.setItem(18, backButton);
+
+        manager.openInventory(menu);
+    }
+
+    /**
+     * Create a rank item for the rank management GUI
+     */
+    private ItemStack createRankItem(Rank rank, boolean isCurrentRank, boolean canPromoteTo, Faction faction) {
+        Material material;
+        ChatColor nameColor;
+
+        if (isCurrentRank) {
+            material = Material.GREEN_CONCRETE;
+            nameColor = ChatColor.GREEN;
+        } else if (canPromoteTo) {
+            material = Material.YELLOW_CONCRETE;
+            nameColor = ChatColor.YELLOW;
+        } else {
+            material = Material.RED_CONCRETE;
+            nameColor = ChatColor.RED;
+        }
+
+        ItemStack item = new ItemStack(material);
+        ItemMeta meta = item.getItemMeta();
+
+        String displayName = nameColor + "" + ChatColor.BOLD + rank.name();
+        if (isCurrentRank) {
+            displayName += ChatColor.GREEN + " (Current)";
+        } else if (!canPromoteTo) {
+            displayName += ChatColor.RED + " (Locked)";
+        }
+
+        meta.setDisplayName(displayName);
+
+        List<String> lore = new ArrayList<>();
+
+        if (isCurrentRank) {
+            lore.add(ChatColor.GREEN + "✓ This is their current rank");
+            lore.add("");
+        }
+
+        // Add rank description
+        lore.addAll(getRankDescription(rank));
+        lore.add("");
+
+        // Add permission summary
+        lore.add(ChatColor.GOLD + "Key Permissions:");
+        lore.addAll(getKeyPermissions(rank, faction));
+
+        if (!isCurrentRank) {
+            lore.add("");
+            if (canPromoteTo) {
+                lore.add(ChatColor.YELLOW + "Click to " + (rank.ordinal() > getTargetCurrentRank().ordinal() ? "promote" : "demote") + " to " + rank.name());
+            } else {
+                lore.add(ChatColor.RED + "You cannot assign this rank");
+                if (rank.ordinal() >= getCurrentManagerRank().ordinal()) {
+                    lore.add(ChatColor.GRAY + "Reason: Equal or higher than your rank");
+                }
+            }
+        }
+
+        meta.setLore(lore);
+        item.setItemMeta(meta);
+        return item;
+    }
+
+    /**
+     * Get rank description
+     */
+    private List<String> getRankDescription(Rank rank) {
+        List<String> desc = new ArrayList<>();
+
+        switch (rank) {
+            case OWNER:
+                desc.add(ChatColor.LIGHT_PURPLE + "Full control of the faction");
+                desc.add(ChatColor.GRAY + "• Can do anything in the faction");
+                desc.add(ChatColor.GRAY + "• Can transfer ownership");
+                desc.add(ChatColor.GRAY + "• Cannot be kicked or demoted");
+                break;
+            case ADMIN:
+                desc.add(ChatColor.BLUE + "High-level faction management");
+                desc.add(ChatColor.GRAY + "• Can manage most faction settings");
+                desc.add(ChatColor.GRAY + "• Can promote/demote lower ranks");
+                desc.add(ChatColor.GRAY + "• Can kick lower ranked members");
+                break;
+            case MOD:
+                desc.add(ChatColor.GREEN + "Moderate faction activities");
+                desc.add(ChatColor.GRAY + "• Can invite and kick members");
+                desc.add(ChatColor.GRAY + "• Can claim and unclaim land");
+                desc.add(ChatColor.GRAY + "• Can manage warps and spawners");
+                break;
+            case MEMBER:
+                desc.add(ChatColor.YELLOW + "Trusted faction member");
+                desc.add(ChatColor.GRAY + "• Can access faction chest");
+                desc.add(ChatColor.GRAY + "• Can use and set home");
+                desc.add(ChatColor.GRAY + "• Can deposit and withdraw from bank");
+                break;
+            case RECRUIT:
+                desc.add(ChatColor.WHITE + "New faction member");
+                desc.add(ChatColor.GRAY + "• Basic building permissions");
+                desc.add(ChatColor.GRAY + "• Can use faction home");
+                desc.add(ChatColor.GRAY + "• Can deposit to bank");
+                break;
+        }
+
+        return desc;
+    }
+
+    /**
+     * Get key permissions for a rank
+     */
+    private List<String> getKeyPermissions(Rank rank, Faction faction) {
+        List<String> perms = new ArrayList<>();
+        Set<FactionPermission> rankPerms = faction.rankPermissions.getOrDefault(rank, EnumSet.noneOf(FactionPermission.class));
+
+        // Show most important permissions (limit to 4-5 for space)
+        List<FactionPermission> importantPerms = Arrays.asList(
+                FactionPermission.INVITE_MEMBERS,
+                FactionPermission.KICK_MEMBERS,
+                FactionPermission.PROMOTE_MEMBERS,
+                FactionPermission.CLAIM_LAND,
+                FactionPermission.MANAGE_PERMISSIONS
+        );
+
+        int count = 0;
+        for (FactionPermission perm : importantPerms) {
+            if (count >= 4) break;
+            if (rankPerms.contains(perm)) {
+                perms.add(ChatColor.GREEN + "✓ " + ChatColor.GRAY + perm.getDisplayName());
+                count++;
+            }
+        }
+
+        if (count == 0) {
+            perms.add(ChatColor.GRAY + "Basic building and interaction");
+        }
+
+        return perms;
+    }
+
+    /**
+     * Check if manager can promote target to a specific rank
+     */
+    private boolean canPromoteToRank(Rank managerRank, Rank targetRank, Rank newRank, boolean isSelf) {
+        // Can't promote/demote yourself
+        if (isSelf) return false;
+
+        // Owners can do anything
+        if (managerRank == Rank.OWNER) return true;
+
+        // Can't promote to your own rank or higher
+        if (newRank.ordinal() >= managerRank.ordinal()) return false;
+
+        // Can only modify players below your rank
+        if (targetRank.ordinal() >= managerRank.ordinal()) return false;
+
+        return true;
+    }
+
+    /**
+     * Handle rank management GUI clicks
+     */
+    public void handleRankManagementClick(Player manager, String displayName, String title) {
+        if (displayName.equals(ChatColor.GRAY + "← Back")) {
+            String factionName = playerFactions.get(manager.getUniqueId());
+            openMembersMenu(manager, factionName);
+            return;
+        }
+
+        // Extract target player name from title
+        String targetName = title.replace(ChatColor.DARK_GRAY + "Manage: ", "");
+        OfflinePlayer target = Bukkit.getOfflinePlayer(targetName);
+
+        String factionName = playerFactions.get(manager.getUniqueId());
+        Faction faction = factions.get(factionName);
+
+        if (faction == null) return;
+
+        Rank managerRank = faction.members.get(manager.getUniqueId());
+        Rank targetRank = faction.members.get(target.getUniqueId());
+
+        // Parse clicked rank from display name
+        for (Rank rank : Rank.values()) {
+            if (displayName.contains(rank.name())) {
+                // Check if this is current rank (no action needed)
+                if (targetRank == rank) {
+                    MessageManager.sendInfo(manager, targetName + " is already " + rank.name() + "!");
+                    return;
+                }
+
+                // Check permissions
+                if (!canPromoteToRank(managerRank, targetRank, rank, manager.getUniqueId().equals(target.getUniqueId()))) {
+                    MessageManager.sendError(manager, "You cannot promote " + targetName + " to " + rank.name() + "!");
+                    return;
+                }
+
+                // Perform the rank change
+                faction.members.put(target.getUniqueId(), rank);
+
+                // Send messages
+                boolean isPromotion = rank.ordinal() > targetRank.ordinal();
+                String action = isPromotion ? "promoted" : "demoted";
+
+                MessageManager.sendSuccess(manager, "Successfully " + action + " " + targetName + " to " + rank.name() + "!");
+
+                if (target.isOnline()) {
+                    Player onlineTarget = (Player) target;
+                    if (isPromotion) {
+                        MessageManager.sendPromoted(onlineTarget, rank.name(), manager.getName());
+                    } else {
+                        MessageManager.sendDemoted(onlineTarget, rank.name(), manager.getName());
+                    }
+                }
+
+                // Notify other faction members
+                for (UUID memberUUID : faction.members.keySet()) {
+                    Player member = Bukkit.getPlayer(memberUUID);
+                    if (member != null && !member.equals(manager) && !member.getUniqueId().equals(target.getUniqueId())) {
+                        MessageManager.sendMemberInfoMessage(member, targetName + " was " + action + " to " + rank.name() + " by " + manager.getName());
+                    }
+                }
+
+                // Save and close GUI
+                plugin.getDataManager().saveFactionData();
+                manager.closeInventory();
+                return;
+            }
+        }
+    }
+
+    private Rank getTargetCurrentRank() {
+        return targetCurrentRank;
+    }
+
+    private Rank getCurrentManagerRank() {
+        return currentManagerRank;
     }
 
     public void handleConfirmationMenuClick(Player player, String displayName, String title) {

@@ -689,6 +689,7 @@ public class FactionsEventListener implements Listener {
                 title.equals(ChatColor.DARK_GRAY + "Faction Permissions") ||
                 title.equals(ChatColor.DARK_GRAY + "Relations & Requests") ||
                 title.startsWith(ChatColor.DARK_RED + "Remove: ") ||
+                title.equals(ChatColor.DARK_GRAY + "Manage: ") ||
                 title.contains(" Permissions")) {
 
             // Cancel ALL clicks in faction GUIs
@@ -768,6 +769,10 @@ public class FactionsEventListener implements Listener {
             } else if (title.equals(ChatColor.DARK_GRAY + "Relations & Requests")) {
                 // UPDATED: Handle the new combined relations GUI
                 plugin.getMenuHandler().handleRelationsViewClick(player, item, event.getClick(), title);
+            } else if (title.startsWith(ChatColor.DARK_GRAY + "Manage: ")) {
+                if (event.getClick() == ClickType.LEFT) {
+                    plugin.getMenuHandler().handleRankManagementClick(player, displayName, title);
+                }
             }
             return;
         }
