@@ -22,7 +22,7 @@ public class FactionsTabCompleter implements TabCompleter {
             List<String> commands = new ArrayList<>();
 
             // Basic commands everyone can see
-            commands.addAll(Arrays.asList("create", "claim", "promote", "demote", "desc", "map", "unclaim", "unclaimall", "invite", "kick", "menu", "join", "leave", "disband", "invitations", "privacy", "ally", "truce", "enemy", "neutral", "confirm", "cancel"));
+            commands.addAll(Arrays.asList("create", "claim", "pr...cy", "ally", "truce", "enemy", "neutral", "confirm", "cancel"));
 
             // Admin commands - only show if player has permission or is op
             if (sender.isOp() || sender.hasPermission("factions.adminclaim")) {
@@ -40,191 +40,114 @@ public class FactionsTabCompleter implements TabCompleter {
             if (sender.isOp() || sender.hasPermission("factions.load")) {
                 commands.add("load");
             }
-            if (sender.isOp() || sender.hasPermission("factions.adminjoin")) {
-                commands.add("adminjoin");
-            }
 
-            // Test commands - only for ops
-            if (sender.isOp()) {
-                commands.add("createtestfactions");
-                commands.add("removetestfactions");
-            }
-
-            return commands;
+            // Filter top-level command suggestions by what the player has started typing
+            String partial = args[0].toLowerCase();
+            return commands.stream()
+                    .filter(c -> c.toLowerCase().startsWith(partial))
+                    .collect(Collectors.toList());
         }
 
-        if (args.length == 2) {
-            String subCommand = args[0].toLowerCase();
+        // For second+ args we will try to filter suggestions by the partial input typed
+        final String partial = args.length > 1 ? args[1].toLowerCase() : "";
 
-            switch (subCommand) {
-                case "confirm":
-                    // Show the player's faction name for confirm command
-                    if (sender instanceof Player) {
-                        Player player = (Player) sender;
-                        FactionsPlugin plugin = (FactionsPlugin) Bukkit.getPluginManager().getPlugin("Factions");
-                        if (plugin != null) {
-                            String factionName = plugin.getPlayerFactions().get(player.getUniqueId());
-                            if (factionName != null) {
-                                return Arrays.asList(factionName);
+        switch (args[0].toLowerCase()) {
+            case "promote":
+            case "demote":
+                // Show players in the same faction (filtered by typed partial)
+                if (sender instanceof Player) {
+                    Player player = (Player) sender;
+                    FactionsPlugin factionsPlugin = (FactionsPlugin) Bukkit.getPluginManager().getPlugin("Factions");
+                    if (factionsPlugin != null) {
+                        return factionsPlugin.getUtilityManager().getFactionMembers(player.getUniqueId()).stream()
+                                .filter(name -> !name.equals(player.getName())) // Don't show self
+                                .filter(name -> name.toLowerCase().startsWith(partial))
+                                .collect(Collectors.toList());
+                    }
+                }
+                return Collections.emptyList();
+
+            case "invite":
+                // Show online players who aren't already in a faction (filtered by typed partial)
+                FactionsPlugin invitePlugin = (FactionsPlugin) Bukkit.getPluginManager().getPlugin("Factions");
+                if (invitePlugin != null) {
+                    return Bukkit.getOnlinePlayers().stream()
+                            .filter(p -> p.getName().toLowerCase().startsWith(partial))
+                            .filter(p -> !invitePlugin.getUtilityManager().isPlayerInFaction(p.getUniqueId()))
+                            .map(Player::getName)
+                            .collect(Collectors.toList());
+                }
+                return Collections.emptyList();
+
+            case "kick":
+                // Show players in the same faction as the command sender (filtered)
+                if (sender instanceof Player) {
+                    Player player = (Player) sender;
+                    FactionsPlugin kickPlugin = (FactionsPlugin) Bukkit.getPluginManager().getPlugin("Factions");
+                    if (kickPlugin != null) {
+                        return kickPlugin.getUtilityManager().getFactionMembers(player.getUniqueId()).stream()
+                                .filter(name -> !name.equals(player.getName())) // Don't show self
+                                .filter(name -> name.toLowerCase().startsWith(partial))
+                                .collect(Collectors.toList());
+                    }
+                }
+                return Collections.emptyList();
+
+            case "join":
+                if (sender instanceof Player) {
+                    Player player = (Player) sender;
+                    FactionsPlugin joinPlugin = (FactionsPlugin) Bukkit.getPluginManager().getPlugin("Factions");
+                    if (joinPlugin != null) {
+                        // Show public factions and factions the player is invited to
+                        List<String> availableFactions = new ArrayList<>();
+
+                        // Add public factions
+                        for (Map.Entry<String, me.elite.Factions.data.Faction> entry : joinPlugin.getFactions().entrySet()) {
+                            if (entry.getValue().isPublic) {
+                                availableFactions.add(entry.getKey());
                             }
                         }
-                    }
-                    return Collections.emptyList();
 
-                case "cancel":
-                    // No tab completion needed for cancel
-                    return Collections.emptyList();
-
-                case "promote":
-                case "demote":
-                    // Show players in the same faction
-                    if (sender instanceof Player) {
-                        Player player = (Player) sender;
-                        FactionsPlugin factionsPlugin = (FactionsPlugin) Bukkit.getPluginManager().getPlugin("Factions");
-                        if (factionsPlugin != null) {
-                            return factionsPlugin.getUtilityManager().getFactionMembers(player.getUniqueId()).stream()
-                                    .filter(name -> !name.equals(player.getName())) // Don't show self
-                                    .collect(Collectors.toList());
+                        // Add invited factions
+                        Set<String> invites = joinPlugin.getPlayerInvitations().get(player.getUniqueId());
+                        if (invites != null) {
+                            availableFactions.addAll(invites);
                         }
-                    }
-                    return Collections.emptyList();
 
-                case "invite":
-                    // Show online players who aren't already in a faction
-                    FactionsPlugin invitePlugin = (FactionsPlugin) Bukkit.getPluginManager().getPlugin("Factions");
-                    if (invitePlugin != null) {
-                        return Bukkit.getOnlinePlayers().stream()
-                                .filter(p -> !invitePlugin.getUtilityManager().isPlayerInFaction(p.getUniqueId()))
-                                .map(Player::getName)
+                        // Filter by typed partial
+                        return availableFactions.stream()
+                                .filter(f -> f.toLowerCase().startsWith(partial))
                                 .collect(Collectors.toList());
                     }
-                    return Collections.emptyList();
+                }
+                return Collections.emptyList();
 
-                case "kick":
-                    // Show players in the same faction as the command sender
-                    if (sender instanceof Player) {
-                        Player player = (Player) sender;
-                        FactionsPlugin kickPlugin = (FactionsPlugin) Bukkit.getPluginManager().getPlugin("Factions");
-                        if (kickPlugin != null) {
-                            return kickPlugin.getUtilityManager().getFactionMembers(player.getUniqueId()).stream()
-                                    .filter(name -> !name.equals(player.getName())) // Don't show self
-                                    .collect(Collectors.toList());
-                        }
-                    }
-                    return Collections.emptyList();
+            case "ally":
+            case "truce":
+                FactionsPlugin allyPlugin = (FactionsPlugin) Bukkit.getPluginManager().getPlugin("Factions");
+                if (allyPlugin != null) {
+                    return allyPlugin.getUtilityManager().getAllFactionNames().stream()
+                            .filter(name -> !name.equals(getPlayerFaction(sender)))
+                            .filter(n -> n.toLowerCase().startsWith(partial))
+                            .collect(Collectors.toList());
+                }
+                return Collections.emptyList();
 
-                case "adminclaim":
-                    // Only show if player has the required permissions
-                    if (sender.isOp() || sender.hasPermission("factions.adminclaim")) {
-                        return Arrays.asList("Spawn", "Warzone", "<FactionName>");
-                    }
-                    return Collections.emptyList();
+            case "enemy":
+            case "neutral":
+                FactionsPlugin enemyPlugin = (FactionsPlugin) Bukkit.getPluginManager().getPlugin("Factions");
+                if (enemyPlugin != null) {
+                    return enemyPlugin.getUtilityManager().getAllFactionNames().stream()
+                            .filter(name -> !name.equals(getPlayerFaction(sender)))
+                            .filter(n -> n.toLowerCase().startsWith(partial))
+                            .collect(Collectors.toList());
+                }
+                return Collections.emptyList();
 
-                case "adminunclaimall":
-                    // Only show if player has the required permissions
-                    if (sender.isOp() || sender.hasPermission("factions.adminunclaimall")) {
-                        return Arrays.asList("Spawn", "Warzone", "<FactionName>");
-                    }
-                    return Collections.emptyList();
-
-                case "load":
-                    // Only show if player has the required permissions
-                    if (sender.isOp() || sender.hasPermission("factions.load")) {
-                        return Bukkit.getWorlds().stream()
-                                .map(org.bukkit.World::getName)
-                                .collect(Collectors.toList());
-                    }
-                    return Collections.emptyList();
-
-                case "adminjoin":
-                    if (sender.isOp() || sender.hasPermission("factions.adminjoin")) {
-                        // Show faction names
-                        FactionsPlugin adminJoinPlugin = (FactionsPlugin) Bukkit.getPluginManager().getPlugin("Factions");
-                        if (adminJoinPlugin != null) {
-                            return adminJoinPlugin.getUtilityManager().getAllFactionNames();
-                        }
-                    }
-                    return Collections.emptyList();
-
-                case "debugnametags":
-                    if (sender.isOp() || sender.hasPermission("factions.debugnametags")) {
-                        return Arrays.asList("refresh", "info", "test");
-                    }
-                case "join":
-                    if (sender instanceof Player) {
-                        Player player = (Player) sender;
-                        FactionsPlugin joinPlugin = (FactionsPlugin) Bukkit.getPluginManager().getPlugin("Factions");
-                        if (joinPlugin != null) {
-                            // Show public factions and factions the player is invited to
-                            List<String> availableFactions = new ArrayList<>();
-
-                            // Add public factions
-                            for (Map.Entry<String, me.elite.Factions.data.Faction> entry : joinPlugin.getFactions().entrySet()) {
-                                if (entry.getValue().isPublic) {
-                                    availableFactions.add(entry.getKey());
-                                }
-                            }
-
-                            // Add invited factions
-                            Set<String> invites = joinPlugin.getPlayerInvitations().get(player.getUniqueId());
-                            if (invites != null) {
-                                availableFactions.addAll(invites);
-                            }
-
-                            return availableFactions;
-                        }
-                    }
-                    return Collections.emptyList();
-
-                case "privacy":
-                    return Arrays.asList("public", "private");
-
-                case "createtestfactions":
-                    if (sender.isOp()) {
-                        return Arrays.asList("10", "20", "40", "50", "100");
-                    }
-                    return Collections.emptyList();
-                case "ally":
-                case "truce":
-                    // Show faction names for ally/truce commands
-                    FactionsPlugin allyPlugin = (FactionsPlugin) Bukkit.getPluginManager().getPlugin("Factions");
-                    if (allyPlugin != null) {
-                        return allyPlugin.getUtilityManager().getAllFactionNames().stream()
-                                .filter(name -> !name.equals(getPlayerFaction(sender)))
-                                .collect(Collectors.toList());
-                    }
-                    return Collections.emptyList();
-                case "enemy":
-                case "neutral":
-                    // Show faction names for these commands
-                    FactionsPlugin enemyPlugin = (FactionsPlugin) Bukkit.getPluginManager().getPlugin("Factions");
-                    if (enemyPlugin != null) {
-                        return enemyPlugin.getUtilityManager().getAllFactionNames().stream()
-                                .filter(name -> !name.equals(getPlayerFaction(sender)))
-                                .collect(Collectors.toList());
-                    }
-                    return Collections.emptyList();
-                default:
-                    return Collections.emptyList();
-            }
+            // (Leave other cases as-is if they already returned contextual lists or empty list)
+            default:
+                return Collections.emptyList();
         }
-
-        if (args.length == 3) {
-            String subCommand = args[0].toLowerCase();
-
-            switch(subCommand) {
-                case "adminjoin":
-                    if (sender.isOp() || sender.hasPermission("factions.adminjoin")) {
-                        return Arrays.asList("<PlayerName>");
-                    }
-                case "relation":
-                    return Arrays.asList("neutral", "enemy");
-            }
-
-            return Collections.emptyList();
-        }
-
-        return Collections.emptyList();
     }
 
     private String getPlayerFaction(CommandSender sender) {

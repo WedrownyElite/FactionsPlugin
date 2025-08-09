@@ -730,6 +730,7 @@ public class MenuHandler {
             menu.setItem(34, settings);
         }
 
+        /**
         // Relation requests for owners and permission enabled players
         if (playerRank == Rank.OWNER || faction.hasPermission(playerRank, FactionPermission.SET_RELATIONS)) {
             List<RelationRequest> requests = plugin.getRelationManager().getPendingRequests(factionName);
@@ -755,22 +756,50 @@ public class MenuHandler {
             relationRequests.setItemMeta(requestsMeta);
             menu.setItem(31, relationRequests); // Bottom row, center-left
         }
+         */
 
-        // Relations view for all members
+
         ItemStack relations = new ItemStack(Material.COMPASS);
         ItemMeta relationsMeta = relations.getItemMeta();
+        if (relationsMeta == null) {
+            // Safety: if meta is null (shouldn't be for COMPASS) bail out gracefully
+            return;
+        }
         relationsMeta.setDisplayName(ChatColor.BLUE + "View Relations");
 
-        Map<String, Relation> factionRelations = plugin.getRelationManager().getFactionRelations(factionName);
-        relationsMeta.setLore(Arrays.asList(
-                ChatColor.GRAY + "View your faction's relations",
-                ChatColor.GRAY + "Current relations: " + ChatColor.WHITE + factionRelations.size(),
-                "",
-                ChatColor.YELLOW + "Click to view relations!"
-        ));
+        // Safe retrievals (avoid NPEs)
+        List<RelationRequest> requests = plugin.getRelationManager().getPendingRequests(factionName);
+        if (requests == null) requests = Collections.emptyList();
 
+        Map<String, Relation> factionRelations = plugin.getRelationManager().getFactionRelations(factionName);
+        int relationCount = factionRelations == null ? 0 : factionRelations.size();
+
+        // Build pending request string safely (avoid ChatColor + int compilation error)
+        String pendingRequest;
+        int pendingCount = requests.size();
+        if (pendingCount == 0) {
+            pendingRequest = ChatColor.RED + "No pending requests";
+        } else if (pendingCount == 1) {
+            pendingRequest = ChatColor.YELLOW + "1 pending request!";
+        } else {
+            pendingRequest = ChatColor.YELLOW + String.valueOf(pendingCount) + " pending requests!";
+        }
+
+        // Color the relation count based on value (makes it more noticeable)
+        ChatColor countColor = relationCount == 0 ? ChatColor.RED : ChatColor.GREEN;
+        String relationsCountText = countColor + String.valueOf(relationCount);
+
+        // Build lore using Strings (no direct ChatColor + int)
+        List<String> lore = new ArrayList<>();
+        lore.add(ChatColor.GRAY + "View your faction's relations");
+        lore.add(ChatColor.GRAY + "Current relations: " + relationsCountText);
+        lore.add(ChatColor.GRAY + "Pending requests: " + pendingRequest);
+        lore.add("");
+        lore.add(ChatColor.YELLOW + "Click to view relations!");
+
+        relationsMeta.setLore(lore);
         relations.setItemMeta(relationsMeta);
-        menu.setItem(25, relations); // Bottom row, center-right
+        menu.setItem(31, relations); // Bottom row, center-right
 
         // Leave/Disband faction
         ItemStack leave = new ItemStack(Material.RED_CONCRETE);

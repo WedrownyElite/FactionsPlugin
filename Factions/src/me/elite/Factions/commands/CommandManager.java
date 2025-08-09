@@ -48,69 +48,140 @@ public class CommandManager implements CommandExecutor {
 
         switch (args[0].toLowerCase()) {
             case "create":
-                return handleCreate(player, args);
+                return handleWithUsage(args[0].toLowerCase(), "handleCreate", player, args);
             case "promote":
             case "demote":
-                return handlePromoteDemote(player, args);
+                return handleWithUsage(args[0].toLowerCase(), "handlePromoteDemote", player, args);
             case "desc":
-                return handleDescription(player, args);
+                return handleWithUsage(args[0].toLowerCase(), "handleDescription", player, args);
             case "claim":
-                return handleClaim(player, args);
+                return handleWithUsage(args[0].toLowerCase(), "handleClaim", player, args);
             case "map":
-                return handleMap(player, args);
+                return handleWithUsage(args[0].toLowerCase(), "handleMap", player, args);
             case "adminclaim":
-                return handleAdminClaim(player, args);
+                return handleWithUsage(args[0].toLowerCase(), "handleAdminClaim", player, args);
             case "unclaim":
-                return handleUnclaim(player, args);
+                return handleWithUsage(args[0].toLowerCase(), "handleUnclaim", player, args);
             case "adminunclaim":
-                return handleAdminUnclaim(player, args);
+                return handleWithUsage(args[0].toLowerCase(), "handleAdminUnclaim", player, args);
             case "unclaimall":
-                return handleUnclaimAll(player, args);
+                return handleWithUsage(args[0].toLowerCase(), "handleUnclaimAll", player, args);
             case "adminunclaimall":
-                return handleAdminUnclaimAll(player, args);
+                return handleWithUsage(args[0].toLowerCase(), "handleAdminUnclaimAll", player, args);
             case "loadall":
-                return handleLoadAll(player, args);
+                return handleWithUsage(args[0].toLowerCase(), "handleLoadAll", player, args);
             case "load":
-                return handleLoad(player, args);
+                return handleWithUsage(args[0].toLowerCase(), "handleLoad", player, args);
             case "invite":
-                return handleInvite(player, args);
+                return handleWithUsage(args[0].toLowerCase(), "handleInvite", player, args);
             case "kick":
-                return handleKick(player, args);
+                return handleWithUsage(args[0].toLowerCase(), "handleKick", player, args);
             case "menu":
-                return handleMenu(player, args);
+                return handleWithUsage(args[0].toLowerCase(), "handleMenu", player, args);
             case "adminjoin":
-                return handleAdminJoin(player, args);
+                return handleWithUsage(args[0].toLowerCase(), "handleAdminJoin", player, args);
             case "join":
-                return handleJoin(player, args);
+                return handleWithUsage(args[0].toLowerCase(), "handleJoin", player, args);
             case "leave":
-                return handleLeave(player, args);
+                return handleWithUsage(args[0].toLowerCase(), "handleLeave", player, args);
             case "disband":
-                return handleDisband(player, args);
+                return handleWithUsage(args[0].toLowerCase(), "handleDisband", player, args);
             case "invitations":
             case "invites":
-                return handleViewInvitations(player, args);
+                return handleWithUsage(args[0].toLowerCase(), "handleViewInvitations", player, args);
             case "privacy":
-                return handlePrivacy(player, args);
+                return handleWithUsage(args[0].toLowerCase(), "handlePrivacy", player, args);
             case "createtestfactions":
-                return handleCreateTestFactions(player, args);
+                return handleWithUsage(args[0].toLowerCase(), "handleCreateTestFactions", player, args);
             case "removetestfactions":
-                return handleRemoveTestFactions(player, args);
+                return handleWithUsage(args[0].toLowerCase(), "handleRemoveTestFactions", player, args);
             case "enemy":
-                return handleEnemy(player, args);
+                return handleWithUsage(args[0].toLowerCase(), "handleEnemy", player, args);
             case "neutral":
-                return handleNeutral(player, args);
+                return handleWithUsage(args[0].toLowerCase(), "handleNeutral", player, args);
             case "ally":
-                return handleAlly(player, args);
+                return handleWithUsage(args[0].toLowerCase(), "handleAlly", player, args);
             case "truce":
-                return handleTruce(player, args);
+                return handleWithUsage(args[0].toLowerCase(), "handleTruce", player, args);
             case "confirm":
-                return handleConfirmOwnership(player, args);
+                return handleWithUsage(args[0].toLowerCase(), "handleConfirmOwnership", player, args);
             case "cancel":
-                return handleCancelOwnership(player, args);
+                return handleWithUsage(args[0].toLowerCase(), "handleCancelOwnership", player, args);
             case "debugnametags":
-                return handleDebugNametags(player, args);
+                return handleWithUsage(args[0].toLowerCase(), "handleDebugNametags", player, args);
             default:
                 return false;
+        }
+    }
+
+    // Helper that returns a usage string for a given subcommand (modify/add entries as you expand commands)
+    private String getUsageFor(String subCommand) {
+        Map<String, String> usages = new HashMap<>();
+
+        usages.put("create", "Usage: /f create <name> - Create a faction.");
+        usages.put("promote", "Usage: /f promote <player> - Promote a faction member.");
+        usages.put("demote", "Usage: /f demote <player> - Demote a faction member.");
+        usages.put("desc", "Usage: /f desc <description> - Set the faction description.");
+        usages.put("claim", "Usage: /f claim - Claim the chunk you're standing in.");
+        usages.put("unclaim", "Usage: /f unclaim - Unclaim the chunk you're standing in.");
+        usages.put("adminclaim", "Usage: /f adminclaim <faction> - Admin claim land for a faction.");
+        usages.put("map", "Usage: /f map - Show the faction territory map.");
+        usages.put("invite", "Usage: /f invite <player> - Invite a player to your faction.");
+        usages.put("kick", "Usage: /f kick <player> - Kick a player from your faction.");
+        usages.put("join", "Usage: /f join <faction> - Join a faction (public or invited).");
+        usages.put("leave", "Usage: /f leave - Leave your current faction.");
+        usages.put("disband", "Usage: /f disband - Disband your faction.");
+        usages.put("invitations", "Usage: /f invites - View your faction invitations.");
+        usages.put("privacy", "Usage: /f privacy <open|invite|closed> - Change faction privacy.");
+        usages.put("createtestfactions", "Usage: /f createtestfactions <count> - Create test factions.");
+        usages.put("removetestfactions", "Usage: /f removetestfactions - Remove test factions.");
+        usages.put("enemy", "Usage: /f enemy <faction> - Set enemy relation.");
+        usages.put("neutral", "Usage: /f neutral <faction> - Set neutral relation.");
+        usages.put("ally", "Usage: /f ally <faction> - Set ally relation.");
+        usages.put("truce", "Usage: /f truce <faction> - Set truce relation.");
+        usages.put("confirm", "Usage: /f confirm - Confirm pending ownership/claim.");
+        usages.put("cancel", "Usage: /f cancel - Cancel pending ownership/claim.");
+        usages.put("debugnametags", "Usage: /f debugnametags - Show nametag debug info.");
+        usages.put("load", "Usage: /f load <faction> - Load a specific faction's data.");
+        usages.put("loadall", "Usage: /f loadall - Load all factions (admin).");
+        usages.put("adminunclaim", "Usage: /f adminunclaim <faction> - Admin unclaim.");
+        usages.put("unclaimall", "Usage: /f unclaimall - Unclaim all land for your faction.");
+        usages.put("adminunclaimall", "Usage: /f adminunclaimall - Admin unclaim all.");
+        usages.put("adminjoin", "Usage: /f adminjoin <player> <faction> - Force join a player to a faction.");
+
+        String key = subCommand == null ? "" : subCommand.toLowerCase();
+        if (usages.containsKey(key)) return usages.get(key);
+        return "Usage: /f " + key + " [args] - Invalid or missing arguments.";
+    }
+
+    private boolean handleWithUsage(String subCommand, String handlerMethodName, Player player, String[] args) {
+        try {
+            java.lang.reflect.Method m = this.getClass().getDeclaredMethod(handlerMethodName, Player.class, String[].class);
+            m.setAccessible(true);
+            Object ret = m.invoke(this, new Object[]{player, args});
+            boolean ok = true;
+            if (ret instanceof Boolean) ok = (Boolean) ret;
+
+            // If the handler returns false -> wrong usage, show helpful usage message (custom per subcommand)
+            if (!ok) {
+                String usage = getUsageFor(subCommand);
+                player.sendMessage(ChatColor.YELLOW + usage);
+                return true; // we handled the error message here
+            }
+
+            return true;
+        } catch (java.lang.reflect.InvocationTargetException ite) {
+            ite.printStackTrace();
+            player.sendMessage(ChatColor.RED + "An error occurred while running that command.");
+            return true;
+        } catch (NoSuchMethodException | IllegalAccessException | IllegalArgumentException e) {
+            e.printStackTrace();
+            player.sendMessage(ChatColor.RED + "An internal error occurred while executing that command.");
+            return true;
+        } catch (Exception e) {
+            e.printStackTrace();
+            player.sendMessage(ChatColor.RED + "An unexpected error occurred.");
+            return true;
         }
     }
 
