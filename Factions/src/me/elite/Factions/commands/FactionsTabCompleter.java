@@ -22,7 +22,7 @@ public class FactionsTabCompleter implements TabCompleter {
             List<String> commands = new ArrayList<>();
 
             // Basic commands everyone can see
-            commands.addAll(Arrays.asList("create", "claim", "pr...cy", "ally", "truce", "enemy", "neutral", "confirm", "cancel"));
+            commands.addAll(Arrays.asList("create", "claim", "privacy", "ally", "truce", "enemy", "neutral", "confirm", "cancel", "power"));
 
             // Admin commands - only show if player has permission or is op
             if (sender.isOp() || sender.hasPermission("factions.adminclaim")) {
@@ -39,6 +39,9 @@ public class FactionsTabCompleter implements TabCompleter {
             }
             if (sender.isOp() || sender.hasPermission("factions.load")) {
                 commands.add("load");
+            }
+            if (sender.isOp()) {
+                commands.addAll(Arrays.asList("debugpower", "debugfakepower", "debugplaytime", "debugreset", "debuginfo"));
             }
 
             // Filter top-level command suggestions by what the player has started typing
@@ -142,6 +145,29 @@ public class FactionsTabCompleter implements TabCompleter {
                             .filter(n -> n.toLowerCase().startsWith(partial))
                             .collect(Collectors.toList());
                 }
+                return Collections.emptyList();
+            case "debugpower":
+                if (args.length == 2) {
+                    return Arrays.asList("add", "set", "max").stream()
+                            .filter(action -> action.toLowerCase().startsWith(partial))
+                            .collect(Collectors.toList());
+                }
+                return Collections.emptyList();
+
+            case "debugfakepower":
+            case "debugplaytime":
+                // These commands just take numbers, no tab completion needed
+                return Collections.emptyList();
+
+            case "debugreset":
+                // Show online player names
+                return Bukkit.getOnlinePlayers().stream()
+                        .map(Player::getName)
+                        .filter(name -> name.toLowerCase().startsWith(partial))
+                        .collect(Collectors.toList());
+
+            case "debuginfo":
+                // No arguments needed
                 return Collections.emptyList();
 
             default:

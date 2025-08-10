@@ -133,4 +133,96 @@ public class FactionUtilityManager {
         }
         return totalClaims;
     }
+
+    /**
+     * Get corner claims for a specific world
+     * Returns a map with corner positions as keys and faction names as values
+     */
+    /**
+     * Get corner claims for a specific world
+     * Returns a map with corner positions as keys and faction names as values
+     */
+    public Map<String, String> getWorldCornerClaims(String worldName) {
+        Map<String, String> cornerClaims = new HashMap<>();
+
+        // Calculate corner coordinates (worldborder set to 24991 for chunk alignment)
+        // This creates asymmetrical corners due to chunk boundaries:
+        // Some corners at 12494, others at 12495
+
+        // Define the actual 4 corners in chunk coordinates based on your world border
+        ChunkCoord cornerNegNeg = new ChunkCoord(-781, -781); // Bottom-left (-, -) = -12496, -12496
+        ChunkCoord cornerNegPos = new ChunkCoord(-781, 780);  // Top-left (-, +) = -12496, 12480
+        ChunkCoord cornerPosPos = new ChunkCoord(780, 780);   // Top-right (+, +) = 12480, 12480
+        ChunkCoord cornerPosNeg = new ChunkCoord(780, -781);  // Bottom-right (+, -) = 12480, -12496
+
+        // Get claims for this world
+        Map<ChunkCoord, String> claims = worldClaims.get(worldName);
+        if (claims == null) {
+            // No claims in this world - all corners are unclaimed
+            cornerClaims.put("- -", "Unclaimed");
+            cornerClaims.put("- +", "Unclaimed");
+            cornerClaims.put("+ +", "Unclaimed");
+            cornerClaims.put("+ -", "Unclaimed");
+            return cornerClaims;
+        }
+
+        // Check each corner
+        cornerClaims.put("- -", getClaimOwner(claims, cornerNegNeg));
+        cornerClaims.put("- +", getClaimOwner(claims, cornerNegPos));
+        cornerClaims.put("+ +", getClaimOwner(claims, cornerPosPos));
+        cornerClaims.put("+ -", getClaimOwner(claims, cornerPosNeg));
+
+        return cornerClaims;
+    }
+
+    /**
+     * Get the owner of a specific chunk claim
+     */
+    private String getClaimOwner(Map<ChunkCoord, String> worldClaims, ChunkCoord coord) {
+        String owner = worldClaims.get(coord);
+        if (owner == null || owner.equals("Wilderness")) {
+            return "Unclaimed";
+        }
+        return owner;
+    }
+
+    /**
+     * Format corner claims for display in lore
+     */
+    public List<String> formatCornerClaimsForLore(String worldName) {
+        Map<String, String> corners = getWorldCornerClaims(worldName);
+
+        List<String> lore = new ArrayList<>();
+        lore.add("§7Corners:");
+
+        for (Map.Entry<String, String> entry : corners.entrySet()) {
+            String position = entry.getKey();
+            String owner = entry.getValue();
+
+            // Color code based on claim status
+            String color = owner.equals("Unclaimed") ? "§7" : "§a"; // Gray for unclaimed, green for claimed
+            lore.add("§7 " + position + " " + color + owner);
+        }
+
+        return lore;
+    }
+
+    /**
+     * Get a summary of corner claims for a world (for quick checks)
+     */
+    public String getCornerClaimSummary(String worldName) {
+        Map<String, String> corners = getWorldCornerClaims(worldName);
+
+        long claimedCount = corners.values().stream()
+                .filter(owner -> !owner.equals("Unclaimed"))
+                .count();
+
+        if (claimedCount == 0) {
+            return "§7All corners unclaimed";
+        } else if (claimedCount == 4) {
+            return "§c All corners claimed";
+        } else {
+            return "§e" + claimedCount + "/4 corners claimed";
+        }
+    }
 }

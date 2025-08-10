@@ -46,11 +46,31 @@ public class ClaimManager {
             return false;
         }
 
+        // Check faction power
+        if (!plugin.getPowerManager().canFactionClaim(factionName)) {
+            int availablePower = plugin.getPowerManager().getFactionAvailablePower(factionName);
+            MessageManager.sendError(player, "Insufficient faction power to claim! Available: " + availablePower + ", Required: " + me.elite.Factions.power.PowerManager.POWER_PER_CHUNK);
+            MessageManager.sendInfo(player, "Use /f power to see power information");
+            return false;
+        }
+
+        // Consume power for the claim
+        if (!plugin.getPowerManager().consumePowerForClaim(factionName)) {
+            MessageManager.sendError(player, "Failed to consume power for claim!");
+            return false;
+        }
+
         claims.put(coord, factionName);
-        MessageManager.sendSuccess(player,"Chunk claimed for faction: " + factionName);
+        MessageManager.sendSuccess(player,"Chunk claimed for faction: " + factionName + " (Cost: " + me.elite.Factions.power.PowerManager.POWER_PER_CHUNK + " power)");
+
+        // Show remaining power
+        int remainingPower = plugin.getPowerManager().getFactionAvailablePower(factionName);
+        MessageManager.sendInfo(player, "Remaining faction power: " + remainingPower);
+
         return true;
     }
 
+    // Update the unclaimChunk method to handle different restore amount:
     public boolean unclaimChunk(Player player, String factionName) {
         Chunk chunk = player.getLocation().getChunk();
         String world = player.getWorld().getName();
@@ -74,7 +94,21 @@ public class ClaimManager {
 
         claims.remove(coord);
         claims.put(coord, "Wilderness");
-        MessageManager.sendInfo(player,"Chunk unclaimed and returned to Wilderness.");
+
+        // Show the different restore amount
+        int restoreAmount = plugin.getPowerManager().getPowerRestoredPerChunk();
+        MessageManager.sendInfo(player,"Chunk unclaimed and returned to Wilderness. (Power effectively restored: " + restoreAmount + ")");
+
+        // Show current available power (this automatically reflects the unclaim since we calculate dynamically)
+        int availablePower = plugin.getPowerManager().getFactionAvailablePower(factionName);
+        MessageManager.sendInfo(player, "Available faction power: " + availablePower);
+
+        // Warn about power loss from claiming/unclaiming cycle
+        int powerLossPerCycle = me.elite.Factions.power.PowerManager.POWER_PER_CHUNK - restoreAmount;
+        if (powerLossPerCycle > 0) {
+            MessageManager.sendInfo(player, "§eNote: §7Claiming and unclaiming costs " + powerLossPerCycle + " net power due to claiming fees");
+        }
+
         return true;
     }
 
@@ -87,13 +121,26 @@ public class ClaimManager {
         }
 
         int unclaimedCount = 0;
-        Iterator<Map.Entry<ChunkCoord, String>> iterator = claims.entrySet().iterator();
-        while (iterator.hasNext()) {
-            Map.Entry<ChunkCoord, String> entry = iterator.next();
+
+        // Create a list of chunks to unclaim to avoid ConcurrentModificationException
+        List<ChunkCoord> chunksToUnclaim = new ArrayList<>();
+
+        // First pass: identify chunks to unclaim
+        for (Map.Entry<ChunkCoord, String> entry : claims.entrySet()) {
             if (entry.getValue().equals(factionName)) {
-                iterator.remove();
-                claims.put(entry.getKey(), "Wilderness");
-                unclaimedCount++;
+                chunksToUnclaim.add(entry.getKey());
+            }
+        }
+
+        // Second pass: actually unclaim them
+        for (ChunkCoord coord : chunksToUnclaim) {
+            claims.remove(coord);
+            claims.put(coord, "Wilderness");
+            unclaimedCount++;
+
+            // Restore power for each unclaimed chunk
+            if (plugin.getPowerManager() != null) {
+                plugin.getPowerManager().restorePowerForUnclaim(factionName);
             }
         }
 
@@ -101,7 +148,15 @@ public class ClaimManager {
             MessageManager.sendError(player,"Your faction has no claims in this world.");
         } else {
             MessageManager.sendInfo(player,"Unclaimed " + unclaimedCount + " chunks and returned them to Wilderness.");
+
+            // Show power restoration info
+            if (plugin.getPowerManager() != null) {
+                int totalPowerRestored = unclaimedCount * plugin.getPowerManager().getPowerRestoredPerChunk();
+                int availablePower = plugin.getPowerManager().getFactionAvailablePower(factionName);
+                MessageManager.sendInfo(player, "Power restored: " + totalPowerRestored + " (Available: " + availablePower + ")");
+            }
         }
+
         return unclaimedCount;
     }
 
@@ -153,13 +208,26 @@ public class ClaimManager {
         }
 
         int unclaimedCount = 0;
-        Iterator<Map.Entry<ChunkCoord, String>> iterator = claims.entrySet().iterator();
-        while (iterator.hasNext()) {
-            Map.Entry<ChunkCoord, String> entry = iterator.next();
+
+        // Create a list of chunks to unclaim to avoid ConcurrentModificationException
+        List<ChunkCoord> chunksToUnclaim = new ArrayList<>();
+
+        // First pass: identify chunks to unclaim
+        for (Map.Entry<ChunkCoord, String> entry : claims.entrySet()) {
             if (entry.getValue().equalsIgnoreCase(targetFaction)) {
-                iterator.remove();
-                claims.put(entry.getKey(), "Wilderness");
-                unclaimedCount++;
+                chunksToUnclaim.add(entry.getKey());
+            }
+        }
+
+        // Second pass: actually unclaim them
+        for (ChunkCoord coord : chunksToUnclaim) {
+            claims.remove(coord);
+            claims.put(coord, "Wilderness");
+            unclaimedCount++;
+
+            // Restore power for each unclaimed chunk (for admin unclaims too)
+            if (plugin.getPowerManager() != null) {
+                plugin.getPowerManager().restorePowerForUnclaim(targetFaction);
             }
         }
 
@@ -167,7 +235,14 @@ public class ClaimManager {
             MessageManager.sendError(player,"Faction '" + targetFaction + "' has no claims in this world.");
         } else {
             MessageManager.sendSuccess(player, "Unclaimed " + unclaimedCount + " chunks from " + targetFaction + " and returned them to Wilderness.");
+
+            // Show power restoration info
+            if (plugin.getPowerManager() != null) {
+                int totalPowerRestored = unclaimedCount * plugin.getPowerManager().getPowerRestoredPerChunk();
+                MessageManager.sendInfo(player, "Power restored to " + targetFaction + ": " + totalPowerRestored);
+            }
         }
+
         return unclaimedCount;
     }
 

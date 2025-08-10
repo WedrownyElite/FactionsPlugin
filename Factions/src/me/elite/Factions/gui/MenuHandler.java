@@ -42,6 +42,7 @@ public class MenuHandler {
     private final Map<UUID, Set<String>> playerInvitations;
     private Rank targetCurrentRank;
     private Rank currentManagerRank;
+    private final Map<UUID, String> pendingOwnershipTransfersGUI = new HashMap<>();
 
     // Track pending kick confirmations
     private final Map<UUID, UUID> pendingKicks = new HashMap<>(); // kicker -> target
@@ -1734,71 +1735,218 @@ public class MenuHandler {
 
         // Extract target player name from title
         String targetName = title.replace(ChatColor.DARK_GRAY + "Manage: ", "");
-        OfflinePlayer target = Bukkit.getOfflinePlayer(targetName);
+
+        // Find the target player (online or offline)
+        OfflinePlayer target = null;
+
+        // First try to find online player
+        Player onlineTarget = Bukkit.getPlayerExact(targetName);
+        if (onlineTarget != null) {
+            target = onlineTarget;
+        } else {
+            // Try to find offline player by searching faction members
+            String factionName = playerFactions.get(manager.getUniqueId());
+            Faction faction = factions.get(factionName);
+            if (faction != null) {
+                for (UUID memberUUID : faction.members.keySet()) {
+                    OfflinePlayer offlinePlayer = Bukkit.getOfflinePlayer(memberUUID);
+                    if (offlinePlayer.getName() != null && offlinePlayer.getName().equalsIgnoreCase(targetName)) {
+                        target = offlinePlayer;
+                        break;
+                    }
+                }
+            }
+        }
+
+        if (target == null) {
+            MessageManager.sendError(manager, "Could not find player: " + targetName);
+            return;
+        }
 
         String factionName = playerFactions.get(manager.getUniqueId());
         Faction faction = factions.get(factionName);
 
-        if (faction == null) return;
+        if (faction == null) {
+            MessageManager.sendError(manager, "Faction not found.");
+            return;
+        }
 
         Rank managerRank = faction.members.get(manager.getUniqueId());
         Rank targetRank = faction.members.get(target.getUniqueId());
 
+        // Verify target is still in the faction
+        if (targetRank == null) {
+            MessageManager.sendError(manager, targetName + " is no longer in your faction.");
+            return;
+        }
+
         // Parse clicked rank from display name
+        Rank clickedRank = null;
         for (Rank rank : Rank.values()) {
             if (displayName.contains(rank.name())) {
-                // Check if this is current rank (no action needed)
-                if (targetRank == rank) {
-                    MessageManager.sendInfo(manager, targetName + " is already " + rank.name() + "!");
-                    return;
-                }
-
-                // Check permissions
-                if (!canPromoteToRank(managerRank, targetRank, rank, manager.getUniqueId().equals(target.getUniqueId()))) {
-                    MessageManager.sendError(manager, "You cannot promote " + targetName + " to " + rank.name() + "!");
-                    return;
-                }
-
-                // Perform the rank change
-                faction.members.put(target.getUniqueId(), rank);
-
-                // Send messages
-                boolean isPromotion = rank.ordinal() > targetRank.ordinal();
-                String action = isPromotion ? "promoted" : "demoted";
-
-                MessageManager.sendSuccess(manager, "Successfully " + action + " " + targetName + " to " + rank.name() + "!");
-
-                if (target.isOnline()) {
-                    Player onlineTarget = (Player) target;
-                    if (isPromotion) {
-                        MessageManager.sendPromoted(onlineTarget, rank.name(), manager.getName());
-                    } else {
-                        MessageManager.sendDemoted(onlineTarget, rank.name(), manager.getName());
-                    }
-                }
-
-                // Notify other faction members
-                for (UUID memberUUID : faction.members.keySet()) {
-                    Player member = Bukkit.getPlayer(memberUUID);
-                    if (member != null && !member.equals(manager) && !member.getUniqueId().equals(target.getUniqueId())) {
-                        MessageManager.sendMemberInfoMessage(member, targetName + " was " + action + " to " + rank.name() + " by " + manager.getName());
-                    }
-                }
-
-                // Save and close GUI
-                plugin.getDataManager().saveFactionData();
-                manager.closeInventory();
-                return;
+                clickedRank = rank;
+                break;
             }
         }
+
+        if (clickedRank == null) {
+            // Not a rank button, ignore
+            return;
+        }
+
+        // Check if this is current rank (no action needed)
+        if (targetRank == clickedRank) {
+            MessageManager.sendInfo(manager, targetName + " is already " + clickedRank.name() + "!");
+            return;
+        }
+
+        // Check permissions using the existing helper method
+        if (!canPromoteToRank(managerRank, targetRank, clickedRank, manager.getUniqueId().equals(target.getUniqueId()))) {
+            if (manager.getUniqueId().equals(target.getUniqueId())) {
+                MessageManager.sendError(manager, "You cannot change your own rank!");
+            } else if (clickedRank.ordinal() >= managerRank.ordinal()) {
+                MessageManager.sendError(manager, "You cannot promote " + targetName + " to " + clickedRank.name() + " (equal or higher than your rank)!");
+            } else if (targetRank.ordinal() >= managerRank.ordinal()) {
+                MessageManager.sendError(manager, "You cannot modify the rank of " + targetName + " (they are equal or higher rank than you)!");
+            } else {
+                MessageManager.sendError(manager, "You cannot assign the rank " + clickedRank.name() + " to " + targetName + "!");
+            }
+            return;
+        }
+
+        // Special handling for promoting to OWNER (ownership transfer)
+        if (clickedRank == Rank.OWNER && managerRank == Rank.OWNER && targetRank == Rank.ADMIN) {
+            // Initiate ownership transfer confirmation
+            pendingOwnershipTransfersGUI.put(manager.getUniqueId(), targetName);
+
+            // Close current GUI and show ownership transfer warning
+            manager.closeInventory();
+            MessageManager.sendOwnerTransferWarning(manager, targetName, factionName);
+
+            // Schedule expiration of the confirmation
+            Bukkit.getScheduler().runTaskLater(plugin, () -> {
+                if (pendingOwnershipTransfersGUI.containsKey(manager.getUniqueId())) {
+                    pendingOwnershipTransfersGUI.remove(manager.getUniqueId());
+                    if (manager.isOnline()) {
+                        MessageManager.sendError(manager, "Ownership transfer confirmation expired.");
+                    }
+                }
+            }, 20L * 30); // 30 seconds
+
+            return;
+        } else if (clickedRank == Rank.OWNER && managerRank == Rank.OWNER) {
+            MessageManager.sendError(manager, "Can only promote ADMINs to OWNER. " + targetName + " must be ADMIN first.");
+            return;
+        }
+
+        // Perform the rank change
+        faction.members.put(target.getUniqueId(), clickedRank);
+
+        // Determine if this was a promotion or demotion
+        boolean isPromotion = clickedRank.ordinal() > targetRank.ordinal();
+        String action = isPromotion ? "promoted" : "demoted";
+
+        // Send success message to manager
+        MessageManager.sendSuccess(manager, "Successfully " + action + " " + targetName + " from " +
+                ChatColor.WHITE + targetRank.name() + ChatColor.GREEN + " to " + ChatColor.WHITE + clickedRank.name() + ChatColor.GREEN + "!");
+
+        // Send message to target if they're online
+        if (target.isOnline()) {
+            Player onlineTargetPlayer = (Player) target;
+            if (isPromotion) {
+                MessageManager.sendPromoted(onlineTargetPlayer, clickedRank.name(), manager.getName());
+            } else {
+                MessageManager.sendDemoted(onlineTargetPlayer, clickedRank.name(), manager.getName());
+            }
+        }
+
+        // Notify other online faction members
+        for (UUID memberUUID : faction.members.keySet()) {
+            Player member = Bukkit.getPlayer(memberUUID);
+            if (member != null && !member.equals(manager) && !member.getUniqueId().equals(target.getUniqueId())) {
+                MessageManager.sendMemberInfoMessage(member, targetName + " was " + action + " to " +
+                        clickedRank.name() + " by " + manager.getName());
+            }
+        }
+
+        // Save data
+        plugin.getDataManager().saveFactionData();
+
+        // Reopen the same GUI to reflect changes (DO NOT CLOSE)
+        openRankManagementGUI(manager, target, factionName);
     }
 
-    private Rank getTargetCurrentRank() {
-        return targetCurrentRank;
+    /**
+     * Handle ownership transfer confirmation from GUI context
+     */
+    public boolean handleGUIOwnershipTransfer(Player player, String targetName, String factionName) {
+        UUID uuid = player.getUniqueId();
+
+        // Check if there's a pending transfer
+        String pendingTarget = pendingOwnershipTransfersGUI.get(uuid);
+        if (pendingTarget == null || !pendingTarget.equals(targetName)) {
+            MessageManager.sendError(player, "No pending ownership transfer found or confirmation expired.");
+            return false;
+        }
+
+        // Remove the pending transfer
+        pendingOwnershipTransfersGUI.remove(uuid);
+
+        Player target = Bukkit.getPlayerExact(targetName);
+        if (target == null) {
+            MessageManager.sendError(player, "Target player " + targetName + " is no longer online.");
+            return false;
+        }
+
+        UUID targetUUID = target.getUniqueId();
+
+        // Verify target is still in the faction and is ADMIN
+        if (!factionName.equals(playerFactions.get(targetUUID))) {
+            MessageManager.sendError(player, targetName + " is no longer in your faction.");
+            return false;
+        }
+
+        Faction faction = factions.get(factionName);
+        Rank playerRank = faction.members.get(uuid);
+        Rank targetRank = faction.members.get(targetUUID);
+
+        if (playerRank != Rank.OWNER) {
+            MessageManager.sendError(player, "You are no longer the faction owner.");
+            return false;
+        }
+
+        if (targetRank != Rank.ADMIN) {
+            MessageManager.sendError(player, targetName + " is no longer an Admin.");
+            return false;
+        }
+
+        // Perform the ownership transfer
+        faction.members.put(targetUUID, Rank.OWNER); // Promote target to OWNER
+        faction.members.put(uuid, Rank.ADMIN);       // Demote current owner to ADMIN
+        faction.owner = targetUUID;                  // Update faction owner field
+
+        // Send messages
+        MessageManager.sendOwnerTransferSuccess(player, target, factionName);
+
+        // Notify all other faction members
+        for (UUID memberUUID : faction.members.keySet()) {
+            Player member = Bukkit.getPlayer(memberUUID);
+            if (member != null && !member.equals(player) && !member.equals(target)) {
+                MessageManager.sendMemberOwnerTransferSuccess(member, player, targetName, factionName);
+            }
+        }
+
+        // Save data
+        plugin.getDataManager().saveFactionData();
+
+        return true;
     }
 
-    private Rank getCurrentManagerRank() {
-        return currentManagerRank;
+    /**
+     * Clear pending ownership transfer (for cleanup)
+     */
+    public void clearPendingOwnershipTransfer(UUID playerUUID) {
+        pendingOwnershipTransfersGUI.remove(playerUUID);
     }
 
     public void handleConfirmationMenuClick(Player player, String displayName, String title) {
@@ -2639,6 +2787,21 @@ public class MenuHandler {
             return faction.hasPermission(playerRank, equivalentPermission);
         }
         return true;
+    }
+
+    private Rank getTargetCurrentRank() {
+        return targetCurrentRank;
+    }
+
+    private Rank getCurrentManagerRank() {
+        return currentManagerRank;
+    }
+
+    /**
+     * Get pending GUI ownership transfer target name
+     */
+    public String getPendingGUIOwnershipTransfer(UUID playerUUID) {
+        return pendingOwnershipTransfersGUI.get(playerUUID);
     }
 
     /**

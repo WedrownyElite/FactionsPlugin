@@ -87,7 +87,8 @@ public class Faction {
                 FactionPermission.CHANGE_DESCRIPTION,
                 FactionPermission.SET_DISCORD,
                 FactionPermission.SET_ANNOUNCEMENTS,
-                FactionPermission.OPEN_CLOSE
+                FactionPermission.OPEN_CLOSE,
+                FactionPermission.MANAGE_PERMISSIONS
         ));
         return perms;
     }

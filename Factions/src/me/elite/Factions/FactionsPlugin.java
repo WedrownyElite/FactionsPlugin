@@ -14,6 +14,7 @@ import me.elite.Factions.utils.FactionUtilityManager;
 import me.elite.Factions.Relations.RelationManager;
 import me.elite.Factions.nametags.PacketNametagManager;
 import me.elite.Factions.gui.BrowserMenuHandler;
+import me.elite.Factions.power.PowerManager;
 
 import org.bukkit.Bukkit;
 import org.bukkit.Chunk;
@@ -35,6 +36,7 @@ public class FactionsPlugin extends JavaPlugin implements Listener {
     private final Map<UUID, String> pendingFactionNames = new HashMap<>();
     private final Map<UUID, Set<String>> playerInvitations = new HashMap<>();
 
+
     // Manager instances
     private DataManager dataManager;
     private PermissionManager permissionManager;
@@ -47,6 +49,7 @@ public class FactionsPlugin extends JavaPlugin implements Listener {
     private RelationManager relationManager;
     private PacketNametagManager nametagManager;
     private BrowserMenuHandler browserMenuHandler;
+    private PowerManager powerManager;
 
     @Override
     public void onEnable() {
@@ -65,6 +68,7 @@ public class FactionsPlugin extends JavaPlugin implements Listener {
         relationManager = new RelationManager(this);
         nametagManager = new PacketNametagManager(this);
         browserMenuHandler = new BrowserMenuHandler(this);
+        powerManager = new PowerManager(this);
 
         // Load data
         dataManager.loadFactionData();
@@ -98,6 +102,10 @@ public class FactionsPlugin extends JavaPlugin implements Listener {
 
     public Map<UUID, Set<String>> getPlayerInvitations() {
         return playerInvitations;
+    }
+
+    public PowerManager getPowerManager() {
+        return powerManager;
     }
 
     public BrowserMenuHandler getBrowserMenuHandler() {return browserMenuHandler;}

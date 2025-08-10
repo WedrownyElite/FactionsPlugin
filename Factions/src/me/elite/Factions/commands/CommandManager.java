@@ -2,6 +2,7 @@ package me.elite.Factions.commands;
 
 import com.mojang.brigadier.Message;
 import me.elite.Factions.FactionsPlugin;
+import me.elite.Factions.permissions.PermissionManager;
 import me.elite.Factions.territory.ChunkCoord;
 import me.elite.Factions.data.Faction;
 import me.elite.Factions.data.Rank;
@@ -17,6 +18,7 @@ import org.bukkit.command.Command;
 import org.bukkit.command.CommandExecutor;
 import org.bukkit.command.CommandSender;
 import org.bukkit.entity.Player;
+import org.bukkit.scheduler.BukkitRunnable;
 import java.util.Set;
 import java.util.HashSet;
 
@@ -111,6 +113,18 @@ public class CommandManager implements CommandExecutor {
                 return handleWithUsage(args[0].toLowerCase(), "handleCancelOwnership", player, args);
             case "debugnametags":
                 return handleWithUsage(args[0].toLowerCase(), "handleDebugNametags", player, args);
+            case "power":
+                return handleWithUsage(args[0].toLowerCase(), "handlePower", player, args);
+            case "debugpower":
+                return handleWithUsage(args[0].toLowerCase(), "handleDebugPower", player, args);
+            case "debugfakepower":
+                return handleWithUsage(args[0].toLowerCase(), "handleDebugFakePower", player, args);
+            case "debugplaytime":
+                return handleWithUsage(args[0].toLowerCase(), "handleDebugPlaytime", player, args);
+            case "debugreset":
+                return handleWithUsage(args[0].toLowerCase(), "handleDebugReset", player, args);
+            case "debuginfo":
+                return handleWithUsage(args[0].toLowerCase(), "handleDebugInfo", player, args);
             default:
                 return false;
         }
@@ -150,10 +164,231 @@ public class CommandManager implements CommandExecutor {
         usages.put("unclaimall", "Usage: /f unclaimall - Unclaim all land for your faction.");
         usages.put("adminunclaimall", "Usage: /f adminunclaimall - Admin unclaim all.");
         usages.put("adminjoin", "Usage: /f adminjoin <player> <faction> - Force join a player to a faction.");
+        usages.put("power", "Usage: /f power - View your faction's power information.");
+        usages.put("debugpower", "Usage: /f debugpower <add|set|max> <amount> - Debug: Modify your power.");
+        usages.put("debugfakepower", "Usage: /f debugfakepower <amount> - Debug: Add fake faction power (simulates more members).");
+        usages.put("debugplaytime", "Usage: /f debugplaytime <hours> - Debug: Simulate playtime for power regen.");
+        usages.put("debugreset", "Usage: /f debugreset [player] - Debug: Reset power data to defaults.");
+        usages.put("debuginfo", "Usage: /f debuginfo - Debug: Show detailed power breakdown.");
 
         String key = subCommand == null ? "" : subCommand.toLowerCase();
         if (usages.containsKey(key)) return usages.get(key);
         return "Usage: /f " + key + " [args] - Invalid or missing arguments.";
+    }
+
+    private boolean handleDebugPower(Player player, String[] args) {
+        if (!player.isOp()) {
+            MessageManager.sendError(player, "You must be an operator to use debug commands.");
+            return true;
+        }
+
+        if (args.length < 3) {
+            MessageManager.sendError(player, "Usage: /f debugpower <add|set|max> <amount>");
+            MessageManager.sendInfo(player, "• add - Add power to current");
+            MessageManager.sendInfo(player, "• set - Set current power");
+            MessageManager.sendInfo(player, "• max - Set maximum power");
+            return true;
+        }
+
+        String action = args[1].toLowerCase();
+        int amount;
+        try {
+            amount = Integer.parseInt(args[2]);
+        } catch (NumberFormatException e) {
+            MessageManager.sendError(player, "Invalid number: " + args[2]);
+            return true;
+        }
+
+        UUID uuid = player.getUniqueId();
+        plugin.getPowerManager().initializePlayerPower(uuid);
+
+        switch (action) {
+            case "add":
+                plugin.getPowerManager().debugAddPower(uuid, amount);
+                MessageManager.sendSuccess(player, "Added " + amount + " power to your account!");
+                break;
+            case "set":
+                plugin.getPowerManager().debugSetPower(uuid, amount);
+                MessageManager.sendSuccess(player, "Set your power to " + amount + "!");
+                break;
+            case "max":
+                plugin.getPowerManager().debugSetMaxPower(uuid, amount);
+                MessageManager.sendSuccess(player, "Set your max power to " + amount + "!");
+                break;
+            default:
+                MessageManager.sendError(player, "Invalid action. Use: add, set, or max");
+                return true;
+        }
+
+        // Show updated power
+        plugin.getPowerManager().sendPowerInfo(player);
+        return true;
+    }
+
+    private boolean handleDebugFakePower(Player player, String[] args) {
+        if (!player.isOp()) {
+            MessageManager.sendError(player, "You must be an operator to use debug commands.");
+            return true;
+        }
+
+        String factionName = playerFactions.get(player.getUniqueId());
+        if (factionName == null) {
+            MessageManager.sendError(player, "You must be in a faction to use this command.");
+            return true;
+        }
+
+        if (args.length < 2) {
+            MessageManager.sendError(player, "Usage: /f debugfakepower <amount>");
+            MessageManager.sendInfo(player, "This simulates having more members by adding fake power to your faction.");
+            return true;
+        }
+
+        int amount;
+        try {
+            amount = Integer.parseInt(args[1]);
+        } catch (NumberFormatException e) {
+            MessageManager.sendError(player, "Invalid number: " + args[1]);
+            return true;
+        }
+
+        plugin.getPowerManager().debugAddFakePower(factionName, amount);
+        MessageManager.sendSuccess(player, "Added " + amount + " fake power to faction " + factionName + "!");
+        MessageManager.sendInfo(player, "This simulates having " + (amount / 20) + " additional max-power members.");
+
+        // Show updated power
+        plugin.getPowerManager().sendPowerInfo(player);
+        return true;
+    }
+
+    private boolean handleDebugPlaytime(Player player, String[] args) {
+        if (!player.isOp()) {
+            MessageManager.sendError(player, "You must be an operator to use debug commands.");
+            return true;
+        }
+
+        if (args.length < 2) {
+            MessageManager.sendError(player, "Usage: /f debugplaytime <hours>");
+            MessageManager.sendInfo(player, "Simulates the specified hours of playtime for power regeneration.");
+            return true;
+        }
+
+        double hours;
+        try {
+            hours = Double.parseDouble(args[1]);
+        } catch (NumberFormatException e) {
+            MessageManager.sendError(player, "Invalid number: " + args[1]);
+            return true;
+        }
+
+        UUID uuid = player.getUniqueId();
+        plugin.getPowerManager().initializePlayerPower(uuid);
+
+        int powerGained = plugin.getPowerManager().debugSimulatePlaytime(uuid, hours);
+        MessageManager.sendSuccess(player, "Simulated " + hours + " hours of playtime!");
+        MessageManager.sendInfo(player, "Power gained: " + powerGained + " (1 power per hour)");
+
+        // Show updated power
+        plugin.getPowerManager().sendPowerInfo(player);
+        return true;
+    }
+
+    private boolean handleDebugReset(Player player, String[] args) {
+        if (!player.isOp()) {
+            MessageManager.sendError(player, "You must be an operator to use debug commands.");
+            return true;
+        }
+
+        UUID targetUUID;
+        String targetName;
+
+        if (args.length >= 2) {
+            // Reset specific player
+            Player target = Bukkit.getPlayerExact(args[1]);
+            if (target == null) {
+                MessageManager.sendError(player, "Player not found: " + args[1]);
+                return true;
+            }
+            targetUUID = target.getUniqueId();
+            targetName = target.getName();
+        } else {
+            // Reset self
+            targetUUID = player.getUniqueId();
+            targetName = player.getName();
+        }
+
+        plugin.getPowerManager().debugResetPower(targetUUID);
+        MessageManager.sendSuccess(player, "Reset power data for " + targetName + " to defaults!");
+
+        // Reset faction consumed power if player is faction owner
+        String factionName = playerFactions.get(targetUUID);
+        if (factionName != null) {
+            Faction faction = factions.get(factionName);
+            if (faction != null && faction.owner.equals(targetUUID)) {
+                plugin.getPowerManager().debugResetFactionConsumedPower(factionName);
+                MessageManager.sendInfo(player, "Also reset consumed power for faction " + factionName);
+            }
+        }
+
+        if (targetUUID.equals(player.getUniqueId())) {
+            plugin.getPowerManager().sendPowerInfo(player);
+        }
+
+        return true;
+    }
+
+    private boolean handleDebugInfo(Player player, String[] args) {
+        if (!player.isOp()) {
+            MessageManager.sendError(player, "You must be an operator to use debug commands.");
+            return true;
+        }
+
+        MessageManager.sendBasicMessage(player, "§6§l=== DEBUG POWER INFO ===");
+
+        // Personal power info
+        UUID uuid = player.getUniqueId();
+        int currentPower = plugin.getPowerManager().getPlayerPower(uuid);
+        int maxPower = plugin.getPowerManager().getPlayerMaxPower(uuid);
+        MessageManager.sendBasicMessage(player, "§eYour Power Details:");
+        MessageManager.sendBasicMessage(player, "  §7Current: §f" + currentPower + " §7Max: §f" + maxPower);
+
+        // Faction power breakdown
+        String factionName = playerFactions.get(uuid);
+        if (factionName != null) {
+            MessageManager.sendBasicMessage(player, "§eFaction Power Breakdown:");
+            MessageManager.sendBasicMessage(player, "  §7Faction: §f" + factionName);
+
+            int basePower = plugin.getPowerManager().getFactionPower(factionName);
+            int fakePower = plugin.getPowerManager().debugGetFakePower(factionName);
+            int totalBasePower = basePower + fakePower;
+            int consumedPower = plugin.getPowerManager().getFactionConsumedPower(factionName);
+            int effectivePower = plugin.getPowerManager().getFactionEffectivePower(factionName);
+            int usedPower = plugin.getPowerManager().getFactionUsedPower(factionName);
+            int availablePower = plugin.getPowerManager().getFactionAvailablePower(factionName);
+
+            MessageManager.sendBasicMessage(player, "  §7Real Member Power: §f" + basePower);
+            if (fakePower > 0) {
+                MessageManager.sendBasicMessage(player, "  §7Fake Power (Debug): §e" + fakePower);
+            }
+            MessageManager.sendBasicMessage(player, "  §7Total Base Power: §f" + totalBasePower);
+            MessageManager.sendBasicMessage(player, "  §7Consumed Power: §c-" + consumedPower);
+            MessageManager.sendBasicMessage(player, "  §7Effective Power: §f" + effectivePower);
+            MessageManager.sendBasicMessage(player, "  §7Claim Maintenance: §c-" + usedPower);
+            MessageManager.sendBasicMessage(player, "  §7Available Power: §a" + availablePower);
+
+            // Calculate claims info
+            int currentClaims = usedPower / 2; // Each claim costs 2 power
+            int maxPossibleClaims = effectivePower / 2;
+            MessageManager.sendBasicMessage(player, "  §7Current Claims: §f" + currentClaims + " chunks");
+            MessageManager.sendBasicMessage(player, "  §7Max Possible Claims: §f" + maxPossibleClaims + " chunks");
+        }
+
+        MessageManager.sendBasicMessage(player, "§6§l======================");
+        return true;
+    }
+
+    private boolean handlePower(Player player, String[] args) {
+        plugin.getPowerManager().sendPowerInfo(player);
+        return true;
     }
 
     private boolean handleWithUsage(String subCommand, String handlerMethodName, Player player, String[] args) {
@@ -812,6 +1047,15 @@ public class CommandManager implements CommandExecutor {
     private boolean handleCancelOwnership(Player player, String[] args) {
         UUID uuid = player.getUniqueId();
 
+        // Check for GUI context first
+        String guiTargetName = plugin.getMenuHandler().getPendingGUIOwnershipTransfer(uuid);
+        if (guiTargetName != null) {
+            plugin.getMenuHandler().clearPendingOwnershipTransfer(uuid);
+            MessageManager.sendInfo(player, "Ownership transfer to " + guiTargetName + " has been cancelled.");
+            return true;
+        }
+
+        // Original command-based logic
         String targetName = pendingOwnershipTransfers.get(uuid);
         if (targetName == null) {
             MessageManager.sendError(player, "No pending ownership transfer found.");
@@ -849,6 +1093,26 @@ public class CommandManager implements CommandExecutor {
             return true;
         }
 
+        // First check if this is a GUI-initiated ownership transfer
+        String guiTargetName = plugin.getMenuHandler().getPendingGUIOwnershipTransfer(uuid);
+        if (guiTargetName != null) {
+            // Handle GUI ownership transfer
+            boolean success = plugin.getMenuHandler().handleGUIOwnershipTransfer(player, guiTargetName, factionName);
+            if (success) {
+                // Optionally reopen the members menu
+                new BukkitRunnable() {
+                    @Override
+                    public void run() {
+                        if (player.isOnline()) {
+                            plugin.getMenuHandler().openMembersMenu(player, factionName);
+                        }
+                    }
+                }.runTaskLater(plugin, 20L); // 1 second delay
+            }
+            return true;
+        }
+
+        // Original command-based ownership transfer logic
         String targetName = pendingOwnershipTransfers.get(uuid);
         if (targetName == null) {
             MessageManager.sendError(player, "No pending ownership transfer found or confirmation expired.");
@@ -890,8 +1154,6 @@ public class CommandManager implements CommandExecutor {
         faction.members.put(targetUUID, Rank.OWNER); // Promote target to OWNER
         faction.members.put(uuid, Rank.ADMIN);       // Demote current owner to ADMIN
         faction.owner = targetUUID;                  // Update faction owner field
-
-
 
         // Send messages
         MessageManager.sendOwnerTransferSuccess(player, target, factionName);
@@ -1341,7 +1603,7 @@ public class CommandManager implements CommandExecutor {
 
         Faction f = factions.get(factionName);
         Rank playerRank = f.members.get(uuid);
-        if (playerRank != Rank.OWNER && playerRank != Rank.ADMIN) {
+        if (playerRank != Rank.OWNER || !f.hasPermission(playerRank, FactionPermission.KICK_MEMBERS)) {
             MessageManager.sendError(player, "You lack permission to kick players.");
             return true;
         }

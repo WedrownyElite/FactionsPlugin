@@ -340,12 +340,18 @@ public class FactionsEventListener implements Listener {
     public void onPlayerJoin(org.bukkit.event.player.PlayerJoinEvent event) {
         Player player = event.getPlayer();
 
+        // Handle power manager
+        plugin.getPowerManager().onPlayerLogin(player.getUniqueId());
+
         plugin.getNametagManager().onPlayerJoin(player);
     }
 
     @EventHandler(priority = EventPriority.MONITOR)
     public void onPlayerQuit(org.bukkit.event.player.PlayerQuitEvent event) {
         Player player = event.getPlayer();
+
+        // Update power before logout
+        plugin.getPowerManager().onPlayerLogout(player.getUniqueId());
 
         // Handle nametag cleanup
         plugin.getNametagManager().onPlayerLeave(player);
@@ -619,6 +625,11 @@ public class FactionsEventListener implements Listener {
             if (title.contains("Kick:")) {
                 plugin.getMenuHandler().clearPendingKick(uuid);
             }
+
+            // Clear pending ownership transfer if player closes rank management
+            if (title.startsWith(ChatColor.DARK_GRAY + "Manage: ")) {
+                plugin.getMenuHandler().clearPendingOwnershipTransfer(uuid);
+            }
         }
     }
 
@@ -678,7 +689,7 @@ public class FactionsEventListener implements Listener {
 
         String title = event.getView().getTitle();
 
-        // Handle faction GUI clicks
+        // Handle faction GUI clicks - UPDATED TO INCLUDE RANK MANAGEMENT
         if (title.contains("Faction") || title.contains("Members:") || title.contains("Confirm:") ||
                 title.contains("Kick:") || title.contains("Leave:") || title.contains("Disband:") ||
                 title.equals(ChatColor.DARK_GRAY + "Browse Factions") ||
@@ -688,8 +699,8 @@ public class FactionsEventListener implements Listener {
                 title.equals(ChatColor.DARK_GRAY + "Faction Settings") ||
                 title.equals(ChatColor.DARK_GRAY + "Faction Permissions") ||
                 title.equals(ChatColor.DARK_GRAY + "Relations & Requests") ||
+                title.startsWith(ChatColor.DARK_GRAY + "Manage: ") ||  // ADD THIS LINE
                 title.startsWith(ChatColor.DARK_RED + "Remove: ") ||
-                title.equals(ChatColor.DARK_GRAY + "Manage: ") ||
                 title.contains(" Permissions")) {
 
             // Cancel ALL clicks in faction GUIs
@@ -770,6 +781,7 @@ public class FactionsEventListener implements Listener {
                 // UPDATED: Handle the new combined relations GUI
                 plugin.getMenuHandler().handleRelationsViewClick(player, item, event.getClick(), title);
             } else if (title.startsWith(ChatColor.DARK_GRAY + "Manage: ")) {
+                // ADD THIS SECTION - Handle rank management GUI clicks
                 if (event.getClick() == ClickType.LEFT) {
                     plugin.getMenuHandler().handleRankManagementClick(player, displayName, title);
                 }
@@ -967,6 +979,17 @@ public class FactionsEventListener implements Listener {
         factionGUIItems.add(" "); // Black glass pane
         factionGUIItems.add(ChatColor.RED + "No Invitations");
 
+        // ADD RANK MANAGEMENT ITEMS
+        // Rank items (all possible rank colors and formats)
+        for (Rank rank : Rank.values()) {
+            // Current rank (green)
+            factionGUIItems.add(ChatColor.GREEN + "" + ChatColor.BOLD + rank.name() + ChatColor.GREEN + " (Current)");
+            // Available rank (yellow)
+            factionGUIItems.add(ChatColor.YELLOW + "" + ChatColor.BOLD + rank.name());
+            // Locked rank (red)
+            factionGUIItems.add(ChatColor.RED + "" + ChatColor.BOLD + rank.name() + ChatColor.RED + " (Locked)");
+        }
+
         // Check exact matches first
         if (factionGUIItems.contains(displayName)) {
             return true;
@@ -1000,6 +1023,14 @@ public class FactionsEventListener implements Listener {
         // Check for "Leave:" or "Disband:" confirmation items
         if (displayName.startsWith(ChatColor.YELLOW + "Leave ") || displayName.startsWith(ChatColor.RED + "" + ChatColor.BOLD + "DANGER!")) {
             return true;
+        }
+
+        // ADD: Check for rank management specific patterns
+        // Check if it's a rank name with BOLD formatting
+        for (Rank rank : Rank.values()) {
+            if (displayName.contains(ChatColor.BOLD + rank.name())) {
+                return true;
+            }
         }
 
         return false;
@@ -1059,6 +1090,8 @@ public class FactionsEventListener implements Listener {
      * Update name colors when a player leaves a faction
      */
     public void onPlayerLeaveFaction(Player player) {
+        String factionName = playerFactions.get(player.getUniqueId());
+
         plugin.getLogger().info("Player " + player.getName() + " left a faction, updating nametags");
 
         // Update after a delay to ensure faction data is updated
@@ -1067,6 +1100,11 @@ public class FactionsEventListener implements Listener {
 
             // Keep chat display name reset for chat purposes
             player.setDisplayName(player.getName());
+
+            // Handle power implications of leaving faction
+            if (factionName != null) {
+                plugin.getPowerManager().onPlayerLeaveFaction(player.getUniqueId(), factionName);
+            }
         }, 5L);
     }
 

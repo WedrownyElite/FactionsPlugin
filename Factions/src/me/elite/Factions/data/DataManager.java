@@ -4,6 +4,7 @@ import me.elite.Factions.data.RelationPermission;
 import me.elite.Factions.data.Relation;
 import me.elite.Factions.data.RelationRequest;
 import me.elite.Factions.Relations.RelationManager;
+import me.elite.Factions.power.PlayerPowerData;
 
 import me.elite.Factions.territory.ChunkCoord;
 import me.elite.Factions.FactionsPlugin;
@@ -142,6 +143,25 @@ public class DataManager {
                 requestsMap.put(toFaction, requestsList);
             }
             data.put("relationRequests", requestsMap);
+
+            // Save player power data
+            Map<String, Map<String, Object>> powerDataMap = new HashMap<>();
+            for (Map.Entry<UUID, PlayerPowerData> entry : plugin.getPowerManager().getAllPlayerPowerData().entrySet()) {
+                Map<String, Object> playerPowerMap = new HashMap<>();
+                PlayerPowerData powerData = entry.getValue();
+                playerPowerMap.put("currentPower", powerData.getCurrentPower());
+                playerPowerMap.put("maxPower", powerData.getMaxPower());
+                playerPowerMap.put("lastPowerUpdate", powerData.getLastPowerUpdate());
+                powerDataMap.put(entry.getKey().toString(), playerPowerMap);
+            }
+            data.put("playerPowerData", powerDataMap);
+
+            // Save faction consumed power data
+            Map<String, Integer> consumedPowerMap = new HashMap<>();
+            for (Map.Entry<String, Integer> entry : plugin.getPowerManager().getAllFactionConsumedPower().entrySet()) {
+                consumedPowerMap.put(entry.getKey(), entry.getValue());
+            }
+            data.put("factionConsumedPower", consumedPowerMap);
 
             writer.println(new JSONObject(data).toString(2));
         } catch (IOException e) {
@@ -343,6 +363,49 @@ public class DataManager {
                 }
 
                 plugin.getRelationManager().loadPendingRequests(loadedRequests);
+            }
+
+            // Load player power data
+            if (data.has("playerPowerData")) {
+                JSONObject powerDataMap = data.getJSONObject("playerPowerData");
+                Map<UUID, PlayerPowerData> loadedPowerData = new HashMap<>();
+
+                for (String uuidStr : powerDataMap.keySet()) {
+                    try {
+                        UUID playerUUID = UUID.fromString(uuidStr);
+                        JSONObject playerPowerMap = powerDataMap.getJSONObject(uuidStr);
+
+                        int currentPower = playerPowerMap.getInt("currentPower");
+                        int maxPower = playerPowerMap.getInt("maxPower");
+                        long lastPowerUpdate = playerPowerMap.getLong("lastPowerUpdate");
+
+                        PlayerPowerData powerData = new PlayerPowerData(currentPower, maxPower, lastPowerUpdate);
+                        loadedPowerData.put(playerUUID, powerData);
+                    } catch (Exception e) {
+                        plugin.getLogger().warning("Failed to load power data for player: " + uuidStr + " - " + e.getMessage());
+                    }
+                }
+
+                plugin.getPowerManager().loadPlayerPowerData(loadedPowerData);
+                plugin.getLogger().info("Loaded power data for " + loadedPowerData.size() + " players");
+            }
+
+            // Load faction consumed power data
+            if (data.has("factionConsumedPower")) {
+                JSONObject consumedPowerMap = data.getJSONObject("factionConsumedPower");
+                Map<String, Integer> loadedConsumedPower = new HashMap<>();
+
+                for (String factionName : consumedPowerMap.keySet()) {
+                    try {
+                        int consumedPower = consumedPowerMap.getInt(factionName);
+                        loadedConsumedPower.put(factionName, consumedPower);
+                    } catch (Exception e) {
+                        plugin.getLogger().warning("Failed to load consumed power for faction: " + factionName + " - " + e.getMessage());
+                    }
+                }
+
+                plugin.getPowerManager().loadFactionConsumedPower(loadedConsumedPower);
+                plugin.getLogger().info("Loaded consumed power data for " + loadedConsumedPower.size() + " factions");
             }
 
             plugin.getLogger().info("Successfully loaded faction data: " + factions.size() + " factions, " +
