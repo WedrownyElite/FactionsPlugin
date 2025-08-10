@@ -185,19 +185,11 @@ public class CommandManager implements CommandExecutor {
             MessageManager.sendBasicMessage(player, "§eFaction Power Breakdown:");
             MessageManager.sendBasicMessage(player, "  §7Faction: §f" + factionName);
 
-            int totalPower = plugin.getPowerManager().getFactionEffectivePower(factionName);
-            int usedPower = plugin.getPowerManager().getFactionUsedPower(factionName);
-            int availablePower = plugin.getPowerManager().getFactionAvailablePower(factionName);
+            int totalPower = plugin.getPowerManager().getFactionMaxPower(factionName);
+            int availablePower = plugin.getPowerManager().getFactionPower(factionName);
 
             MessageManager.sendBasicMessage(player, "  §7Total Faction Power: §f" + totalPower);
-            MessageManager.sendBasicMessage(player, "  §7Power Used: §c" + usedPower);
             MessageManager.sendBasicMessage(player, "  §7Available Power: §a" + availablePower);
-
-            // Calculate claims info
-            int currentClaims = usedPower / 2; // Each claim costs 2 power
-            int maxPossibleClaims = totalPower / 2;
-            MessageManager.sendBasicMessage(player, "  §7Current Claims: §f" + currentClaims + " chunks");
-            MessageManager.sendBasicMessage(player, "  §7Max Possible Claims: §f" + maxPossibleClaims + " chunks");
         }
 
         MessageManager.sendBasicMessage(player, "§6§l======================");

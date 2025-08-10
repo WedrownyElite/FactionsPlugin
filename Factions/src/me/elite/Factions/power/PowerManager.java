@@ -47,7 +47,7 @@ public class PowerManager {
      */
     public void initializePlayerPower(UUID playerUUID) {
         if (!playerPowerData.containsKey(playerUUID)) {
-            playerPowerData.put(playerUUID, new PlayerPowerData(STARTING_POWER, STARTING_POWER));
+            playerPowerData.put(playerUUID, new PlayerPowerData(STARTING_POWER, MAX_POWER_PER_PLAYER));
         }
     }
 
@@ -82,35 +82,6 @@ public class PowerManager {
     }
 
     /**
-     * Get total power used by faction's claims
-     */
-    public int getFactionUsedPower(String factionName) {
-        int usedPower = 0;
-        for (Map<ChunkCoord, String> worldClaim : worldClaims.values()) {
-            for (String claimOwner : worldClaim.values()) {
-                if (claimOwner.equals(factionName)) {
-                    usedPower += POWER_PER_CHUNK;
-                }
-            }
-        }
-        return usedPower;
-    }
-
-    /**
-     * Get faction's total power (sum of all members' power)
-     */
-    public int getFactionEffectivePower(String factionName) {
-        Faction faction = factions.get(factionName);
-        if (faction == null) return 0;
-
-        int totalPower = 0;
-        for (UUID memberUUID : faction.members.keySet()) {
-            totalPower += getPlayerPower(memberUUID);
-        }
-        return totalPower;
-    }
-
-    /**
      * Get faction's maximum possible power (sum of all members' max power)
      */
     public int getFactionMaxPower(String factionName) {
@@ -125,38 +96,45 @@ public class PowerManager {
     }
 
     /**
-     * Get faction's available power for claiming (can be negative if overclaimed)
-     */
-    public int getFactionAvailablePower(String factionName) {
-        return getFactionEffectivePower(factionName) - getFactionUsedPower(factionName);
-    }
-
-    /**
      * Check if faction has enough power to claim a chunk
      */
     public boolean canFactionClaim(String factionName) {
-        return getFactionAvailablePower(factionName) >= POWER_PER_CHUNK;
+        return getFactionPower(factionName) >= POWER_PER_CHUNK;
     }
 
     /**
-     * Consume power when claiming a chunk
+     * Consume power when claiming a chunk - deduct from leader first, then others
+     * NO ongoing maintenance tracking
      */
     public boolean consumePowerForClaim(String factionName) {
         if (!canFactionClaim(factionName)) {
             return false;
         }
 
-        // Find a member with power and deduct it
         Faction faction = factions.get(factionName);
         if (faction == null) return false;
 
+        int powerNeeded = POWER_PER_CHUNK;
+
+        // Try faction leader first
+        UUID leaderUUID = faction.owner;
+        PlayerPowerData leaderData = playerPowerData.get(leaderUUID);
+        if (leaderData != null && leaderData.getCurrentPower() >= powerNeeded) {
+            leaderData.removePower(powerNeeded);
+            return true;
+        }
+
+        // If leader doesn't have enough, try other members
         for (UUID memberUUID : faction.members.keySet()) {
+            if (memberUUID.equals(leaderUUID)) continue; // Skip leader, already tried
+
             PlayerPowerData data = playerPowerData.get(memberUUID);
-            if (data != null && data.getCurrentPower() >= POWER_PER_CHUNK) {
-                data.removePower(POWER_PER_CHUNK);
+            if (data != null && data.getCurrentPower() >= powerNeeded) {
+                data.removePower(powerNeeded);
                 return true;
             }
         }
+
         return false;
     }
 
@@ -172,7 +150,7 @@ public class PowerManager {
         PlayerPowerData ownerData = playerPowerData.get(ownerUUID);
 
         if (ownerData != null && ownerData.getCurrentPower() < ownerData.getMaxPower()) {
-            ownerData.addPower(POWER_RESTORE_PER_CHUNK);
+            ownerData.addPower(1); // Always restore 1 power
             return;
         }
 
@@ -181,7 +159,7 @@ public class PowerManager {
             if (!memberUUID.equals(ownerUUID)) {
                 PlayerPowerData data = playerPowerData.get(memberUUID);
                 if (data != null && data.getCurrentPower() < data.getMaxPower()) {
-                    data.addPower(POWER_RESTORE_PER_CHUNK);
+                    data.addPower(1); // Always restore 1 power
                     return;
                 }
             }
@@ -192,34 +170,7 @@ public class PowerManager {
      * Get power restored when unclaiming a chunk
      */
     public int getPowerRestoredPerChunk() {
-        return POWER_RESTORE_PER_CHUNK;
-    }
-
-    /**
-     * Get power information for a player
-     */
-    public PowerInfo getPlayerPowerInfo(UUID playerUUID) {
-        initializePlayerPower(playerUUID);
-
-        int currentPower = getPlayerPower(playerUUID);
-        int maxPower = getPlayerMaxPower(playerUUID);
-
-        String factionName = playerFactions.get(playerUUID);
-        int factionBasePower = 0;
-        int factionEffectivePower = 0;
-        int factionUsedPower = 0;
-        int factionAvailablePower = 0;
-        int factionConsumedPowerAmount = 0;
-
-        if (factionName != null) {
-            factionBasePower = getFactionPower(factionName);
-            factionEffectivePower = getFactionEffectivePower(factionName);
-            factionUsedPower = getFactionUsedPower(factionName);
-            factionAvailablePower = getFactionAvailablePower(factionName);
-        }
-
-        return new PowerInfo(currentPower, maxPower, factionBasePower, factionEffectivePower,
-                factionUsedPower, factionAvailablePower, factionConsumedPowerAmount);
+        return 1;
     }
 
     /**
@@ -309,31 +260,66 @@ public class PowerManager {
         UUID uuid = player.getUniqueId();
         String factionName = playerFactions.get(uuid);
 
+        // DEBUG LOGGING
+        plugin.getLogger().info("DEBUG: /f power command for player " + player.getName() + " (UUID: " + uuid + ")");
+
+        // Always show personal power first
+        int personalCurrentPower = getPlayerPower(uuid);
+        int personalMaxPower = getPlayerMaxPower(uuid);
+
+        plugin.getLogger().info("DEBUG: Personal power - Current: " + personalCurrentPower + ", Max: " + personalMaxPower);
+
         MessageManager.sendBasicMessage(player, "§6§l=== POWER INFORMATION ===");
+        MessageManager.sendBasicMessage(player, "§eYour Power: §f" + personalCurrentPower + "§7/§f" + personalMaxPower);
 
         if (factionName != null) {
             // Player is in a faction - show faction power
-            int availablePower = getFactionAvailablePower(factionName);
-            int maxPower = getFactionMaxPower(factionName);  // Use the new method
-            boolean canClaim = availablePower >= POWER_PER_CHUNK;
+            Faction faction = factions.get(factionName);
+            plugin.getLogger().info("DEBUG: Faction " + factionName + " has " + faction.members.size() + " members:");
 
+            int factionCurrentPower = getFactionPower(factionName);  // Current total power
+            int factionMaxPower = getFactionMaxPower(factionName);            // Max possible power
+            boolean canClaim = factionCurrentPower >= POWER_PER_CHUNK;
+
+            // Count claimed chunks for display
+            int claimedChunks = 0;
+            for (Map<ChunkCoord, String> worldClaim : worldClaims.values()) {
+                for (String claimOwner : worldClaim.values()) {
+                    if (claimOwner.equals(factionName)) {
+                        claimedChunks++;
+                    }
+                }
+            }
+
+            // DEBUG: Log each member's power
+            for (UUID memberUUID : faction.members.keySet()) {
+                int memberCurrent = getPlayerPower(memberUUID);
+                int memberMax = getPlayerMaxPower(memberUUID);
+                String memberName = Bukkit.getOfflinePlayer(memberUUID).getName();
+                plugin.getLogger().info("DEBUG:   Member " + memberName + " - Current: " + memberCurrent + ", Max: " + memberMax);
+            }
+
+            plugin.getLogger().info("DEBUG: Faction power calculations:");
+            plugin.getLogger().info("DEBUG:   Current total: " + factionCurrentPower);
+            plugin.getLogger().info("DEBUG:   Max total: " + factionMaxPower);
+            plugin.getLogger().info("DEBUG:   Claimed chunks: " + claimedChunks);
+
+            MessageManager.sendBasicMessage(player, "");
             MessageManager.sendBasicMessage(player, "§eFaction: §f" + factionName);
-            MessageManager.sendBasicMessage(player, "§ePower: §f" + availablePower + "§7/§f" + maxPower);
+            MessageManager.sendBasicMessage(player, "§eFaction Power: §f" + factionCurrentPower + "§7/§f" + factionMaxPower);
+            MessageManager.sendBasicMessage(player, "§eClaimed Chunks: §f" + claimedChunks);
             MessageManager.sendBasicMessage(player, "§eCan Claim: §f" + (canClaim ? "§aYes" : "§cNo"));
         } else {
-            // Player has no faction - show personal power
-            int currentPower = getPlayerPower(uuid);
-            int maxPower = getPlayerMaxPower(uuid);
-
+            plugin.getLogger().info("DEBUG: Player is not in a faction");
+            MessageManager.sendBasicMessage(player, "");
             MessageManager.sendBasicMessage(player, "§eFaction: §7None");
-            MessageManager.sendBasicMessage(player, "§ePower: §f" + currentPower + "§7/§f" + maxPower);
             MessageManager.sendBasicMessage(player, "§eCan Claim: §cNo (Join a faction)");
         }
 
         MessageManager.sendBasicMessage(player, "§6§l========================");
         MessageManager.sendBasicMessage(player, "§7• Power regenerates " + POWER_REGEN_AMOUNT + " per hour of playtime");
-        MessageManager.sendBasicMessage(player, "§7• Each chunk costs " + POWER_PER_CHUNK + " power to claim");
-        MessageManager.sendBasicMessage(player, "§7• Unclaiming restores " + POWER_RESTORE_PER_CHUNK + " power");
+        MessageManager.sendBasicMessage(player, "§7• Each chunk costs " + POWER_PER_CHUNK + " power to claim (one-time)");
+        MessageManager.sendBasicMessage(player, "§7• Unclaiming restores 1 power");
         MessageManager.sendBasicMessage(player, "§7• Maximum power per player: " + MAX_POWER_PER_PLAYER);
     }
 
@@ -354,61 +340,6 @@ public class PowerManager {
     public void loadPlayerPowerData(Map<UUID, PlayerPowerData> data) {
         playerPowerData.clear();
         playerPowerData.putAll(data);
-    }
-
-    // =================================================================
-    // DEBUG METHODS FOR TESTING
-    // =================================================================
-
-    /**
-     * Debug: Add power to a player
-     */
-    public void debugAddPower(UUID playerUUID, int amount) {
-        initializePlayerPower(playerUUID);
-        PlayerPowerData data = playerPowerData.get(playerUUID);
-        data.addPower(amount);
-    }
-
-    /**
-     * Debug: Set a player's current power
-     */
-    public void debugSetPower(UUID playerUUID, int power) {
-        initializePlayerPower(playerUUID);
-        PlayerPowerData data = playerPowerData.get(playerUUID);
-        data.setCurrentPower(power);
-    }
-
-    /**
-     * Debug: Set a player's maximum power
-     */
-    public void debugSetMaxPower(UUID playerUUID, int maxPower) {
-        initializePlayerPower(playerUUID);
-        PlayerPowerData data = playerPowerData.get(playerUUID);
-        data.setMaxPower(maxPower);
-    }
-
-    /**
-     * Debug: Simulate playtime for power regeneration
-     */
-    public int debugSimulatePlaytime(UUID playerUUID, double hours) {
-        initializePlayerPower(playerUUID);
-        PlayerPowerData data = playerPowerData.get(playerUUID);
-
-        // Calculate power to gain (1 per hour)
-        int powerToGain = (int) hours;
-        int powerBefore = data.getCurrentPower();
-
-        data.addPower(powerToGain);
-
-        int powerAfter = data.getCurrentPower();
-        return powerAfter - powerBefore; // Actual power gained (might be less due to max cap)
-    }
-
-    /**
-     * Debug: Reset a player's power to defaults
-     */
-    public void debugResetPower(UUID playerUUID) {
-        playerPowerData.put(playerUUID, new PlayerPowerData(STARTING_POWER, MAX_POWER_PER_PLAYER));
     }
 
     /**

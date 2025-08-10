@@ -48,7 +48,7 @@ public class ClaimManager {
 
         // Check faction power
         if (!plugin.getPowerManager().canFactionClaim(factionName)) {
-            int availablePower = plugin.getPowerManager().getFactionAvailablePower(factionName);
+            int availablePower = plugin.getPowerManager().getFactionPower(factionName);
             MessageManager.sendError(player, "Insufficient faction power to claim! Available: " + availablePower + ", Required: " + me.elite.Factions.power.PowerManager.POWER_PER_CHUNK);
             return false;
         }
@@ -63,7 +63,7 @@ public class ClaimManager {
         MessageManager.sendSuccess(player,"Chunk claimed for faction: " + factionName);
 
         // Show remaining power
-        int remainingPower = plugin.getPowerManager().getFactionAvailablePower(factionName);
+        int remainingPower = plugin.getPowerManager().getFactionPower(factionName);
         MessageManager.sendInfo(player, "Available power: " + remainingPower);
 
         return true;
@@ -99,7 +99,7 @@ public class ClaimManager {
         MessageManager.sendInfo(player,"Chunk unclaimed and returned to Wilderness.");
 
         // Show current available power
-        int availablePower = plugin.getPowerManager().getFactionAvailablePower(factionName);
+        int availablePower = plugin.getPowerManager().getFactionMaxPower(factionName);
         MessageManager.sendInfo(player, "Available power: " + availablePower);
 
         return true;
@@ -145,7 +145,7 @@ public class ClaimManager {
             // Show power restoration info
             if (plugin.getPowerManager() != null) {
                 int totalPowerRestored = unclaimedCount * plugin.getPowerManager().getPowerRestoredPerChunk();
-                int availablePower = plugin.getPowerManager().getFactionAvailablePower(factionName);
+                int availablePower = plugin.getPowerManager().getFactionPower(factionName);
                 MessageManager.sendInfo(player, "Power restored: " + totalPowerRestored + " (Available: " + availablePower + ")");
             }
         }
