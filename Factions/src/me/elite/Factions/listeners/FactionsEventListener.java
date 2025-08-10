@@ -1100,11 +1100,6 @@ public class FactionsEventListener implements Listener {
 
             // Keep chat display name reset for chat purposes
             player.setDisplayName(player.getName());
-
-            // Handle power implications of leaving faction
-            if (factionName != null) {
-                plugin.getPowerManager().onPlayerLeaveFaction(player.getUniqueId(), factionName);
-            }
         }, 5L);
     }
 

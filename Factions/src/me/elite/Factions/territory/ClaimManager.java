@@ -50,7 +50,6 @@ public class ClaimManager {
         if (!plugin.getPowerManager().canFactionClaim(factionName)) {
             int availablePower = plugin.getPowerManager().getFactionAvailablePower(factionName);
             MessageManager.sendError(player, "Insufficient faction power to claim! Available: " + availablePower + ", Required: " + me.elite.Factions.power.PowerManager.POWER_PER_CHUNK);
-            MessageManager.sendInfo(player, "Use /f power to see power information");
             return false;
         }
 
@@ -61,16 +60,15 @@ public class ClaimManager {
         }
 
         claims.put(coord, factionName);
-        MessageManager.sendSuccess(player,"Chunk claimed for faction: " + factionName + " (Cost: " + me.elite.Factions.power.PowerManager.POWER_PER_CHUNK + " power)");
+        MessageManager.sendSuccess(player,"Chunk claimed for faction: " + factionName);
 
         // Show remaining power
         int remainingPower = plugin.getPowerManager().getFactionAvailablePower(factionName);
-        MessageManager.sendInfo(player, "Remaining faction power: " + remainingPower);
+        MessageManager.sendInfo(player, "Available power: " + remainingPower);
 
         return true;
     }
 
-    // Update the unclaimChunk method to handle different restore amount:
     public boolean unclaimChunk(Player player, String factionName) {
         Chunk chunk = player.getLocation().getChunk();
         String world = player.getWorld().getName();
@@ -95,19 +93,14 @@ public class ClaimManager {
         claims.remove(coord);
         claims.put(coord, "Wilderness");
 
-        // Show the different restore amount
-        int restoreAmount = plugin.getPowerManager().getPowerRestoredPerChunk();
-        MessageManager.sendInfo(player,"Chunk unclaimed and returned to Wilderness. (Power effectively restored: " + restoreAmount + ")");
+        // Restore power
+        plugin.getPowerManager().restorePowerForUnclaim(factionName);
 
-        // Show current available power (this automatically reflects the unclaim since we calculate dynamically)
+        MessageManager.sendInfo(player,"Chunk unclaimed and returned to Wilderness.");
+
+        // Show current available power
         int availablePower = plugin.getPowerManager().getFactionAvailablePower(factionName);
-        MessageManager.sendInfo(player, "Available faction power: " + availablePower);
-
-        // Warn about power loss from claiming/unclaiming cycle
-        int powerLossPerCycle = me.elite.Factions.power.PowerManager.POWER_PER_CHUNK - restoreAmount;
-        if (powerLossPerCycle > 0) {
-            MessageManager.sendInfo(player, "§eNote: §7Claiming and unclaiming costs " + powerLossPerCycle + " net power due to claiming fees");
-        }
+        MessageManager.sendInfo(player, "Available power: " + availablePower);
 
         return true;
     }

@@ -41,7 +41,7 @@ public class FactionsTabCompleter implements TabCompleter {
                 commands.add("load");
             }
             if (sender.isOp()) {
-                commands.addAll(Arrays.asList("debugpower", "debugfakepower", "debugplaytime", "debugreset", "debuginfo"));
+                commands.add("debuginfo");
             }
 
             // Filter top-level command suggestions by what the player has started typing
@@ -146,26 +146,6 @@ public class FactionsTabCompleter implements TabCompleter {
                             .collect(Collectors.toList());
                 }
                 return Collections.emptyList();
-            case "debugpower":
-                if (args.length == 2) {
-                    return Arrays.asList("add", "set", "max").stream()
-                            .filter(action -> action.toLowerCase().startsWith(partial))
-                            .collect(Collectors.toList());
-                }
-                return Collections.emptyList();
-
-            case "debugfakepower":
-            case "debugplaytime":
-                // These commands just take numbers, no tab completion needed
-                return Collections.emptyList();
-
-            case "debugreset":
-                // Show online player names
-                return Bukkit.getOnlinePlayers().stream()
-                        .map(Player::getName)
-                        .filter(name -> name.toLowerCase().startsWith(partial))
-                        .collect(Collectors.toList());
-
             case "debuginfo":
                 // No arguments needed
                 return Collections.emptyList();

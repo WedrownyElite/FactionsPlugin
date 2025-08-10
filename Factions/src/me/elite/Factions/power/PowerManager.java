@@ -22,19 +22,12 @@ public class PowerManager {
     public static final int STARTING_POWER = 10;
     public static final int MAX_POWER_PER_PLAYER = 20;
     public static final int POWER_PER_CHUNK = 2;  // Claiming cost
-    public static final int POWER_MAINTENANCE_PER_CHUNK = 1;  // Ongoing maintenance cost
     public static final int POWER_RESTORE_PER_CHUNK = 1;  // Unclaiming refund
     public static final long POWER_REGEN_INTERVAL = 60 * 60 * 1000L; // 1 hour in milliseconds
-    public static final int POWER_REGEN_AMOUNT = 1;
+    public static final int POWER_REGEN_AMOUNT = 2;
 
     // Player power data: UUID -> PlayerPowerData
     private final Map<UUID, PlayerPowerData> playerPowerData = new HashMap<>();
-
-    // Faction consumed power (power permanently lost from claiming): factionName -> consumedPower
-    private final Map<String, Integer> factionConsumedPower = new HashMap<>();
-
-    // Debug: Fake power for testing (simulates having more members)
-    private final Map<String, Integer> factionFakePower = new HashMap<>();
 
     // Player session tracking for power regeneration
     private final Map<UUID, Long> playerLoginTimes = new HashMap<>();
@@ -89,14 +82,14 @@ public class PowerManager {
     }
 
     /**
-     * Get total power used by faction's claims (for ongoing maintenance)
+     * Get total power used by faction's claims
      */
     public int getFactionUsedPower(String factionName) {
         int usedPower = 0;
         for (Map<ChunkCoord, String> worldClaim : worldClaims.values()) {
             for (String claimOwner : worldClaim.values()) {
                 if (claimOwner.equals(factionName)) {
-                    usedPower += POWER_MAINTENANCE_PER_CHUNK;  // Use maintenance cost, not claiming cost
+                    usedPower += POWER_PER_CHUNK;
                 }
             }
         }
@@ -104,48 +97,31 @@ public class PowerManager {
     }
 
     /**
-     * Get total power permanently consumed by faction (from claiming fees)
-     */
-    public int getFactionConsumedPower(String factionName) {
-        return factionConsumedPower.getOrDefault(factionName, 0);
-    }
-
-    /**
-     * Get faction's total effective power (base power minus consumed power)
+     * Get faction's total power (sum of all members' power)
      */
     public int getFactionEffectivePower(String factionName) {
         Faction faction = factions.get(factionName);
         if (faction == null) return 0;
 
-        int basePower = 0;
+        int totalPower = 0;
         for (UUID memberUUID : faction.members.keySet()) {
-            basePower += getPlayerPower(memberUUID);
+            totalPower += getPlayerPower(memberUUID);
         }
-
-        // Add fake power for testing
-        int fakePower = factionFakePower.getOrDefault(factionName, 0);
-        int totalBasePower = basePower + fakePower;
-
-        int consumedPower = getFactionConsumedPower(factionName);
-        return Math.max(0, totalBasePower - consumedPower);
+        return totalPower;
     }
 
     /**
-     * Check if faction is overclaimed (maintenance exceeds effective power)
+     * Get faction's maximum possible power (sum of all members' max power)
      */
-    public boolean isFactionOverclaimed(String factionName) {
-        int effectivePower = getFactionEffectivePower(factionName);
-        int maintenanceCost = getFactionUsedPower(factionName);
-        return maintenanceCost > effectivePower;
-    }
+    public int getFactionMaxPower(String factionName) {
+        Faction faction = factions.get(factionName);
+        if (faction == null) return 0;
 
-    /**
-     * Get how much power a faction is overclaimed by
-     */
-    public int getFactionOverclaimedAmount(String factionName) {
-        int effectivePower = getFactionEffectivePower(factionName);
-        int maintenanceCost = getFactionUsedPower(factionName);
-        return Math.max(0, maintenanceCost - effectivePower);
+        int totalMaxPower = 0;
+        for (UUID memberUUID : faction.members.keySet()) {
+            totalMaxPower += getPlayerMaxPower(memberUUID);
+        }
+        return totalMaxPower;
     }
 
     /**
@@ -159,32 +135,57 @@ public class PowerManager {
      * Check if faction has enough power to claim a chunk
      */
     public boolean canFactionClaim(String factionName) {
-        // Can't claim if already overclaimed or would become overclaimed
-        return getFactionAvailablePower(factionName) >= POWER_MAINTENANCE_PER_CHUNK;
+        return getFactionAvailablePower(factionName) >= POWER_PER_CHUNK;
     }
 
     /**
-     * Consume power when claiming a chunk (permanently removes power)
+     * Consume power when claiming a chunk
      */
     public boolean consumePowerForClaim(String factionName) {
         if (!canFactionClaim(factionName)) {
             return false;
         }
 
-        // Permanently consume power for claiming
-        int currentConsumed = factionConsumedPower.getOrDefault(factionName, 0);
-        factionConsumedPower.put(factionName, currentConsumed + POWER_PER_CHUNK);
+        // Find a member with power and deduct it
+        Faction faction = factions.get(factionName);
+        if (faction == null) return false;
 
-        return true;
+        for (UUID memberUUID : faction.members.keySet()) {
+            PlayerPowerData data = playerPowerData.get(memberUUID);
+            if (data != null && data.getCurrentPower() >= POWER_PER_CHUNK) {
+                data.removePower(POWER_PER_CHUNK);
+                return true;
+            }
+        }
+        return false;
     }
 
     /**
-     * Restore power when unclaiming a chunk (gives back less than claiming cost)
+     * Restore power when unclaiming a chunk
      */
     public void restorePowerForUnclaim(String factionName) {
-        int currentConsumed = factionConsumedPower.getOrDefault(factionName, 0);
-        int newConsumed = Math.max(0, currentConsumed - POWER_RESTORE_PER_CHUNK);
-        factionConsumedPower.put(factionName, newConsumed);
+        Faction faction = factions.get(factionName);
+        if (faction == null) return;
+
+        // Give power back to faction owner first, then others
+        UUID ownerUUID = faction.owner;
+        PlayerPowerData ownerData = playerPowerData.get(ownerUUID);
+
+        if (ownerData != null && ownerData.getCurrentPower() < ownerData.getMaxPower()) {
+            ownerData.addPower(POWER_RESTORE_PER_CHUNK);
+            return;
+        }
+
+        // If owner is maxed, give to another member
+        for (UUID memberUUID : faction.members.keySet()) {
+            if (!memberUUID.equals(ownerUUID)) {
+                PlayerPowerData data = playerPowerData.get(memberUUID);
+                if (data != null && data.getCurrentPower() < data.getMaxPower()) {
+                    data.addPower(POWER_RESTORE_PER_CHUNK);
+                    return;
+                }
+            }
+        }
     }
 
     /**
@@ -212,7 +213,6 @@ public class PowerManager {
 
         if (factionName != null) {
             factionBasePower = getFactionPower(factionName);
-            factionConsumedPowerAmount = getFactionConsumedPower(factionName);
             factionEffectivePower = getFactionEffectivePower(factionName);
             factionUsedPower = getFactionUsedPower(factionName);
             factionAvailablePower = getFactionAvailablePower(factionName);
@@ -306,71 +306,35 @@ public class PowerManager {
      * Send power information to a player
      */
     public void sendPowerInfo(Player player) {
-        PowerInfo info = getPlayerPowerInfo(player.getUniqueId());
+        UUID uuid = player.getUniqueId();
+        String factionName = playerFactions.get(uuid);
 
         MessageManager.sendBasicMessage(player, "§6§l=== POWER INFORMATION ===");
-        MessageManager.sendBasicMessage(player, "§eYour Power: §f" + info.getPlayerCurrentPower() + "§7/§f" + info.getPlayerMaxPower());
 
-        if (info.getFactionBasePower() > 0) {
-            String factionName = playerFactions.get(player.getUniqueId());
-            int realPower = getFactionPower(factionName);
-            int fakePower = factionFakePower.getOrDefault(factionName, 0);
-            int totalBasePower = realPower + fakePower;
+        if (factionName != null) {
+            // Player is in a faction - show faction power
+            int availablePower = getFactionAvailablePower(factionName);
+            int maxPower = getFactionMaxPower(factionName);  // Use the new method
+            boolean canClaim = availablePower >= POWER_PER_CHUNK;
 
             MessageManager.sendBasicMessage(player, "§eFaction: §f" + factionName);
-            MessageManager.sendBasicMessage(player, "§eBase Power: §f" + totalBasePower + " §7(from all members)");
-            if (fakePower > 0) {
-                MessageManager.sendBasicMessage(player, "  §7Real: §f" + realPower + " §7+ Fake (Debug): §e" + fakePower);
-            }
-            MessageManager.sendBasicMessage(player, "§eConsumed Power: §c-" + info.getFactionConsumedPower() + " §7(from claiming fees)");
-            MessageManager.sendBasicMessage(player, "§eEffective Power: §f" + info.getFactionEffectivePower());
-            MessageManager.sendBasicMessage(player, "§eClaim Maintenance: §c-" + info.getFactionUsedPower() + " §7(ongoing cost)");
-            MessageManager.sendBasicMessage(player, "§eAvailable Power: §a" + info.getFactionAvailablePower());
-            MessageManager.sendBasicMessage(player, "§eCan Claim: §f" + (info.getFactionAvailablePower() >= 0 ? "§aYes" : "§cNo"));
+            MessageManager.sendBasicMessage(player, "§ePower: §f" + availablePower + "§7/§f" + maxPower);
+            MessageManager.sendBasicMessage(player, "§eCan Claim: §f" + (canClaim ? "§aYes" : "§cNo"));
         } else {
-            MessageManager.sendBasicMessage(player, "§7You are not in a faction");
+            // Player has no faction - show personal power
+            int currentPower = getPlayerPower(uuid);
+            int maxPower = getPlayerMaxPower(uuid);
+
+            MessageManager.sendBasicMessage(player, "§eFaction: §7None");
+            MessageManager.sendBasicMessage(player, "§ePower: §f" + currentPower + "§7/§f" + maxPower);
+            MessageManager.sendBasicMessage(player, "§eCan Claim: §cNo (Join a faction)");
         }
 
         MessageManager.sendBasicMessage(player, "§6§l========================");
-        MessageManager.sendBasicMessage(player, "§7• Power regenerates 1 per hour of playtime");
-        MessageManager.sendBasicMessage(player, "§7• Each chunk claimed costs " + POWER_PER_CHUNK + " power");
-        MessageManager.sendBasicMessage(player, "§7• Each chunk maintenance costs " + POWER_MAINTENANCE_PER_CHUNK + " power");
-        MessageManager.sendBasicMessage(player, "§7• Unclaiming restores " + POWER_RESTORE_PER_CHUNK + " power per chunk");
+        MessageManager.sendBasicMessage(player, "§7• Power regenerates " + POWER_REGEN_AMOUNT + " per hour of playtime");
+        MessageManager.sendBasicMessage(player, "§7• Each chunk costs " + POWER_PER_CHUNK + " power to claim");
+        MessageManager.sendBasicMessage(player, "§7• Unclaiming restores " + POWER_RESTORE_PER_CHUNK + " power");
         MessageManager.sendBasicMessage(player, "§7• Maximum power per player: " + MAX_POWER_PER_PLAYER);
-    }
-
-    /**
-     * Handle when a player leaves a faction
-     */
-    public void onPlayerLeaveFaction(UUID playerUUID, String factionName) {
-        // Check if faction is now overclaimed
-        if (isFactionOverclaimed(factionName)) {
-            int overclaimedAmount = getFactionOverclaimedAmount(factionName);
-            int chunksToUnclaim = (int) Math.ceil((double) overclaimedAmount / POWER_MAINTENANCE_PER_CHUNK);
-
-            // Notify the faction about overclaiming
-            Faction faction = factions.get(factionName);
-            if (faction != null) {
-                for (UUID memberUUID : faction.members.keySet()) {
-                    Player member = Bukkit.getPlayer(memberUUID);
-                    if (member != null) {
-                        MessageManager.sendBasicMessage(member, "§c§l⚠ FACTION OVERCLAIMED! ⚠");
-                        MessageManager.sendBasicMessage(member, "§cA member left and your faction can no longer maintain all claims!");
-                        MessageManager.sendBasicMessage(member, "§cOverclaimed by: §f" + overclaimedAmount + " §cpower");
-                        MessageManager.sendBasicMessage(member, "§cMust unclaim at least: §f" + chunksToUnclaim + " §cchunks");
-                        MessageManager.sendBasicMessage(member, "§cUse §f/f power §cto see details and §f/f unclaim §cor §f/f unclaimall");
-                        MessageManager.sendBasicMessage(member, "§c§lWARNING: Overclaimed land may be vulnerable to enemy raids!");
-                    }
-                }
-            }
-        }
-    }
-
-    /**
-     * Remove all consumed power for a disbanded faction
-     */
-    public void onFactionDisband(String factionName) {
-        factionConsumedPower.remove(factionName);
     }
 
     // =================================================================
@@ -385,26 +349,11 @@ public class PowerManager {
     }
 
     /**
-     * Get all faction consumed power data for saving
-     */
-    public Map<String, Integer> getAllFactionConsumedPower() {
-        return factionConsumedPower;
-    }
-
-    /**
      * Load player power data from saved data
      */
     public void loadPlayerPowerData(Map<UUID, PlayerPowerData> data) {
         playerPowerData.clear();
         playerPowerData.putAll(data);
-    }
-
-    /**
-     * Load faction consumed power data from saved data
-     */
-    public void loadFactionConsumedPower(Map<String, Integer> data) {
-        factionConsumedPower.clear();
-        factionConsumedPower.putAll(data);
     }
 
     // =================================================================
@@ -439,21 +388,6 @@ public class PowerManager {
     }
 
     /**
-     * Debug: Add fake power to a faction (simulates more members)
-     */
-    public void debugAddFakePower(String factionName, int amount) {
-        int currentFake = factionFakePower.getOrDefault(factionName, 0);
-        factionFakePower.put(factionName, currentFake + amount);
-    }
-
-    /**
-     * Debug: Get fake power for a faction
-     */
-    public int debugGetFakePower(String factionName) {
-        return factionFakePower.getOrDefault(factionName, 0);
-    }
-
-    /**
      * Debug: Simulate playtime for power regeneration
      */
     public int debugSimulatePlaytime(UUID playerUUID, double hours) {
@@ -475,20 +409,6 @@ public class PowerManager {
      */
     public void debugResetPower(UUID playerUUID) {
         playerPowerData.put(playerUUID, new PlayerPowerData(STARTING_POWER, MAX_POWER_PER_PLAYER));
-    }
-
-    /**
-     * Debug: Reset faction consumed power
-     */
-    public void debugResetFactionConsumedPower(String factionName) {
-        factionConsumedPower.remove(factionName);
-    }
-
-    /**
-     * Debug: Clear all fake power
-     */
-    public void debugClearFakePower() {
-        factionFakePower.clear();
     }
 
     /**

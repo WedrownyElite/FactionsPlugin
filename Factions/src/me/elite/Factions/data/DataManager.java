@@ -156,13 +156,6 @@ public class DataManager {
             }
             data.put("playerPowerData", powerDataMap);
 
-            // Save faction consumed power data
-            Map<String, Integer> consumedPowerMap = new HashMap<>();
-            for (Map.Entry<String, Integer> entry : plugin.getPowerManager().getAllFactionConsumedPower().entrySet()) {
-                consumedPowerMap.put(entry.getKey(), entry.getValue());
-            }
-            data.put("factionConsumedPower", consumedPowerMap);
-
             writer.println(new JSONObject(data).toString(2));
         } catch (IOException e) {
             plugin.getLogger().severe("Failed to save faction data: " + e.getMessage());
@@ -388,24 +381,6 @@ public class DataManager {
 
                 plugin.getPowerManager().loadPlayerPowerData(loadedPowerData);
                 plugin.getLogger().info("Loaded power data for " + loadedPowerData.size() + " players");
-            }
-
-            // Load faction consumed power data
-            if (data.has("factionConsumedPower")) {
-                JSONObject consumedPowerMap = data.getJSONObject("factionConsumedPower");
-                Map<String, Integer> loadedConsumedPower = new HashMap<>();
-
-                for (String factionName : consumedPowerMap.keySet()) {
-                    try {
-                        int consumedPower = consumedPowerMap.getInt(factionName);
-                        loadedConsumedPower.put(factionName, consumedPower);
-                    } catch (Exception e) {
-                        plugin.getLogger().warning("Failed to load consumed power for faction: " + factionName + " - " + e.getMessage());
-                    }
-                }
-
-                plugin.getPowerManager().loadFactionConsumedPower(loadedConsumedPower);
-                plugin.getLogger().info("Loaded consumed power data for " + loadedConsumedPower.size() + " factions");
             }
 
             plugin.getLogger().info("Successfully loaded faction data: " + factions.size() + " factions, " +
