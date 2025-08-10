@@ -174,6 +174,21 @@ public class PowerManager {
     }
 
     /**
+     * Get total claimed chunks from faction
+     */
+    public int getTotalClaimedChunks(String factionName) {
+        int claimedChunks = 0;
+        for (Map<ChunkCoord, String> worldClaim : worldClaims.values()) {
+            for (String claimOwner : worldClaim.values()) {
+                if (claimOwner.equals(factionName)) {
+                    claimedChunks++;
+                }
+            }
+        }
+        return claimedChunks;
+    }
+
+    /**
      * Handle player login for power regeneration tracking
      */
     public void onPlayerLogin(UUID playerUUID) {
@@ -269,8 +284,9 @@ public class PowerManager {
 
         plugin.getLogger().info("DEBUG: Personal power - Current: " + personalCurrentPower + ", Max: " + personalMaxPower);
 
-        MessageManager.sendBasicMessage(player, "§6§l=== POWER INFORMATION ===");
-        MessageManager.sendBasicMessage(player, "§eYour Power: §f" + personalCurrentPower + "§7/§f" + personalMaxPower);
+        MessageManager.sendBlankMessage(player, "");
+        MessageManager.sendBlankMessage(player, "§6§l=== POWER INFORMATION ===");
+        MessageManager.sendBlankMessage(player, "§eYour Power: §f" + personalCurrentPower + "§7/§f" + personalMaxPower);
 
         if (factionName != null) {
             // Player is in a faction - show faction power
@@ -282,14 +298,7 @@ public class PowerManager {
             boolean canClaim = factionCurrentPower >= POWER_PER_CHUNK;
 
             // Count claimed chunks for display
-            int claimedChunks = 0;
-            for (Map<ChunkCoord, String> worldClaim : worldClaims.values()) {
-                for (String claimOwner : worldClaim.values()) {
-                    if (claimOwner.equals(factionName)) {
-                        claimedChunks++;
-                    }
-                }
-            }
+            int claimedChunks = getTotalClaimedChunks(factionName);
 
             // DEBUG: Log each member's power
             for (UUID memberUUID : faction.members.keySet()) {
@@ -304,23 +313,23 @@ public class PowerManager {
             plugin.getLogger().info("DEBUG:   Max total: " + factionMaxPower);
             plugin.getLogger().info("DEBUG:   Claimed chunks: " + claimedChunks);
 
-            MessageManager.sendBasicMessage(player, "");
-            MessageManager.sendBasicMessage(player, "§eFaction: §f" + factionName);
-            MessageManager.sendBasicMessage(player, "§eFaction Power: §f" + factionCurrentPower + "§7/§f" + factionMaxPower);
-            MessageManager.sendBasicMessage(player, "§eClaimed Chunks: §f" + claimedChunks);
-            MessageManager.sendBasicMessage(player, "§eCan Claim: §f" + (canClaim ? "§aYes" : "§cNo"));
+            MessageManager.sendBlankMessage(player, "");
+            MessageManager.sendBlankMessage(player, "§eFaction: §f" + factionName);
+            MessageManager.sendBlankMessage(player, "§eFaction Power: §f" + factionCurrentPower + "§7/§f" + factionMaxPower);
+            MessageManager.sendBlankMessage(player, "§eClaimed Chunks: §f" + claimedChunks);
+            MessageManager.sendBlankMessage(player, "§eCan Claim: §f" + (canClaim ? "§aYes" : "§cNo"));
         } else {
             plugin.getLogger().info("DEBUG: Player is not in a faction");
-            MessageManager.sendBasicMessage(player, "");
-            MessageManager.sendBasicMessage(player, "§eFaction: §7None");
-            MessageManager.sendBasicMessage(player, "§eCan Claim: §cNo (Join a faction)");
+            MessageManager.sendBlankMessage(player, "");
+            MessageManager.sendBlankMessage(player, "§eFaction: §7None");
+            MessageManager.sendBlankMessage(player, "§eCan Claim: §cNo (Join a faction)");
         }
 
-        MessageManager.sendBasicMessage(player, "§6§l========================");
-        MessageManager.sendBasicMessage(player, "§7• Power regenerates " + POWER_REGEN_AMOUNT + " per hour of playtime");
-        MessageManager.sendBasicMessage(player, "§7• Each chunk costs " + POWER_PER_CHUNK + " power to claim (one-time)");
-        MessageManager.sendBasicMessage(player, "§7• Unclaiming restores 1 power");
-        MessageManager.sendBasicMessage(player, "§7• Maximum power per player: " + MAX_POWER_PER_PLAYER);
+        MessageManager.sendBlankMessage(player, "§6§l========================");
+        MessageManager.sendBlankMessage(player, "§7• Power regenerates " + POWER_REGEN_AMOUNT + " per hour of playtime");
+        MessageManager.sendBlankMessage(player, "§7• Each chunk costs " + POWER_PER_CHUNK + " power to claim (one-time)");
+        MessageManager.sendBlankMessage(player, "§7• Unclaiming restores 1 power");
+        MessageManager.sendBlankMessage(player, "§7• Maximum power per player: " + MAX_POWER_PER_PLAYER);
     }
 
     // =================================================================

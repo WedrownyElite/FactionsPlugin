@@ -206,12 +206,29 @@ public class MenuHandler {
         ItemStack info = new ItemStack(Material.BOOK);
         ItemMeta infoMeta = info.getItemMeta();
         infoMeta.setDisplayName(ChatColor.AQUA + "Faction Info");
-        infoMeta.setLore(Arrays.asList(
-                ChatColor.GRAY + "Name: " + ChatColor.WHITE + factionName,
-                ChatColor.GRAY + "Description: " + ChatColor.WHITE + faction.description,
-                ChatColor.GRAY + "Your Rank: " + ChatColor.WHITE + playerRank.name(),
-                ChatColor.GRAY + "Members: " + ChatColor.WHITE + faction.members.size()
-        ));
+        if (playerRank == Rank.OWNER || faction.hasPermission(playerRank, FactionPermission.OPEN_CLOSE)) {
+            infoMeta.setLore(Arrays.asList(
+                    ChatColor.GRAY + "Name: " + ChatColor.WHITE + factionName,
+                    ChatColor.GRAY + "Description: " + ChatColor.WHITE + faction.description,
+                    ChatColor.GRAY + "Your Rank: " + ChatColor.WHITE + playerRank.name(),
+                    ChatColor.GRAY + "Members: " + ChatColor.WHITE + faction.members.size(),
+                    "",
+                    ChatColor.LIGHT_PURPLE + "Faction Visibility: " + (faction.isPublic ? ChatColor.GREEN + "Public" : ChatColor.RED + "Private"),
+                    ChatColor.GRAY + (faction.isPublic ? ChatColor.GRAY + "Anyone can join" : ChatColor.GRAY + "Invite only"),
+                    ChatColor.GRAY + "Left click to toggle"
+                    ));
+        }
+        else {
+            infoMeta.setLore(Arrays.asList(
+                    ChatColor.GRAY + "Name: " + ChatColor.WHITE + factionName,
+                    ChatColor.GRAY + "Description: " + ChatColor.WHITE + faction.description,
+                    ChatColor.GRAY + "Your Rank: " + ChatColor.WHITE + playerRank.name(),
+                    ChatColor.GRAY + "Members: " + ChatColor.WHITE + faction.members.size(),
+                    "",
+                    ChatColor.LIGHT_PURPLE + "Faction Visibility: " + (faction.isPublic ? ChatColor.GREEN + "Public" : ChatColor.RED + "Private"),
+                    ChatColor.GRAY + (faction.isPublic ? ChatColor.GRAY + "Anyone can join" : ChatColor.GRAY + "Invite only")
+            ));
+        }
         info.setItemMeta(infoMeta);
         menu.setItem(13, info);
 
@@ -220,34 +237,12 @@ public class MenuHandler {
         ItemMeta claimsMeta = claims.getItemMeta();
         claimsMeta.setDisplayName(ChatColor.GREEN + "Territory");
         claimsMeta.setLore(Arrays.asList(
-                ChatColor.GRAY + "View faction claims",
+                ChatColor.GRAY + "Claims: " +ChatColor.WHITE + plugin.getPowerManager().getTotalClaimedChunks(factionName),
+                ChatColor.GRAY + "View nearby faction claims",
                 ChatColor.GRAY + "Click to see faction map"
         ));
         claims.setItemMeta(claimsMeta);
         menu.setItem(16, claims);
-
-        // Public/Private toggle for admins and owners, view-only for members
-        ItemStack publicPrivate = new ItemStack(Material.PAPER);
-        ItemMeta publicMeta = publicPrivate.getItemMeta();
-        if (playerRank == Rank.OWNER || faction.hasPermission(playerRank, FactionPermission.OPEN_CLOSE)) {
-            publicMeta.setDisplayName(ChatColor.LIGHT_PURPLE + "Faction Visibility");
-            publicMeta.setLore(Arrays.asList(
-                    ChatColor.GRAY + "Current: " + (faction.isPublic ? ChatColor.GREEN + "Public" : ChatColor.RED + "Private"),
-                    ChatColor.GRAY + "Public: Anyone can join",
-                    ChatColor.GRAY + "Private: Invite only",
-                    "",
-                    ChatColor.YELLOW + "Click to toggle"
-            ));
-        } else {
-            publicMeta.setDisplayName(ChatColor.GRAY + "Faction Visibility");
-            publicMeta.setLore(Arrays.asList(
-                    ChatColor.GRAY + "Current: " + (faction.isPublic ? ChatColor.GREEN + "Public" : ChatColor.RED + "Private"),
-                    ChatColor.GRAY + "Public: Anyone can join",
-                    ChatColor.GRAY + "Private: Invite only"
-            ));
-        }
-        publicPrivate.setItemMeta(publicMeta);
-        menu.setItem(22, publicPrivate); // Center bottom row
 
         // Check permissions for inviting
         if (playerRank == Rank.OWNER || faction.hasPermission(playerRank, FactionPermission.INVITE_MEMBERS)) {
@@ -280,35 +275,6 @@ public class MenuHandler {
             settings.setItemMeta(settingsMeta);
             menu.setItem(34, settings);
         }
-
-        /**
-        // Relation requests for owners and permission enabled players
-        if (playerRank == Rank.OWNER || faction.hasPermission(playerRank, FactionPermission.SET_RELATIONS)) {
-            List<RelationRequest> requests = plugin.getRelationManager().getPendingRequests(factionName);
-
-            ItemStack relationRequests = new ItemStack(Material.PAPER);
-            ItemMeta requestsMeta = relationRequests.getItemMeta();
-            requestsMeta.setDisplayName(ChatColor.GOLD + "Relation Requests");
-
-            if (requests.isEmpty()) {
-                requestsMeta.setLore(Arrays.asList(
-                        ChatColor.GRAY + "No pending relation requests"
-                ));
-            } else {
-                requestsMeta.setLore(Arrays.asList(
-                        ChatColor.GRAY + "Pending requests: " + ChatColor.WHITE + requests.size(),
-                        ChatColor.GRAY + "• Ally requests",
-                        ChatColor.GRAY + "• Truce requests",
-                        "",
-                        ChatColor.YELLOW + "Click to manage requests!"
-                ));
-            }
-
-            relationRequests.setItemMeta(requestsMeta);
-            menu.setItem(31, relationRequests); // Bottom row, center-left
-        }
-         */
-
 
         ItemStack relations = new ItemStack(Material.COMPASS);
         ItemMeta relationsMeta = relations.getItemMeta();
@@ -1063,11 +1029,11 @@ public class MenuHandler {
         } else if (displayName.equals(ChatColor.RED + "Faction Settings")) {
             // Open settings menu
             openFactionSettings(player, factionName);
-        } else if (displayName.equals(ChatColor.LIGHT_PURPLE + "Faction Visibility")) {
+        } else if (displayName.equals(ChatColor.AQUA + "Faction Info")) {
             Faction faction = factions.get(factionName);
             Rank playerRank = faction.members.get(player.getUniqueId());
 
-            if (playerRank == Rank.OWNER || playerRank == Rank.ADMIN) {
+            if (playerRank == Rank.OWNER || faction.hasPermission(playerRank, FactionPermission.OPEN_CLOSE)) {
                 faction.isPublic = !faction.isPublic;
                 MessageManager.sendFactionPrivacyToggle(player, faction.isPublic);
 

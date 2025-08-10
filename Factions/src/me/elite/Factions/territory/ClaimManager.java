@@ -99,7 +99,7 @@ public class ClaimManager {
         MessageManager.sendInfo(player,"Chunk unclaimed and returned to Wilderness.");
 
         // Show current available power
-        int availablePower = plugin.getPowerManager().getFactionMaxPower(factionName);
+        int availablePower = plugin.getPowerManager().getFactionPower(factionName);
         MessageManager.sendInfo(player, "Available power: " + availablePower);
 
         return true;
@@ -262,6 +262,7 @@ public class ClaimManager {
         boolean hasSpawn = false;
         boolean hasWarzone = false;
 
+        MessageManager.sendBlankMessage(player, "");
         MessageManager.sendBasicMessage(player,ChatColor.GRAY + "Faction Map (North ↑):");
 
         for (int dz = -radiusZ; dz <= radiusZ; dz++) {

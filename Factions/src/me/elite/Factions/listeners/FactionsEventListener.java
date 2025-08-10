@@ -689,7 +689,7 @@ public class FactionsEventListener implements Listener {
 
         String title = event.getView().getTitle();
 
-        // Handle faction GUI clicks - UPDATED TO INCLUDE RANK MANAGEMENT
+        // Handle faction GUI clicks
         if (title.contains("Faction") || title.contains("Members:") || title.contains("Confirm:") ||
                 title.contains("Kick:") || title.contains("Leave:") || title.contains("Disband:") ||
                 title.equals(ChatColor.DARK_GRAY + "Browse Factions") ||

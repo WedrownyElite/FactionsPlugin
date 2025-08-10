@@ -144,6 +144,7 @@ public final class MessageManager {
 
     // Faction GUI Creation Messages
     public static void sendGUIFactionCreation(Player player) {
+        player.sendMessage("");
         player.sendMessage(ChatColor.YELLOW + "═══════════════════════════════════");
         player.sendMessage(ChatColor.GREEN + "" + ChatColor.GOLD + "CREATE FACTION");
         player.sendMessage(ChatColor.YELLOW + "═══════════════════════════════════");
@@ -155,6 +156,7 @@ public final class MessageManager {
 
     // Ownership Transfer Warning Message
     public static void sendOwnerTransferWarning(Player player, String target, String factionName) {
+        player.sendMessage("");
         player.sendMessage(ChatColor.YELLOW + "═══════════════════════════════════");
         player.sendMessage(ChatColor.RED + "" + ChatColor.BOLD + "⚠ OWNERSHIP TRANSFER WARNING ⚠");
         player.sendMessage(ChatColor.YELLOW + "═══════════════════════════════════");
@@ -176,6 +178,7 @@ public final class MessageManager {
 
     // Ownership Transfer Success Message
     public static void sendOwnerTransferSuccess(Player player, Player target, String factionName) {
+        player.sendMessage("");
         player.sendMessage(ChatColor.GREEN + "═══════════════════════════════════");
         player.sendMessage(ChatColor.GREEN + "" + ChatColor.BOLD + "OWNERSHIP TRANSFERRED");
         player.sendMessage(ChatColor.GREEN + "═══════════════════════════════════");

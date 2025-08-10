@@ -67,11 +67,6 @@ public class FactionCreationManager {
             // Open the sign editor for the player
             player.sendBlockChange(originalBlock.getLocation(), originalBlock.getBlockData());
 
-            // Send a packet to open sign editor (this is the tricky part)
-            // For Bukkit/Spigot, we need to use NMS or a library like ProtocolLib
-            // For simplicity, let's use a different approach with chat input
-
-            // Alternative: Use chat input instead
             player.closeInventory();
             MessageManager.sendGUIFactionCreation(player);
 

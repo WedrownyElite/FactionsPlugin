@@ -2,10 +2,11 @@ name: Factions
 main: me.elite.Factions.FactionsPlugin
 version: 1.0
 api-version: 1.16
+author: WedrownyElite
 commands:
   f:
     description: Main factions command
-    usage: /<command> <subcommand> [args]
+    usage: /f help <page [1, 2, 3, 4]>
     aliases: [faction]
 
 permissions:

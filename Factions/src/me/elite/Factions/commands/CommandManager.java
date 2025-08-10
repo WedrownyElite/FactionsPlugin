@@ -51,6 +51,10 @@ public class CommandManager implements CommandExecutor {
         }
 
         switch (args[0].toLowerCase()) {
+            case "help":
+            case "h":
+            case "?":
+                return handleHelp(player, args);
             case "create":
                 return handleWithUsage(args[0].toLowerCase(), "handleCreate", player, args);
             case "promote":
@@ -61,6 +65,7 @@ public class CommandManager implements CommandExecutor {
             case "claim":
                 return handleWithUsage(args[0].toLowerCase(), "handleClaim", player, args);
             case "map":
+            case "m":
                 return handleWithUsage(args[0].toLowerCase(), "handleMap", player, args);
             case "adminclaim":
                 return handleWithUsage(args[0].toLowerCase(), "handleAdminClaim", player, args);
@@ -77,6 +82,7 @@ public class CommandManager implements CommandExecutor {
             case "load":
                 return handleWithUsage(args[0].toLowerCase(), "handleLoad", player, args);
             case "invite":
+            case "inv":
                 return handleWithUsage(args[0].toLowerCase(), "handleInvite", player, args);
             case "kick":
                 return handleWithUsage(args[0].toLowerCase(), "handleKick", player, args);
@@ -92,6 +98,7 @@ public class CommandManager implements CommandExecutor {
                 return handleWithUsage(args[0].toLowerCase(), "handleDisband", player, args);
             case "invitations":
             case "invites":
+            case "invs":
                 return handleWithUsage(args[0].toLowerCase(), "handleViewInvitations", player, args);
             case "privacy":
                 return handleWithUsage(args[0].toLowerCase(), "handlePrivacy", player, args);
@@ -100,12 +107,16 @@ public class CommandManager implements CommandExecutor {
             case "removetestfactions":
                 return handleWithUsage(args[0].toLowerCase(), "handleRemoveTestFactions", player, args);
             case "enemy":
+            case "e":
                 return handleWithUsage(args[0].toLowerCase(), "handleEnemy", player, args);
             case "neutral":
+            case "n":
                 return handleWithUsage(args[0].toLowerCase(), "handleNeutral", player, args);
             case "ally":
+            case "a":
                 return handleWithUsage(args[0].toLowerCase(), "handleAlly", player, args);
             case "truce":
+            case "t":
                 return handleWithUsage(args[0].toLowerCase(), "handleTruce", player, args);
             case "confirm":
                 return handleWithUsage(args[0].toLowerCase(), "handleConfirmOwnership", player, args);
@@ -114,11 +125,15 @@ public class CommandManager implements CommandExecutor {
             case "debugnametags":
                 return handleWithUsage(args[0].toLowerCase(), "handleDebugNametags", player, args);
             case "power":
+            case "p":
                 return handleWithUsage(args[0].toLowerCase(), "handlePower", player, args);
             case "debuginfo":
                 return handleWithUsage(args[0].toLowerCase(), "handleDebugInfo", player, args);
             default:
-                return false;
+                // Enhanced error message for unknown commands
+                MessageManager.sendError(player, "Unknown command: '" + args[0] + "'");
+                MessageManager.sendInfo(player, "Use " + ChatColor.YELLOW + "/f help" + ChatColor.GRAY + " to see all available commands and their usage.");
+                return true;
         }
     }
 
@@ -126,6 +141,7 @@ public class CommandManager implements CommandExecutor {
     private String getUsageFor(String subCommand) {
         Map<String, String> usages = new HashMap<>();
 
+        usages.put("help", "Usage: /f help - Displays usable commands and their functions");
         usages.put("create", "Usage: /f create <name> - Create a faction.");
         usages.put("promote", "Usage: /f promote <player> - Promote a faction member.");
         usages.put("demote", "Usage: /f demote <player> - Demote a faction member.");
@@ -133,20 +149,20 @@ public class CommandManager implements CommandExecutor {
         usages.put("claim", "Usage: /f claim - Claim the chunk you're standing in.");
         usages.put("unclaim", "Usage: /f unclaim - Unclaim the chunk you're standing in.");
         usages.put("adminclaim", "Usage: /f adminclaim <faction> - Admin claim land for a faction.");
-        usages.put("map", "Usage: /f map - Show the faction territory map.");
-        usages.put("invite", "Usage: /f invite <player> - Invite a player to your faction.");
+        usages.put("map", "Usage: /f <map/m> - Show the faction territory map.");
+        usages.put("invite", "Usage: /f <invite/inv> <player> - Invite a player to your faction.");
         usages.put("kick", "Usage: /f kick <player> - Kick a player from your faction.");
         usages.put("join", "Usage: /f join <faction> - Join a faction (public or invited).");
         usages.put("leave", "Usage: /f leave - Leave your current faction.");
         usages.put("disband", "Usage: /f disband - Disband your faction.");
-        usages.put("invitations", "Usage: /f invites - View your faction invitations.");
+        usages.put("invitations", "Usage: /f <invites/invs> - View your faction invitations.");
         usages.put("privacy", "Usage: /f privacy <open|invite|closed> - Change faction privacy.");
         usages.put("createtestfactions", "Usage: /f createtestfactions <count> - Create test factions.");
         usages.put("removetestfactions", "Usage: /f removetestfactions - Remove test factions.");
-        usages.put("enemy", "Usage: /f enemy <faction> - Set enemy relation.");
-        usages.put("neutral", "Usage: /f neutral <faction> - Set neutral relation.");
-        usages.put("ally", "Usage: /f ally <faction> - Set ally relation.");
-        usages.put("truce", "Usage: /f truce <faction> - Set truce relation.");
+        usages.put("enemy", "Usage: /f <enemy/e> <faction> - Set enemy relation.");
+        usages.put("neutral", "Usage: /f <neutral/n> <faction> - Set neutral relation.");
+        usages.put("ally", "Usage: /f <ally/a> <faction> - Set ally relation.");
+        usages.put("truce", "Usage: /f <truce/t> <faction> - Set truce relation.");
         usages.put("confirm", "Usage: /f confirm - Confirm pending ownership/claim.");
         usages.put("cancel", "Usage: /f cancel - Cancel pending ownership/claim.");
         usages.put("debugnametags", "Usage: /f debugnametags - Show nametag debug info.");
@@ -156,12 +172,154 @@ public class CommandManager implements CommandExecutor {
         usages.put("unclaimall", "Usage: /f unclaimall - Unclaim all land for your faction.");
         usages.put("adminunclaimall", "Usage: /f adminunclaimall - Admin unclaim all.");
         usages.put("adminjoin", "Usage: /f adminjoin <player> <faction> - Force join a player to a faction.");
-        usages.put("power", "Usage: /f power - View your faction's power information.");
+        usages.put("power", "Usage: /f <power/p> - View your faction's power information.");
         usages.put("debuginfo", "Usage: /f debuginfo - Debug: Show detailed power breakdown.");
 
         String key = subCommand == null ? "" : subCommand.toLowerCase();
         if (usages.containsKey(key)) return usages.get(key);
         return "Usage: /f " + key + " [args] - Invalid or missing arguments.";
+    }
+
+    private boolean handleHelp(Player player, String[] args) {
+        int page = 1;
+        if (args.length >= 2) {
+            try {
+                page = Integer.parseInt(args[1]);
+            } catch (NumberFormatException e) {
+                MessageManager.sendError(player, "Invalid page number. Use /f help <page>");
+                return true;
+            }
+        }
+
+        showHelpPage(player, page);
+        return true;
+    }
+
+    private void showHelpPage(Player player, int page) {
+        int totalPages = 4;
+
+        if (page < 1 || page > totalPages) {
+            MessageManager.sendError(player, "Invalid page number. Available pages: 1-" + totalPages);
+            return;
+        }
+
+        // Header
+        player.sendMessage("");
+        player.sendMessage(ChatColor.GOLD + "========== " + ChatColor.YELLOW + "Factions Help " +
+                ChatColor.WHITE + "(" + page + "/" + totalPages + ")" +
+                ChatColor.GOLD + " ==========");
+        player.sendMessage("");
+
+        switch (page) {
+            case 1:
+                showBasicCommands(player);
+                break;
+            case 2:
+                showManagementCommands(player);
+                break;
+            case 3:
+                showRelationCommands(player);
+                break;
+            case 4:
+                showAdvancedCommands(player);
+                break;
+        }
+
+        // Navigation
+        player.sendMessage("");
+        StringBuilder nav = new StringBuilder(ChatColor.GRAY + "Pages: ");
+        for (int i = 1; i <= totalPages; i++) {
+            if (i == page) {
+                nav.append(ChatColor.YELLOW).append("[").append(i).append("]").append(ChatColor.GRAY);
+            } else {
+                nav.append(ChatColor.WHITE).append(i).append(ChatColor.GRAY);
+            }
+            if (i < totalPages) nav.append(" ");
+        }
+        player.sendMessage(nav.toString());
+        player.sendMessage(ChatColor.GRAY + "Use " + ChatColor.WHITE + "/f help <page>" + ChatColor.GRAY + " to view other pages");
+        player.sendMessage(ChatColor.GOLD + "=============================================");
+    }
+
+    private void showBasicCommands(Player player) {
+        player.sendMessage(ChatColor.AQUA + "Basic Faction Commands:");
+        player.sendMessage("");
+
+        sendHelpLine(player, "/f menu", "Open the faction GUI menu");
+        sendHelpLine(player, "/f create <name>", "Create a new faction");
+        sendHelpLine(player, "/f join <faction>", "Join a public faction or one you're invited to");
+        sendHelpLine(player, "/f leave", "Leave your current faction");
+        sendHelpLine(player, "/f invitations", "View your faction invitations");
+        sendHelpLine(player, "/f map", "Display territory map around you");
+        sendHelpLine(player, "/f power", "View your faction's power information");
+
+        player.sendMessage("");
+        player.sendMessage(ChatColor.GRAY + "Tip: Use " + ChatColor.WHITE + "/f menu" + ChatColor.GRAY + " for an easy-to-use interface!");
+    }
+
+    private void showManagementCommands(Player player) {
+        player.sendMessage(ChatColor.AQUA + "Faction Management Commands:");
+        player.sendMessage("");
+
+        sendHelpLine(player, "/f invite <player>", "Invite a player to your faction");
+        sendHelpLine(player, "/f kick <player>", "Kick a player from your faction");
+        sendHelpLine(player, "/f promote <player>", "Promote a faction member");
+        sendHelpLine(player, "/f demote <player>", "Demote a faction member");
+        sendHelpLine(player, "/f desc <text>", "Set faction description");
+        sendHelpLine(player, "/f privacy <public|private>", "Change faction privacy settings");
+        sendHelpLine(player, "/f disband", "Disband your faction (owner only)");
+
+        player.sendMessage("");
+        player.sendMessage(ChatColor.GRAY + "Note: Most management commands require " + ChatColor.YELLOW + "Admin" + ChatColor.GRAY + " or " + ChatColor.RED + "Owner" + ChatColor.GRAY + " rank");
+    }
+
+    private void showRelationCommands(Player player) {
+        player.sendMessage(ChatColor.AQUA + "Faction Relations Commands:");
+        player.sendMessage("");
+
+        sendHelpLine(player, "/f ally <faction>", "Send ally request (mutual agreement needed.)");
+        sendHelpLine(player, "/f truce <faction>", "Send truce request (mutual agreement needed)");
+        sendHelpLine(player, "/f neutral <faction>", "Set neutral relation (immediate)");
+        sendHelpLine(player, "/f enemy <faction>", "Set enemy relation (immediate)");
+
+        player.sendMessage("");
+        player.sendMessage(ChatColor.GRAY + "Relation Colors:");
+        player.sendMessage(ChatColor.GREEN + "  • Faction Member" + ChatColor.GRAY + " - Same faction");
+        player.sendMessage(ChatColor.LIGHT_PURPLE + "  • Ally" + ChatColor.GRAY + " - Cannot attack, can access territory");
+        player.sendMessage(ChatColor.BLUE + "  • Truce" + ChatColor.GRAY + " - Cannot attack, limited access");
+        player.sendMessage(ChatColor.RED + "  • Enemy" + ChatColor.GRAY + " - Hostile relations");
+        player.sendMessage(ChatColor.WHITE + "  • Neutral" + ChatColor.GRAY + " - Default relations");
+    }
+
+    private void showAdvancedCommands(Player player) {
+        player.sendMessage(ChatColor.AQUA + "Territory & Advanced Commands:");
+        player.sendMessage("");
+
+        sendHelpLine(player, "/f claim", "Claim the chunk you're standing in");
+        sendHelpLine(player, "/f unclaim", "Unclaim the chunk you're standing in");
+        sendHelpLine(player, "/f unclaimall", "Unclaim all faction territory");
+        sendHelpLine(player, "/f confirm", "Confirm ownership transfer or other actions");
+        sendHelpLine(player, "/f cancel", "Cancel pending ownership transfer");
+
+        // Show admin commands only to ops
+        if (player.isOp()) {
+            player.sendMessage("");
+            player.sendMessage(ChatColor.RED + "Admin Commands:");
+            sendHelpLine(player, "/f adminclaim <faction>", "Admin claim land for any faction");
+            sendHelpLine(player, "/f adminunclaim", "Admin unclaim any chunk");
+            sendHelpLine(player, "/f loadall", "Initialize wilderness for all worlds");
+            sendHelpLine(player, "/f debuginfo", "Show detailed power information");
+        }
+
+        player.sendMessage("");
+        player.sendMessage(ChatColor.GRAY + "Territory Rules:");
+        player.sendMessage(ChatColor.GRAY + "• " + ChatColor.AQUA + "Spawn" + ChatColor.GRAY + " - Safe zone, no PvP or building");
+        player.sendMessage(ChatColor.GRAY + "• " + ChatColor.RED + "Warzone" + ChatColor.GRAY + " - PvP allowed, no building");
+        player.sendMessage(ChatColor.GRAY + "• " + ChatColor.GREEN + "Wilderness" + ChatColor.GRAY + " - Unclaimed, anything goes");
+    }
+
+    private void sendHelpLine(Player player, String command, String description) {
+        player.sendMessage(ChatColor.YELLOW + command + ChatColor.GRAY + " - " + ChatColor.WHITE + description);
     }
 
     private boolean handleDebugInfo(Player player, String[] args) {

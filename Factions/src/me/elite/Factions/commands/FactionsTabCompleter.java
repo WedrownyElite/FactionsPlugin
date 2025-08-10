@@ -22,7 +22,9 @@ public class FactionsTabCompleter implements TabCompleter {
             List<String> commands = new ArrayList<>();
 
             // Basic commands everyone can see
-            commands.addAll(Arrays.asList("create", "claim", "privacy", "ally", "truce", "enemy", "neutral", "confirm", "cancel", "power"));
+            commands.addAll(Arrays.asList("help", "h", "?", "create", "claim", "privacy", "ally", "a", "truce", "t", "enemy", "e", "neutral", "n", "confirm", "cancel", "power",
+                    "p", "invite", "inv", "join", "kick", "promote", "demote", "desc", "map", "m", "unclaim", "unclaimall", "leave", "disband",
+                    "invitations", "invites", "invs", "menu"));
 
             // Admin commands - only show if player has permission or is op
             if (sender.isOp() || sender.hasPermission("factions.adminclaim")) {
@@ -71,6 +73,7 @@ public class FactionsTabCompleter implements TabCompleter {
                 return Collections.emptyList();
 
             case "invite":
+            case "inv":
                 // Show online players who aren't already in a faction (filtered by typed partial)
                 FactionsPlugin invitePlugin = (FactionsPlugin) Bukkit.getPluginManager().getPlugin("Factions");
                 if (invitePlugin != null) {
@@ -126,7 +129,9 @@ public class FactionsTabCompleter implements TabCompleter {
                 return Collections.emptyList();
 
             case "ally":
+            case "a":
             case "truce":
+            case "t":
                 FactionsPlugin allyPlugin = (FactionsPlugin) Bukkit.getPluginManager().getPlugin("Factions");
                 if (allyPlugin != null) {
                     return allyPlugin.getUtilityManager().getAllFactionNames().stream()
@@ -137,7 +142,9 @@ public class FactionsTabCompleter implements TabCompleter {
                 return Collections.emptyList();
 
             case "enemy":
+            case "e":
             case "neutral":
+            case "n":
                 FactionsPlugin enemyPlugin = (FactionsPlugin) Bukkit.getPluginManager().getPlugin("Factions");
                 if (enemyPlugin != null) {
                     return enemyPlugin.getUtilityManager().getAllFactionNames().stream()
