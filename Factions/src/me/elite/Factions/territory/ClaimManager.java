@@ -11,6 +11,8 @@ import org.bukkit.Location;
 import org.bukkit.World;
 import org.bukkit.entity.Player;
 import org.bukkit.scheduler.BukkitRunnable;
+import java.util.List;
+import java.util.ArrayList;
 
 import java.util.*;
 
@@ -96,6 +98,9 @@ public class ClaimManager {
         // Restore power
         plugin.getPowerManager().restorePowerForUnclaim(factionName);
 
+        // ADDED: Validate faction home in unclaimed territory
+        plugin.getHomeManager().validateHomeInTerritory(factionName);
+
         MessageManager.sendInfo(player,"Chunk unclaimed and returned to Wilderness.");
 
         // Show current available power
@@ -135,6 +140,11 @@ public class ClaimManager {
             if (plugin.getPowerManager() != null) {
                 plugin.getPowerManager().restorePowerForUnclaim(factionName);
             }
+        }
+
+        // ADDED: Validate faction home after mass unclaim
+        if (unclaimedCount > 0) {
+            plugin.getHomeManager().validateHomeInTerritory(factionName);
         }
 
         if (unclaimedCount == 0) {
@@ -188,6 +198,10 @@ public class ClaimManager {
 
         claims.remove(coord);
         claims.put(coord, "Wilderness");
+
+        // ADDED: Validate faction home for the affected faction
+        plugin.getHomeManager().validateHomeInTerritory(currentOwner);
+
         MessageManager.sendSuccess(player, "Chunk unclaimed from " + currentOwner + " and returned to Wilderness.");
         return true;
     }
@@ -222,6 +236,11 @@ public class ClaimManager {
             if (plugin.getPowerManager() != null) {
                 plugin.getPowerManager().restorePowerForUnclaim(targetFaction);
             }
+        }
+
+        // ADDED: Validate faction home after admin mass unclaim
+        if (unclaimedCount > 0) {
+            plugin.getHomeManager().validateHomeInTerritory(targetFaction);
         }
 
         if (unclaimedCount == 0) {

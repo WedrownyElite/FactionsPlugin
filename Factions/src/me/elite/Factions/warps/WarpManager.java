@@ -20,7 +20,6 @@ public class WarpManager {
     private final FactionsPlugin plugin;
     private final Map<String, Faction> factions;
     private final Map<UUID, String> playerFactions;
-    private final Map<String, Map<ChunkCoord, String>> worldClaims;
 
     // Teleport tasks for cancellation
     private final Map<UUID, BukkitTask> teleportTasks = new HashMap<>();
@@ -32,7 +31,6 @@ public class WarpManager {
         this.plugin = plugin;
         this.factions = plugin.getFactions();
         this.playerFactions = plugin.getPlayerFactions();
-        this.worldClaims = plugin.getWorldClaims();
     }
 
     /**
@@ -77,15 +75,8 @@ public class WarpManager {
             return false;
         }
 
-        // Check if location is in faction territory
+        // FIXED: Warps can be set anywhere (removed faction territory requirement)
         Location location = player.getLocation();
-        ChunkCoord coord = new ChunkCoord(location.getChunk().getX(), location.getChunk().getZ());
-        String chunkOwner = plugin.getUtilityManager().getFactionAtChunk(location.getWorld(), coord);
-
-        if (!factionName.equals(chunkOwner)) {
-            MessageManager.sendError(player, "You can only set warps in your faction's territory!");
-            return false;
-        }
 
         // Create and add the warp
         FactionWarp warp = new FactionWarp(warpName, location, uuid);
@@ -200,18 +191,10 @@ public class WarpManager {
             return false;
         }
 
-        // Validate warp location (check if chunk is still claimed)
+        // Validate warp location
         Location warpLocation = warp.getLocation();
         if (warpLocation == null || warpLocation.getWorld() == null) {
             MessageManager.sendError(player, "Warp location is invalid! Contact an admin.");
-            return false;
-        }
-
-        ChunkCoord coord = new ChunkCoord(warpLocation.getChunk().getX(), warpLocation.getChunk().getZ());
-        String chunkOwner = plugin.getUtilityManager().getFactionAtChunk(warpLocation.getWorld(), coord);
-
-        if (!factionName.equals(chunkOwner)) {
-            MessageManager.sendError(player, "Warp '" + warpName + "' is no longer in faction territory! Contact a faction admin.");
             return false;
         }
 
@@ -353,6 +336,7 @@ public class WarpManager {
         if (task != null) {
             task.cancel();
             teleportTasks.remove(uuid);
+
         }
     }
 
@@ -372,58 +356,6 @@ public class WarpManager {
     public int getWarpLimit(Faction faction) {
         // TODO: Later can be expanded with faction upgrades
         return DEFAULT_WARP_LIMIT;
-    }
-
-    /**
-     * Clean up warps in unclaimed chunks (called when chunks are unclaimed)
-     */
-    public void validateWarpsInTerritory(String factionName) {
-        Faction faction = factions.get(factionName);
-        if (faction == null || faction.warps.isEmpty()) {
-            return;
-        }
-
-        List<String> invalidWarps = new ArrayList<>();
-
-        for (Map.Entry<String, FactionWarp> entry : faction.warps.entrySet()) {
-            String warpName = entry.getKey();
-            FactionWarp warp = entry.getValue();
-            Location location = warp.getLocation();
-
-            if (location == null || location.getWorld() == null) {
-                invalidWarps.add(warpName);
-                continue;
-            }
-
-            ChunkCoord coord = new ChunkCoord(location.getChunk().getX(), location.getChunk().getZ());
-            String chunkOwner = plugin.getUtilityManager().getFactionAtChunk(location.getWorld(), coord);
-
-            if (!factionName.equals(chunkOwner)) {
-                invalidWarps.add(warpName);
-            }
-        }
-
-        // Remove invalid warps and notify faction
-        if (!invalidWarps.isEmpty()) {
-            for (String warpName : invalidWarps) {
-                faction.warps.remove(warpName);
-            }
-
-            // Notify online faction members
-            for (UUID memberUUID : faction.members.keySet()) {
-                Player member = Bukkit.getPlayer(memberUUID);
-                if (member != null) {
-                    if (invalidWarps.size() == 1) {
-                        MessageManager.sendError(member, "Warp '" + invalidWarps.get(0) + "' was removed because the chunk is no longer claimed!");
-                    } else {
-                        MessageManager.sendError(member, invalidWarps.size() + " warps were removed because their chunks are no longer claimed!");
-                        MessageManager.sendInfo(member, "Removed warps: " + String.join(", ", invalidWarps));
-                    }
-                }
-            }
-
-            plugin.getDataManager().saveFactionData();
-        }
     }
 
     /**

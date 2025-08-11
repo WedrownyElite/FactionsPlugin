@@ -82,6 +82,42 @@ public class DataManager {
                 }
                 fdata.put("relationPermissions", relationPermsMap);
 
+                // Save faction home
+                if (f.home != null) {
+                    Map<String, Object> homeData = new HashMap<>();
+                    homeData.put("worldName", f.home.getWorldName());
+                    homeData.put("x", f.home.getX());
+                    homeData.put("y", f.home.getY());
+                    homeData.put("z", f.home.getZ());
+                    homeData.put("yaw", f.home.getYaw());
+                    homeData.put("pitch", f.home.getPitch());
+                    homeData.put("setBy", f.home.getSetBy().toString());
+                    homeData.put("setTime", f.home.getSetTime());
+                    fdata.put("home", homeData);
+                }
+
+                // Save faction warps
+                if (!f.warps.isEmpty()) {
+                    Map<String, Map<String, Object>> warpsData = new HashMap<>();
+                    for (Map.Entry<String, FactionWarp> warpEntry : f.warps.entrySet()) {
+                        String warpName = warpEntry.getKey();
+                        FactionWarp warp = warpEntry.getValue();
+
+                        Map<String, Object> warpData = new HashMap<>();
+                        warpData.put("worldName", warp.getWorldName());
+                        warpData.put("x", warp.getX());
+                        warpData.put("y", warp.getY());
+                        warpData.put("z", warp.getZ());
+                        warpData.put("yaw", warp.getYaw());
+                        warpData.put("pitch", warp.getPitch());
+                        warpData.put("createdBy", warp.getCreatedBy().toString());
+                        warpData.put("createdTime", warp.getCreatedTime());
+
+                        warpsData.put(warpName, warpData);
+                    }
+                    fdata.put("warps", warpsData);
+                }
+
                 factionMap.put(entry.getKey(), fdata);
             }
             data.put("factions", factionMap);
@@ -237,6 +273,48 @@ public class DataManager {
                                 f.relationPermissions.put(relation, perms);
                             } catch (IllegalArgumentException e) {
                                 plugin.getLogger().warning("Unknown relation: " + relationName);
+                            }
+                        }
+                    }
+
+                    // Load faction home
+                    if (fdata.has("home")) {
+                        JSONObject homeData = fdata.getJSONObject("home");
+                        try {
+                            String worldName = homeData.getString("worldName");
+                            double x = homeData.getDouble("x");
+                            double y = homeData.getDouble("y");
+                            double z = homeData.getDouble("z");
+                            float yaw = (float) homeData.getDouble("yaw");
+                            float pitch = (float) homeData.getDouble("pitch");
+                            UUID setBy = UUID.fromString(homeData.getString("setBy"));
+                            long setTime = homeData.getLong("setTime");
+
+                            f.home = new FactionHome(worldName, x, y, z, yaw, pitch, setBy, setTime);
+                        } catch (Exception e) {
+                            plugin.getLogger().warning("Failed to load home for faction " + name + ": " + e.getMessage());
+                        }
+                    }
+
+                    // Load faction warps
+                    if (fdata.has("warps")) {
+                        JSONObject warpsData = fdata.getJSONObject("warps");
+                        for (String warpName : warpsData.keySet()) {
+                            try {
+                                JSONObject warpData = warpsData.getJSONObject(warpName);
+                                String worldName = warpData.getString("worldName");
+                                double x = warpData.getDouble("x");
+                                double y = warpData.getDouble("y");
+                                double z = warpData.getDouble("z");
+                                float yaw = (float) warpData.getDouble("yaw");
+                                float pitch = (float) warpData.getDouble("pitch");
+                                UUID createdBy = UUID.fromString(warpData.getString("createdBy"));
+                                long createdTime = warpData.getLong("createdTime");
+
+                                FactionWarp warp = new FactionWarp(warpName, worldName, x, y, z, yaw, pitch, createdBy, createdTime);
+                                f.warps.put(warpName, warp);
+                            } catch (Exception e) {
+                                plugin.getLogger().warning("Failed to load warp " + warpName + " for faction " + name + ": " + e.getMessage());
                             }
                         }
                     }

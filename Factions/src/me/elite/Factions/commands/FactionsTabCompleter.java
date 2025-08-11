@@ -6,6 +6,7 @@ import org.bukkit.command.Command;
 import org.bukkit.command.CommandSender;
 import org.bukkit.command.TabCompleter;
 import org.bukkit.entity.Player;
+import me.elite.Factions.data.Faction;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -22,9 +23,31 @@ public class FactionsTabCompleter implements TabCompleter {
             List<String> commands = new ArrayList<>();
 
             // Basic commands everyone can see
-            commands.addAll(Arrays.asList("help", "h", "?", "create", "claim", "privacy", "ally", "a", "truce", "t", "enemy", "e", "neutral", "n", "confirm", "cancel", "power",
-                    "p", "invite", "inv", "join", "kick", "promote", "demote", "desc", "map", "m", "unclaim", "unclaimall", "leave", "disband",
-                    "invitations", "invites", "invs", "menu"));
+            commands.addAll(Arrays.asList(
+                    // Core essentials - what new players need first
+                    "menu", "help", "h", "?", "create", "join",
+
+                    // Basic faction management
+                    "invite", "inv", "invitations", "invites", "invs", "leave",
+
+                    // Territory and navigation
+                    "claim", "home", "sethome", "map", "m", "warp",
+
+                    // Member management
+                    "kick", "promote", "demote", "privacy",
+
+                    // Diplomacy and relations
+                    "ally", "a", "truce", "t", "neutral", "n", "enemy", "e",
+
+                    // Advanced features
+                    "power", "p", "desc", "setwarp", "delhome", "delwarp",
+
+                    // Territory management
+                    "unclaim", "unclaimall",
+
+                    // Confirmations and destructive actions
+                    "confirm", "cancel", "disband"
+            ));
 
             // Admin commands - only show if player has permission or is op
             if (sender.isOp() || sender.hasPermission("factions.adminclaim")) {
@@ -152,6 +175,52 @@ public class FactionsTabCompleter implements TabCompleter {
                             .filter(n -> n.toLowerCase().startsWith(partial))
                             .collect(Collectors.toList());
                 }
+                return Collections.emptyList();
+            case "warp":
+                // Show available warps for the player's faction
+                if (sender instanceof Player) {
+                    Player player = (Player) sender;
+                    FactionsPlugin warpPlugin = (FactionsPlugin) Bukkit.getPluginManager().getPlugin("Factions");
+                    if (warpPlugin != null) {
+                        String playerFaction = warpPlugin.getPlayerFactions().get(player.getUniqueId());
+                        if (playerFaction != null) {
+                            Faction faction = warpPlugin.getFactions().get(playerFaction);
+                            if (faction != null) {
+                                return faction.warps.keySet().stream()
+                                        .filter(warpName -> warpName.toLowerCase().startsWith(partial))
+                                        .collect(Collectors.toList());
+                            }
+                        }
+                    }
+                }
+                return Collections.emptyList();
+
+            case "delwarp":
+                // Show available warps for deletion (same as warp command)
+                if (sender instanceof Player) {
+                    Player player = (Player) sender;
+                    FactionsPlugin delWarpPlugin = (FactionsPlugin) Bukkit.getPluginManager().getPlugin("Factions");
+                    if (delWarpPlugin != null) {
+                        String playerFaction = delWarpPlugin.getPlayerFactions().get(player.getUniqueId());
+                        if (playerFaction != null) {
+                            Faction faction = delWarpPlugin.getFactions().get(playerFaction);
+                            if (faction != null) {
+                                return faction.warps.keySet().stream()
+                                        .filter(warpName -> warpName.toLowerCase().startsWith(partial))
+                                        .collect(Collectors.toList());
+                            }
+                        }
+                    }
+                }
+                return Collections.emptyList();
+            case "setwarp":
+                // No tab completion needed for setwarp as it's a new warp name
+                return Collections.emptyList();
+
+            case "sethome":
+            case "delhome":
+            case "home":
+                // No tab completion needed for home commands
                 return Collections.emptyList();
             case "debuginfo":
                 // No arguments needed

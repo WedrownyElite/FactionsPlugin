@@ -932,6 +932,50 @@ public class FactionsEventListener implements Listener {
         }
     }
 
+    @EventHandler(priority = EventPriority.MONITOR)
+    public void onCombatTagTrigger(EntityDamageByEntityEvent event) {
+
+        if (event.isCancelled() || event.getFinalDamage() <= 0) {
+            return;
+        }
+
+        Player attacker = null;
+        Player victim = null;
+
+        // Get the victim
+        if (event.getEntity() instanceof Player) {
+            victim = (Player) event.getEntity();
+        } else {
+            return;
+        }
+
+        // Get the attacker (same logic as your CombatTag plugin)
+        org.bukkit.entity.Entity damager = event.getDamager();
+        if (damager instanceof Player) {
+            attacker = (Player) damager;
+        } else if (damager instanceof org.bukkit.entity.Projectile) {
+            org.bukkit.entity.Projectile projectile = (org.bukkit.entity.Projectile) damager;
+            org.bukkit.projectiles.ProjectileSource shooter = projectile.getShooter();
+            if (shooter instanceof Player) {
+                attacker = (Player) shooter;
+            }
+        }
+
+        // If both are players and damage went through, cancel their teleports
+        if (attacker != null && victim != null) {
+            // Don't process self-damage
+            if (attacker.getUniqueId().equals(victim.getUniqueId())) {
+                return;
+            }
+
+            // Cancel pending teleports for both players since they'll be combat tagged
+            plugin.getHomeManager().cancelTeleport(attacker);
+            plugin.getHomeManager().cancelTeleport(victim);
+            plugin.getWarpManager().cancelTeleport(attacker);
+            plugin.getWarpManager().cancelTeleport(victim);
+        }
+    }
+
     private boolean isFactionGUIItem(ItemStack item) {
         if (item == null || item.getType() == Material.AIR || !item.hasItemMeta() || !item.getItemMeta().hasDisplayName()) {
             return false;
