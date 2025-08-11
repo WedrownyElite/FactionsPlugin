@@ -390,6 +390,7 @@ public class FactionsEventListener implements Listener {
                 title.equals(ChatColor.DARK_GRAY + "Public Factions") ||
                 title.equals(ChatColor.DARK_GRAY + "Your Invitations") ||
                 title.equals(ChatColor.DARK_GRAY + "Relations & Requests") ||
+                title.equals(ChatColor.DARK_GRAY + "Homes & Warps") ||
                 title.startsWith(ChatColor.DARK_RED + "Remove: ")) {
 
             UUID uuid = player.getUniqueId();
@@ -613,6 +614,7 @@ public class FactionsEventListener implements Listener {
                 title.equals(ChatColor.DARK_GRAY + "Your Invitations") ||
                 title.equals(ChatColor.DARK_GRAY + "Relation Requests") ||
                 title.equals(ChatColor.DARK_GRAY + "Faction Relations") ||
+                title.equals(ChatColor.DARK_GRAY + "Homes & Warps") ||
                 title.startsWith(ChatColor.DARK_RED + "Remove: ")) {
 
             // Clear offhand when closing GUI
@@ -699,7 +701,8 @@ public class FactionsEventListener implements Listener {
                 title.equals(ChatColor.DARK_GRAY + "Faction Settings") ||
                 title.equals(ChatColor.DARK_GRAY + "Faction Permissions") ||
                 title.equals(ChatColor.DARK_GRAY + "Relations & Requests") ||
-                title.startsWith(ChatColor.DARK_GRAY + "Manage: ") ||  // ADD THIS LINE
+                title.equals(ChatColor.DARK_GRAY + "Homes & Warps") ||
+                title.startsWith(ChatColor.DARK_GRAY + "Manage: ") ||
                 title.startsWith(ChatColor.DARK_RED + "Remove: ") ||
                 title.contains(" Permissions")) {
 
@@ -725,6 +728,11 @@ public class FactionsEventListener implements Listener {
             } else if (title.startsWith(ChatColor.DARK_GRAY + "Faction: ")) {
                 if (event.getClick() == ClickType.LEFT) {
                     plugin.getMenuHandler().handleFactionMenuClick(player, displayName);
+                }
+            } else if (title.equals(ChatColor.DARK_GRAY + "Homes & Warps")) {
+                // NEW: Handle homes & warps menu clicks
+                if (event.getClick() == ClickType.LEFT) {
+                    plugin.getMenuHandler().handleHomesWarpsMenuClick(player, displayName, title);
                 }
             } else if (title.startsWith(ChatColor.DARK_GRAY + "Members: ")) {
                 plugin.getMenuHandler().handleMembersMenuClick(player, item, event.getClick());
@@ -997,6 +1005,11 @@ public class FactionsEventListener implements Listener {
         factionGUIItems.add(ChatColor.RED + "Leave Faction");
         factionGUIItems.add(ChatColor.RED + "Disband Faction");
         factionGUIItems.add(ChatColor.LIGHT_PURPLE + "Faction Visibility");
+
+        // Homes & Warps items
+        factionGUIItems.add(ChatColor.LIGHT_PURPLE + "Homes & Warps");
+        factionGUIItems.add(ChatColor.GREEN + "" + ChatColor.BOLD + "FACTION HOME");
+        factionGUIItems.add(ChatColor.RED + "No Teleportation Available");
 
         // Confirmation dialog items
         factionGUIItems.add(ChatColor.GREEN + "" + ChatColor.BOLD + "CONFIRM");

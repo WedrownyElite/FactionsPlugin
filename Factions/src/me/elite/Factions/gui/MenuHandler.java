@@ -13,6 +13,7 @@ import me.elite.Factions.Relations.RelationManager;
 import me.elite.Factions.utils.ChatUtils;
 import me.elite.Factions.gui.BrowserMenuHandler;
 import me.elite.Factions.utils.MessageManager;
+import me.elite.Factions.territory.ChunkCoord;
 
 // External libraries
 import com.mojang.authlib.GameProfile;
@@ -236,13 +237,76 @@ public class MenuHandler {
         ItemStack claims = new ItemStack(Material.MAP);
         ItemMeta claimsMeta = claims.getItemMeta();
         claimsMeta.setDisplayName(ChatColor.GREEN + "Territory");
-        claimsMeta.setLore(Arrays.asList(
-                ChatColor.GRAY + "Claims: " +ChatColor.WHITE + plugin.getPowerManager().getTotalClaimedChunks(factionName),
-                ChatColor.GRAY + "View nearby faction claims",
-                ChatColor.GRAY + "Click to see faction map"
-        ));
+
+        // Build claims per world breakdown
+        List<String> claimsLore = new ArrayList<>();
+        Map<String, Integer> claimsPerWorld = getFactionsClaimsPerWorld(factionName);
+        int totalClaims = claimsPerWorld.values().stream().mapToInt(Integer::intValue).sum();
+
+        claimsLore.add(ChatColor.GRAY + "Total Claims: " + ChatColor.WHITE + totalClaims);
+        claimsLore.add("");
+
+        if (claimsPerWorld.isEmpty()) {
+            claimsLore.add(ChatColor.RED + "No claims in any world");
+        } else {
+            claimsLore.add(ChatColor.YELLOW + "Claims by World:");
+            for (Map.Entry<String, Integer> entry : claimsPerWorld.entrySet()) {
+                String worldName = entry.getKey();
+                int claims_count = entry.getValue();
+                claimsLore.add(ChatColor.GRAY + "• " + ChatColor.WHITE + worldName + ChatColor.GRAY + ": " +
+                        ChatColor.GREEN + claims_count + ChatColor.GRAY + " chunks");
+            }
+        }
+
+        claimsLore.add("");
+        claimsLore.add(ChatColor.GRAY + "View nearby faction claims");
+        claimsLore.add(ChatColor.GRAY + "Click to see faction map");
+
+        claimsMeta.setLore(claimsLore);
         claims.setItemMeta(claimsMeta);
         menu.setItem(16, claims);
+
+        ItemStack homesWarps = new ItemStack(Material.COMPASS);
+        ItemMeta homesWarpsMeta = homesWarps.getItemMeta();
+        homesWarpsMeta.setDisplayName(ChatColor.LIGHT_PURPLE + "Homes & Warps");
+
+        List<String> homesWarpsLore = new ArrayList<>();
+
+        // Check home
+        if (faction.home != null) {
+            homesWarpsLore.add(ChatColor.GREEN + "✓ Home: " + ChatColor.WHITE + faction.home.getWorldName());
+        } else {
+            homesWarpsLore.add(ChatColor.RED + "✗ No home set");
+        }
+
+        // Check warps
+        if (faction.warps.isEmpty()) {
+            homesWarpsLore.add(ChatColor.RED + "✗ No warps set");
+        } else {
+            homesWarpsLore.add(ChatColor.GREEN + "✓ Warps: " + ChatColor.WHITE + faction.warps.size());
+        }
+
+        homesWarpsLore.add("");
+
+        // Check permissions
+        boolean canUseHome = faction.hasPermission(playerRank, FactionPermission.USE_HOME);
+        boolean canUseWarps = faction.hasPermission(playerRank, FactionPermission.WARPS_ACCESS);
+
+        if (canUseHome || canUseWarps) {
+            homesWarpsLore.add(ChatColor.YELLOW + "Click to manage teleportation!");
+            if (canUseHome && faction.home != null) {
+                homesWarpsLore.add(ChatColor.GRAY + "• Teleport to home");
+            }
+            if (canUseWarps && !faction.warps.isEmpty()) {
+                homesWarpsLore.add(ChatColor.GRAY + "• Teleport to warps");
+            }
+        } else {
+            homesWarpsLore.add(ChatColor.RED + "You lack permission to use teleportation");
+        }
+
+        homesWarpsMeta.setLore(homesWarpsLore);
+        homesWarps.setItemMeta(homesWarpsMeta);
+        menu.setItem(14, homesWarps);
 
         // Check permissions for inviting
         if (playerRank == Rank.OWNER || faction.hasPermission(playerRank, FactionPermission.INVITE_MEMBERS)) {
@@ -1023,6 +1087,9 @@ public class MenuHandler {
         } else if (displayName.equals(ChatColor.GREEN + "Territory")) {
             player.closeInventory();
             plugin.displayFactionMap(player);
+        } else if (displayName.equals(ChatColor.LIGHT_PURPLE + "Homes & Warps")) {
+            // NEW: Open homes and warps menu
+            openHomesWarpsMenu(player, factionName);
         } else if (displayName.equals(ChatColor.LIGHT_PURPLE + "Invite Players")) {
             // Open invitation menu
             openInvitationMenu(player, factionName);
@@ -1064,6 +1131,54 @@ public class MenuHandler {
             openRelationsViewMenu(player, factionName);
         } else if (displayName.equals(ChatColor.BLUE + "View Relations")) {
             openRelationsViewMenu(player, factionName);
+        }
+    }
+
+    /**
+     * Handle homes and warps menu clicks
+     */
+    public void handleHomesWarpsMenuClick(Player player, String displayName, String title) {
+        String factionName = playerFactions.get(player.getUniqueId());
+
+        if (displayName.equals(ChatColor.GRAY + "← Back")) {
+            openFactionMenu(player, factionName);
+            return;
+        }
+
+        Faction faction = factions.get(factionName);
+        if (faction == null) return;
+
+        Rank playerRank = faction.members.get(player.getUniqueId());
+
+        // Handle home teleport
+        if (displayName.equals(ChatColor.GREEN + "" + ChatColor.BOLD + "FACTION HOME")) {
+            if (!faction.hasPermission(playerRank, FactionPermission.USE_HOME)) {
+                MessageManager.sendError(player, "You lack permission to use the faction home.");
+                return;
+            }
+
+            player.closeInventory();
+
+            // Use existing home manager to teleport
+            plugin.getHomeManager().goHome(player);
+            return;
+        }
+
+        // Handle warp teleport
+        if (displayName.startsWith(ChatColor.LIGHT_PURPLE + "" + ChatColor.BOLD)) {
+            if (!faction.hasPermission(playerRank, FactionPermission.WARPS_ACCESS)) {
+                MessageManager.sendError(player, "You lack permission to use warps.");
+                return;
+            }
+
+            // Extract warp name from display name
+            String warpName = ChatColor.stripColor(displayName).toLowerCase();
+
+            player.closeInventory();
+
+            // Use existing warp manager to teleport
+            plugin.getWarpManager().warpTo(player, warpName);
+            return;
         }
     }
 
@@ -2726,6 +2841,212 @@ public class MenuHandler {
         }
 
         player.openInventory(menu);
+    }
+
+    /**
+     * Get claims per world for a faction
+    */
+    private Map<String, Integer> getFactionsClaimsPerWorld(String factionName) {
+        Map<String, Integer> claimsPerWorld = new HashMap<>();
+
+        for (Map.Entry<String, Map<ChunkCoord, String>> worldEntry : plugin.getWorldClaims().entrySet()) {
+            String worldName = worldEntry.getKey();
+            Map<ChunkCoord, String> worldClaims = worldEntry.getValue();
+
+            int claimCount = 0;
+            for (String claimOwner : worldClaims.values()) {
+                if (factionName.equals(claimOwner)) {
+                    claimCount++;
+                }
+            }
+
+            if (claimCount > 0) {
+                claimsPerWorld.put(worldName, claimCount);
+            }
+        }
+
+        return claimsPerWorld;
+    }
+
+    /**
+     * Open the homes and warps teleportation menu
+     */
+    public void openHomesWarpsMenu(Player player, String factionName) {
+        Faction faction = factions.get(factionName);
+        if (faction == null) return;
+
+        Rank playerRank = faction.members.get(player.getUniqueId());
+        boolean canUseHome = faction.hasPermission(playerRank, FactionPermission.USE_HOME);
+        boolean canUseWarps = faction.hasPermission(playerRank, FactionPermission.WARPS_ACCESS);
+
+        // Calculate menu size based on available items
+        int itemCount = 0;
+        if (canUseHome && faction.home != null) itemCount++;
+        if (canUseWarps) itemCount += faction.warps.size();
+
+        // Use appropriate inventory size
+        int size = 27; // Default to 3 rows
+        if (itemCount > 18) size = 54; // 6 rows if more than 18 items
+        else if (itemCount > 9) size = 36; // 4 rows if more than 9 items
+
+        Inventory menu = Bukkit.createInventory(null, size, ChatColor.DARK_GRAY + "Homes & Warps");
+
+        // Fill bottom row with black glass panes
+        ItemStack blackGlass = new ItemStack(Material.BLACK_STAINED_GLASS_PANE);
+        ItemMeta glassMeta = blackGlass.getItemMeta();
+        glassMeta.setDisplayName(" ");
+        blackGlass.setItemMeta(glassMeta);
+
+        // Fill bottom row
+        for (int i = size - 9; i < size; i++) {
+            menu.setItem(i, blackGlass);
+        }
+
+        // Back button
+        ItemStack backButton = createBackButton();
+        menu.setItem(size - 9, backButton); // Bottom left
+
+        int slot = 0;
+
+        // Add home if available and player has permission
+        if (canUseHome && faction.home != null) {
+            ItemStack homeItem = createHomeItem(faction.home);
+            menu.setItem(slot++, homeItem);
+        }
+
+        // Add warps if player has permission
+        if (canUseWarps && !faction.warps.isEmpty()) {
+            for (Map.Entry<String, FactionWarp> warpEntry : faction.warps.entrySet()) {
+                if (slot >= size - 9) break; // Don't overwrite navigation row
+
+                ItemStack warpItem = createWarpItem(warpEntry.getValue());
+                menu.setItem(slot++, warpItem);
+            }
+        }
+
+        // If no items to show
+        if (slot == 0) {
+            ItemStack noItems = new ItemStack(Material.BARRIER);
+            ItemMeta noItemsMeta = noItems.getItemMeta();
+            noItemsMeta.setDisplayName(ChatColor.RED + "No Teleportation Available");
+
+            List<String> lore = new ArrayList<>();
+            if (!canUseHome && !canUseWarps) {
+                lore.add(ChatColor.GRAY + "You lack permission to use");
+                lore.add(ChatColor.GRAY + "homes and warps");
+            } else {
+                lore.add(ChatColor.GRAY + "No homes or warps are set");
+                if (faction.hasPermission(playerRank, FactionPermission.SET_HOME)) {
+                    lore.add(ChatColor.GRAY + "Use /f sethome to set home");
+                }
+                if (faction.hasPermission(playerRank, FactionPermission.MANAGE_WARPS)) {
+                    lore.add(ChatColor.GRAY + "Use /f setwarp <name> to set warps");
+                }
+            }
+
+            noItemsMeta.setLore(lore);
+            noItems.setItemMeta(noItemsMeta);
+            menu.setItem(13, noItems); // Center of menu
+        }
+
+        player.openInventory(menu);
+    }
+
+    /**
+     * Create home item for the teleportation menu
+     */
+    private ItemStack createHomeItem(FactionHome home) {
+        ItemStack item = new ItemStack(Material.RED_BED);
+        ItemMeta meta = item.getItemMeta();
+
+        meta.setDisplayName(ChatColor.GREEN + "" + ChatColor.BOLD + "FACTION HOME");
+
+        List<String> lore = new ArrayList<>();
+        lore.add(ChatColor.GRAY + "World: " + ChatColor.WHITE + home.getWorldName());
+        lore.add(ChatColor.GRAY + "Coordinates: " + ChatColor.WHITE +
+                (int)home.getX() + ", " + (int)home.getY() + ", " + (int)home.getZ());
+
+        // Add world type info if we can determine it
+        String worldType = getWorldType(home.getWorldName());
+        if (worldType != null) {
+            lore.add(ChatColor.GRAY + "Type: " + ChatColor.WHITE + worldType);
+        }
+
+        lore.add("");
+        lore.add(ChatColor.YELLOW + "Click to teleport home!");
+
+        meta.setLore(lore);
+        item.setItemMeta(meta);
+
+        return item;
+    }
+
+    /**
+     * Create warp item for the teleportation menu
+     */
+    private ItemStack createWarpItem(FactionWarp warp) {
+        ItemStack item = new ItemStack(Material.ENDER_PEARL);
+        ItemMeta meta = item.getItemMeta();
+
+        meta.setDisplayName(ChatColor.LIGHT_PURPLE + "" + ChatColor.BOLD + warp.getName().toUpperCase());
+
+        List<String> lore = new ArrayList<>();
+        lore.add(ChatColor.GRAY + "World: " + ChatColor.WHITE + warp.getWorldName());
+        lore.add(ChatColor.GRAY + "Coordinates: " + ChatColor.WHITE +
+                (int)warp.getX() + ", " + (int)warp.getY() + ", " + (int)warp.getZ());
+
+        // Add world type info if we can determine it
+        String worldType = getWorldType(warp.getWorldName());
+        if (worldType != null) {
+            lore.add(ChatColor.GRAY + "Type: " + ChatColor.WHITE + worldType);
+        }
+
+        // Add creation info
+        String creatorName = Bukkit.getOfflinePlayer(warp.getCreatedBy()).getName();
+        if (creatorName != null) {
+            lore.add(ChatColor.GRAY + "Created by: " + ChatColor.WHITE + creatorName);
+        }
+
+        lore.add("");
+        lore.add(ChatColor.YELLOW + "Click to teleport to warp!");
+
+        meta.setLore(lore);
+        item.setItemMeta(meta);
+
+        return item;
+    }
+
+    /**
+     * Get world type based on world name (integrate with your MultiWorlds plugin)
+     */
+    private String getWorldType(String worldName) {
+        // Use your MultiWorlds plugin's world information
+        switch (worldName.toLowerCase()) {
+            case "world":
+                return "Earth (Overworld)";
+            case "world2":
+                return "Fire Planet (Overworld)";
+            case "world_nether":
+                return "Hell (Nether)";
+            case "world_the_end":
+                return "End Dimension";
+            default:
+                // Try to determine by world environment
+                org.bukkit.World world = Bukkit.getWorld(worldName);
+                if (world != null) {
+                    switch (world.getEnvironment()) {
+                        case NORMAL:
+                            return "Overworld";
+                        case NETHER:
+                            return "Nether";
+                        case THE_END:
+                            return "End";
+                        default:
+                            return "Unknown";
+                    }
+                }
+                return "Unknown";
+        }
     }
 
     // Helper methods for checking permissions without sending error messages (for GUI display)
