@@ -129,6 +129,19 @@ public class CommandManager implements CommandExecutor {
                 return handleWithUsage(args[0].toLowerCase(), "handlePower", player, args);
             case "debuginfo":
                 return handleWithUsage(args[0].toLowerCase(), "handleDebugInfo", player, args);
+            case "setwarp":
+                return handleWithUsage(args[0].toLowerCase(), "handleSetWarp", player, args);
+            case "delwarp":
+                return handleWithUsage(args[0].toLowerCase(), "handleDelWarp", player, args);
+            case "warp":
+            case "warps":
+                return handleWithUsage(args[0].toLowerCase(), "handleWarp", player, args);
+            case "sethome":
+                return handleWithUsage(args[0].toLowerCase(), "handleSetHome", player, args);
+            case "delhome":
+                return handleWithUsage(args[0].toLowerCase(), "handleDelHome", player, args);
+            case "home":
+                return handleWithUsage(args[0].toLowerCase(), "handleHome", player, args);
             default:
                 // Enhanced error message for unknown commands
                 MessageManager.sendError(player, "Unknown command: '" + args[0] + "'");
@@ -174,6 +187,12 @@ public class CommandManager implements CommandExecutor {
         usages.put("adminjoin", "Usage: /f adminjoin <player> <faction> - Force join a player to a faction.");
         usages.put("power", "Usage: /f <power/p> - View your faction's power information.");
         usages.put("debuginfo", "Usage: /f debuginfo - Debug: Show detailed power breakdown.");
+        usages.put("sethome", "Usage: /f sethome - Set your faction's home where you stand.");
+        usages.put("delhome", "Usage: /f delhome - Delete your faction's home.");
+        usages.put("home", "Usage: /f home - Teleport to your faction home.");
+        usages.put("setwarp", "Usage: /f setwarp <name> - Set warps for your faction.");
+        usages.put("delwarp", "Usage: /f delwarp <name> - Delete a faction warp.");
+        usages.put("warp", "Usage: /f warp <name> - Teleport to a faction warp.");
 
         String key = subCommand == null ? "" : subCommand.toLowerCase();
         if (usages.containsKey(key)) return usages.get(key);
@@ -252,6 +271,12 @@ public class CommandManager implements CommandExecutor {
         sendHelpLine(player, "/f invitations", "View your faction invitations");
         sendHelpLine(player, "/f map", "Display territory map around you");
         sendHelpLine(player, "/f power", "View your faction's power information");
+        sendHelpLine(player, "/f sethome", "Set your faction's home");
+        sendHelpLine(player, "/f delhome", "Delete your faction's home");
+        sendHelpLine(player, "/f home", "Teleport to your faction's home");
+        sendHelpLine(player, "/f setwarp <name>", "Set a warp for your faction");
+        sendHelpLine(player, "/f delwarp <name>", "Delete a warp for your faction");
+        sendHelpLine(player, "/f warp <name>", "Teleport to a faction warp");
 
         player.sendMessage("");
         player.sendMessage(ChatColor.GRAY + "Tip: Use " + ChatColor.WHITE + "/f menu" + ChatColor.GRAY + " for an easy-to-use interface!");
@@ -352,6 +377,36 @@ public class CommandManager implements CommandExecutor {
 
         MessageManager.sendBasicMessage(player, "§6§l======================");
         return true;
+    }
+
+    private boolean handleSetWarp(Player player, String[] args) {
+        if (args.length < 2) return false;
+        return plugin.getWarpManager().setWarp(player, args[1]);
+    }
+
+    private boolean handleDelWarp(Player player, String[] args) {
+        if (args.length < 2) return false;
+        return plugin.getWarpManager().deleteWarp(player, args[1]);
+    }
+
+    private boolean handleWarp(Player player, String[] args) {
+        if (args.length < 2) {
+            plugin.getWarpManager().listWarps(player);
+            return true;
+        }
+        return plugin.getWarpManager().warpTo(player, args[1]);
+    }
+
+    private boolean handleSetHome(Player player, String[] args) {
+        return plugin.getHomeManager().setHome(player);
+    }
+
+    private boolean handleDelHome(Player player, String[] args) {
+        return plugin.getHomeManager().deleteHome(player);
+    }
+
+    private boolean handleHome(Player player, String[] args) {
+        return plugin.getHomeManager().goHome(player);
     }
 
     private boolean handlePower(Player player, String[] args) {

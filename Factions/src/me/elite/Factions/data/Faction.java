@@ -1,5 +1,8 @@
 package me.elite.Factions.data;
 
+import me.elite.Factions.warps.FactionWarp;
+import me.elite.Factions.homes.FactionHome;
+
 import java.util.EnumSet;
 import java.util.*;
 
@@ -13,6 +16,10 @@ public class Faction {
     // Permission system
     public Map<Rank, Set<FactionPermission>> rankPermissions = new HashMap<>();
     public Map<Relation, Set<RelationPermission>> relationPermissions = new HashMap<>();
+
+    // Warp and home system
+    public Map<String, FactionWarp> warps = new HashMap<>();
+    public FactionHome home = null;
 
     public Faction(String name, UUID owner) {
         this.name = name;

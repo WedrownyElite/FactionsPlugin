@@ -15,6 +15,8 @@ import me.elite.Factions.Relations.RelationManager;
 import me.elite.Factions.nametags.PacketNametagManager;
 import me.elite.Factions.gui.BrowserMenuHandler;
 import me.elite.Factions.power.PowerManager;
+import me.elite.Factions.homes.HomeManager;
+import me.elite.Factions.warps.WarpManager;
 
 import org.bukkit.Bukkit;
 import org.bukkit.Chunk;
@@ -50,6 +52,8 @@ public class FactionsPlugin extends JavaPlugin implements Listener {
     private PacketNametagManager nametagManager;
     private BrowserMenuHandler browserMenuHandler;
     private PowerManager powerManager;
+    private WarpManager warpManager;
+    private HomeManager homeManager;
 
     @Override
     public void onEnable() {
@@ -69,6 +73,8 @@ public class FactionsPlugin extends JavaPlugin implements Listener {
         nametagManager = new PacketNametagManager(this);
         browserMenuHandler = new BrowserMenuHandler(this);
         powerManager = new PowerManager(this);
+        warpManager = new WarpManager(this);
+        homeManager = new HomeManager(this);
 
         // Load data
         dataManager.loadFactionData();
@@ -103,6 +109,10 @@ public class FactionsPlugin extends JavaPlugin implements Listener {
     public Map<UUID, Set<String>> getPlayerInvitations() {
         return playerInvitations;
     }
+
+    public WarpManager getWarpManager() {return warpManager;}
+
+    public HomeManager getHomeManager() {return homeManager;}
 
     public PowerManager getPowerManager() {
         return powerManager;
