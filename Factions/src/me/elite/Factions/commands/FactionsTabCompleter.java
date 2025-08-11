@@ -187,7 +187,7 @@ public class FactionsTabCompleter implements TabCompleter {
                             Faction faction = warpPlugin.getFactions().get(playerFaction);
                             if (faction != null) {
                                 return faction.warps.keySet().stream()
-                                        .filter(warpName -> warpName.toLowerCase().startsWith(partial))
+                                        .filter(warpName -> warpName.toLowerCase().startsWith(partial.toLowerCase()))
                                         .collect(Collectors.toList());
                             }
                         }
@@ -206,7 +206,7 @@ public class FactionsTabCompleter implements TabCompleter {
                             Faction faction = delWarpPlugin.getFactions().get(playerFaction);
                             if (faction != null) {
                                 return faction.warps.keySet().stream()
-                                        .filter(warpName -> warpName.toLowerCase().startsWith(partial))
+                                        .filter(warpName -> warpName.toLowerCase().startsWith(partial.toLowerCase()))
                                         .collect(Collectors.toList());
                             }
                         }

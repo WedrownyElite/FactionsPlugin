@@ -122,16 +122,24 @@ public class WarpManager {
             return false;
         }
 
-        // Check if warp exists
-        if (!faction.warps.containsKey(warpName)) {
+        // Check if warp exists (case-insensitive)
+        String actualWarpName = null;
+        for (String existingWarpName : faction.warps.keySet()) {
+            if (existingWarpName.equalsIgnoreCase(warpName)) {
+                actualWarpName = existingWarpName;
+                break;
+            }
+        }
+
+        if (actualWarpName == null) {
             MessageManager.sendError(player, "No warp named '" + warpName + "' exists!");
             return false;
         }
 
-        // Remove the warp
-        faction.warps.remove(warpName);
+        // Remove the warp (using actual case-sensitive name)
+        faction.warps.remove(actualWarpName);
 
-        MessageManager.sendSuccess(player, "Warp '" + warpName + "' has been deleted!");
+        MessageManager.sendSuccess(player, "Warp '" + actualWarpName + "' has been deleted!");
         MessageManager.sendInfo(player, "Warps: " + faction.warps.size() + "/" + getWarpLimit(faction));
 
         // Notify other online faction members
@@ -140,7 +148,7 @@ public class WarpManager {
             if (member != null && !member.equals(player)) {
                 Rank memberRank = faction.members.get(memberUUID);
                 if (faction.hasPermission(memberRank, FactionPermission.WARPS_ACCESS)) {
-                    MessageManager.sendMemberBasicMessage(member, ChatColor.YELLOW + player.getName() + " deleted warp '" + warpName + "'!");
+                    MessageManager.sendMemberBasicMessage(member, ChatColor.YELLOW + player.getName() + " deleted warp '" + actualWarpName + "'!");
                 }
             }
         }
@@ -171,8 +179,19 @@ public class WarpManager {
             return false;
         }
 
-        // Check if warp exists
-        FactionWarp warp = faction.warps.get(warpName);
+        // Check if warp exists (case-insensitive)
+        FactionWarp warp = null;
+        String actualWarpName = null;
+
+        // Find warp by case-insensitive name
+        for (Map.Entry<String, FactionWarp> entry : faction.warps.entrySet()) {
+            if (entry.getKey().equalsIgnoreCase(warpName)) {
+                warp = entry.getValue();
+                actualWarpName = entry.getKey();
+                break;
+            }
+        }
+
         if (warp == null) {
             MessageManager.sendError(player, "No warp named '" + warpName + "' exists!");
             return false;
@@ -198,8 +217,8 @@ public class WarpManager {
             return false;
         }
 
-        // Start teleport countdown
-        startTeleportCountdown(player, warpLocation, "warp '" + warpName + "'");
+        // Start teleport countdown (use actual warp name for display)
+        startTeleportCountdown(player, warpLocation, "warp '" + actualWarpName + "'");
         return true;
     }
 
@@ -336,7 +355,6 @@ public class WarpManager {
         if (task != null) {
             task.cancel();
             teleportTasks.remove(uuid);
-
         }
     }
 
