@@ -1,5 +1,9 @@
 package me.elite.Factions.gui;
 
+// Multiworlds imports
+import me.elite.rtpplugin.RTPPlugin;
+import me.elite.rtpplugin.WorldInfo;
+
 // Factions imports
 import me.elite.Factions.FactionsPlugin;
 import me.elite.Factions.constants.FactionsConstants;
@@ -14,6 +18,8 @@ import me.elite.Factions.utils.ChatUtils;
 import me.elite.Factions.gui.BrowserMenuHandler;
 import me.elite.Factions.utils.MessageManager;
 import me.elite.Factions.territory.ChunkCoord;
+import me.elite.Factions.homes.FactionHome;
+import me.elite.Factions.warps.FactionWarp;
 
 // External libraries
 import com.mojang.authlib.GameProfile;
@@ -45,6 +51,8 @@ public class MenuHandler {
     private Rank currentManagerRank;
     private final Map<UUID, String> pendingOwnershipTransfersGUI = new HashMap<>();
 
+    private RTPPlugin rtpPlugin;
+
     // Track pending kick confirmations
     private final Map<UUID, UUID> pendingKicks = new HashMap<>(); // kicker -> target
 
@@ -53,6 +61,7 @@ public class MenuHandler {
         this.factions = plugin.getFactions();
         this.playerFactions = plugin.getPlayerFactions();
         this.playerInvitations = plugin.getPlayerInvitations();
+        this.rtpPlugin = (RTPPlugin) Bukkit.getPluginManager().getPlugin("RTPPlugin");
     }
 
     /**
@@ -253,8 +262,14 @@ public class MenuHandler {
             for (Map.Entry<String, Integer> entry : claimsPerWorld.entrySet()) {
                 String worldName = entry.getKey();
                 int claims_count = entry.getValue();
-                claimsLore.add(ChatColor.GRAY + "• " + ChatColor.WHITE + worldName + ChatColor.GRAY + ": " +
-                        ChatColor.GREEN + claims_count + ChatColor.GRAY + " chunks");
+                if (claims_count <= 1) {
+                    claimsLore.add(ChatColor.GRAY + "• " + ChatColor.WHITE + worldName + ChatColor.GRAY + ": " +
+                            ChatColor.GREEN + claims_count + ChatColor.GRAY + " chunk");
+                }
+                else {
+                    claimsLore.add(ChatColor.GRAY + "• " + ChatColor.WHITE + worldName + ChatColor.GRAY + ": " +
+                            ChatColor.GREEN + claims_count + ChatColor.GRAY + " chunks");
+                }
             }
         }
 
@@ -274,7 +289,8 @@ public class MenuHandler {
 
         // Check home
         if (faction.home != null) {
-            homesWarpsLore.add(ChatColor.GREEN + "✓ Home: " + ChatColor.WHITE + faction.home.getWorldName());
+            String homeWorldDisplay = getWorldDisplayName(faction.home.getWorldName());
+            homesWarpsLore.add(ChatColor.GREEN + "✓ Home: " + ChatColor.WHITE + homeWorldDisplay);
         } else {
             homesWarpsLore.add(ChatColor.RED + "✗ No home set");
         }
@@ -306,7 +322,7 @@ public class MenuHandler {
 
         homesWarpsMeta.setLore(homesWarpsLore);
         homesWarps.setItemMeta(homesWarpsMeta);
-        menu.setItem(14, homesWarps);
+        menu.setItem(25, homesWarps);
 
         // Check permissions for inviting
         if (playerRank == Rank.OWNER || faction.hasPermission(playerRank, FactionPermission.INVITE_MEMBERS)) {
@@ -2847,11 +2863,16 @@ public class MenuHandler {
      * Get claims per world for a faction
     */
     private Map<String, Integer> getFactionsClaimsPerWorld(String factionName) {
-        Map<String, Integer> claimsPerWorld = new HashMap<>();
+        // Use LinkedHashMap to preserve insertion order
+        Map<String, Integer> claimsPerWorld = new LinkedHashMap<>();
 
-        for (Map.Entry<String, Map<ChunkCoord, String>> worldEntry : plugin.getWorldClaims().entrySet()) {
-            String worldName = worldEntry.getKey();
-            Map<ChunkCoord, String> worldClaims = worldEntry.getValue();
+        // Define the desired world order
+        String[] worldOrder = {"world", "world2", "world_nether", "world_the_end"};
+
+        // Process worlds in the specified order
+        for (String worldName : worldOrder) {
+            Map<ChunkCoord, String> worldClaims = plugin.getWorldClaims().get(worldName);
+            if (worldClaims == null) continue; // Skip if world doesn't exist
 
             int claimCount = 0;
             for (String claimOwner : worldClaims.values()) {
@@ -2861,11 +2882,67 @@ public class MenuHandler {
             }
 
             if (claimCount > 0) {
-                claimsPerWorld.put(worldName, claimCount);
+                // Get display name from RTP plugin
+                String displayName = getWorldDisplayName(worldName);
+                claimsPerWorld.put(displayName, claimCount);
+            }
+        }
+
+        // Handle any additional worlds not in our predefined order
+        // (in case there are custom worlds added later)
+        for (Map.Entry<String, Map<ChunkCoord, String>> worldEntry : plugin.getWorldClaims().entrySet()) {
+            String actualWorldName = worldEntry.getKey();
+
+            // Skip if we already processed this world
+            boolean alreadyProcessed = false;
+            for (String orderedWorld : worldOrder) {
+                if (orderedWorld.equals(actualWorldName)) {
+                    alreadyProcessed = true;
+                    break;
+                }
+            }
+            if (alreadyProcessed) continue;
+
+            Map<ChunkCoord, String> worldClaims = worldEntry.getValue();
+            int claimCount = 0;
+            for (String claimOwner : worldClaims.values()) {
+                if (factionName.equals(claimOwner)) {
+                    claimCount++;
+                }
+            }
+
+            if (claimCount > 0) {
+                // Get display name from RTP plugin
+                String displayName = getWorldDisplayName(actualWorldName);
+                claimsPerWorld.put(displayName, claimCount);
             }
         }
 
         return claimsPerWorld;
+    }
+
+    // Helper method to get world display name from RTP plugin
+    private String getWorldDisplayName(String worldName) {
+        if (rtpPlugin != null) {
+            WorldInfo worldInfo = rtpPlugin.worlds.get(worldName);
+            if (worldInfo != null) {
+                return ChatColor.stripColor(worldInfo.getDisplayName()); // Strip color codes for clean display
+            }
+        }
+
+        // Fallback mapping if RTP plugin is not available
+        switch (worldName.toLowerCase()) {
+            case "world":
+                return "Earth";
+            case "world2":
+                return "Fire Planet";
+            case "world_nether":
+                return "Hell";
+            case "world_the_end":
+                return "End";
+            default:
+                return worldName; // Return original name as last resort
+        }
     }
 
     /**
@@ -2962,15 +3039,18 @@ public class MenuHandler {
         meta.setDisplayName(ChatColor.GREEN + "" + ChatColor.BOLD + "FACTION HOME");
 
         List<String> lore = new ArrayList<>();
-        lore.add(ChatColor.GRAY + "World: " + ChatColor.WHITE + home.getWorldName());
+
+        // Use display name from RTP plugin
+        String actualWorldName = home.getWorldName();
+        String displayWorldName = getWorldDisplayName(actualWorldName);
+
+        lore.add(ChatColor.GRAY + "World: " + ChatColor.WHITE + displayWorldName);
         lore.add(ChatColor.GRAY + "Coordinates: " + ChatColor.WHITE +
                 (int)home.getX() + ", " + (int)home.getY() + ", " + (int)home.getZ());
 
-        // Add world type info if we can determine it
-        String worldType = getWorldType(home.getWorldName());
-        if (worldType != null) {
-            lore.add(ChatColor.GRAY + "Type: " + ChatColor.WHITE + worldType);
-        }
+        // Add world type info from RTP plugin
+        String worldType = getWorldType(actualWorldName);
+        lore.add(ChatColor.GRAY + "Type: " + ChatColor.WHITE + worldType);
 
         lore.add("");
         lore.add(ChatColor.YELLOW + "Click to teleport home!");
@@ -2991,15 +3071,18 @@ public class MenuHandler {
         meta.setDisplayName(ChatColor.LIGHT_PURPLE + "" + ChatColor.BOLD + warp.getName().toUpperCase());
 
         List<String> lore = new ArrayList<>();
-        lore.add(ChatColor.GRAY + "World: " + ChatColor.WHITE + warp.getWorldName());
+
+        // Use display name from RTP plugin
+        String actualWorldName = warp.getWorldName();
+        String displayWorldName = getWorldDisplayName(actualWorldName);
+
+        lore.add(ChatColor.GRAY + "World: " + ChatColor.WHITE + displayWorldName);
         lore.add(ChatColor.GRAY + "Coordinates: " + ChatColor.WHITE +
                 (int)warp.getX() + ", " + (int)warp.getY() + ", " + (int)warp.getZ());
 
-        // Add world type info if we can determine it
-        String worldType = getWorldType(warp.getWorldName());
-        if (worldType != null) {
-            lore.add(ChatColor.GRAY + "Type: " + ChatColor.WHITE + worldType);
-        }
+        // Add world type info from RTP plugin
+        String worldType = getWorldType(actualWorldName);
+        lore.add(ChatColor.GRAY + "Type: " + ChatColor.WHITE + worldType);
 
         // Add creation info
         String creatorName = Bukkit.getOfflinePlayer(warp.getCreatedBy()).getName();
@@ -3017,19 +3100,26 @@ public class MenuHandler {
     }
 
     /**
-     * Get world type based on world name (integrate with your MultiWorlds plugin)
+     * Get world type based on world name
      */
     private String getWorldType(String worldName) {
-        // Use your MultiWorlds plugin's world information
+        if (rtpPlugin != null) {
+            WorldInfo worldInfo = rtpPlugin.worlds.get(worldName);
+            if (worldInfo != null) {
+                return worldInfo.getWorldType();
+            }
+        }
+
+        // Fallback mapping
         switch (worldName.toLowerCase()) {
             case "world":
-                return "Earth (Overworld)";
+                return "Overworld";
             case "world2":
-                return "Fire Planet (Overworld)";
+                return "Overworld";
             case "world_nether":
-                return "Hell (Nether)";
+                return "Nether";
             case "world_the_end":
-                return "End Dimension";
+                return "The End";
             default:
                 // Try to determine by world environment
                 org.bukkit.World world = Bukkit.getWorld(worldName);
