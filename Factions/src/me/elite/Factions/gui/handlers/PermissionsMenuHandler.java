@@ -944,7 +944,7 @@ public class PermissionsMenuHandler extends BaseMenuHandler {
     /**
      * Get the equivalent faction permission for a relation permission
      */
-    private FactionPermission getEquivalentFactionPermission(RelationPermission relationPermission) {
+    protected  FactionPermission getEquivalentFactionPermission(RelationPermission relationPermission) {
         switch (relationPermission) {
             case BREAK_BLOCKS:
                 return FactionPermission.BREAK_BLOCKS;

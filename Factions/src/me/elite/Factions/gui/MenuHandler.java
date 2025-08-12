@@ -1361,7 +1361,7 @@ public class MenuHandler {
     private boolean canToggleRelationPermissionCheck(Rank playerRank, Relation targetRelation, RelationPermission permission, Faction faction) {
         if (playerRank == Rank.OWNER) return true;
 
-        FactionPermission equivalentPermission = getEquivalentFactionPermission(permission);
+        FactionPermission equivalentPermission = null;
         if (equivalentPermission != null) {
             return faction.hasPermission(playerRank, equivalentPermission);
         }
@@ -1393,5 +1393,57 @@ public class MenuHandler {
 
     public void openLeaveConfirmation(Player player, String factionName) {
         confirmationHandler.openLeaveConfirmation(player, factionName);
+    }
+
+    public void handleMembersMenuClick(Player player, ItemStack item, ClickType clickType) {
+        membersHandler.handleMembersMenuClick(player, item, clickType);
+    }
+
+    public void handleConfirmationMenuClick(Player player, String displayName, String title) {
+        confirmationHandler.handleConfirmationMenuClick(player, displayName, title);
+    }
+
+    public void handleKickConfirmationClick(Player player, String displayName, String title) {
+        membersHandler.handleKickConfirmationClick(player, displayName, title);
+    }
+
+    public void handleLeaveConfirmationClick(Player player, String displayName, String title) {
+        confirmationHandler.handleLeaveConfirmationClick(player, displayName, title);
+    }
+
+    public void handleDisbandConfirmationClick(Player player, String displayName, String title) {
+        confirmationHandler.handleDisbandConfirmationClick(player, displayName, title);
+    }
+
+    public void handleInvitationMenuClick(Player player, String displayName, String title) {
+        settingsHandler.handleInvitationMenuClick(player, displayName, title);
+    }
+
+    public void handleSettingsMenuClick(Player player, String displayName, String title) {
+        settingsHandler.handleSettingsMenuClick(player, displayName, title);
+    }
+
+    public void handlePermissionsGUIClick(Player player, String displayName, String title) {
+        permissionsHandler.handlePermissionsGUIClick(player, displayName, title);
+    }
+
+    public void handleRankPermissionsClick(Player player, String displayName, String title) {
+        permissionsHandler.handleRankPermissionsClick(player, displayName, title);
+    }
+
+    public void handleRelationPermissionsClick(Player player, String displayName, String title) {
+        permissionsHandler.handleRelationPermissionsClick(player, displayName, title);
+    }
+
+    public void handleRankManagementClick(Player player, String displayName, String title) {
+        membersHandler.handleRankManagementClick(player, displayName, title);
+    }
+
+    public void clearPendingOwnershipTransfer(UUID playerUUID) {
+        membersHandler.clearPendingOwnershipTransfer(playerUUID);
+    }
+
+    public void openDisbandConfirmation(Player player, String factionName) {
+        confirmationHandler.openDisbandConfirmation(player, factionName);
     }
 }
