@@ -1446,4 +1446,18 @@ public class MenuHandler {
     public void openDisbandConfirmation(Player player, String factionName) {
         confirmationHandler.openDisbandConfirmation(player, factionName);
     }
+
+    /**
+     * Get pending GUI ownership transfer target name (delegates to MembersMenuHandler)
+     */
+    public String getPendingGUIOwnershipTransfer(UUID playerUUID) {
+        return membersHandler.getPendingGUIOwnershipTransfer(playerUUID);
+    }
+
+    /**
+     * Handle GUI ownership transfer (delegates to MembersMenuHandler)
+     */
+    public boolean handleGUIOwnershipTransfer(Player player, String targetName, String factionName) {
+        return membersHandler.handleGUIOwnershipTransfer(player, targetName, factionName);
+    }
 }
