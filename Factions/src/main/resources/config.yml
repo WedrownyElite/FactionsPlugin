@@ -1,0 +1,290 @@
+# =============================================================================
+# Factions Plugin Configuration
+# =============================================================================
+
+# General Settings
+general:
+  # Maximum faction name length (1-16 characters)
+  max-faction-name-length: 16
+
+  # Maximum factions that can be created on the server (-1 for unlimited)
+  max-factions: -1
+
+  # Default faction description when created
+  default-faction-description: ""
+
+  # Whether factions are public by default when created
+  default-public-faction: false
+
+  # Message cooldown to prevent spam (in milliseconds)
+  message-cooldown: 5000
+
+# Power System Configuration
+power:
+  # Starting power for new players
+  starting-power: 10
+
+  # Maximum power per player
+  max-power-per-player: 20
+
+  # Power cost to claim a chunk (one-time cost)
+  power-per-chunk: 2
+
+  # Power restored when unclaiming a chunk
+  power-restore-per-chunk: 1
+
+  # Power regeneration settings
+  regeneration:
+    # How much power regenerates per interval
+    amount: 2
+
+    # How often power regenerates (in minutes)
+    interval-minutes: 60
+
+    # Whether power regenerates while offline
+    offline-regeneration: true
+
+    # Whether power regenerates while online (based on playtime)
+    online-regeneration: true
+
+# Territory Settings
+territory:
+  # World size for wilderness initialization (in chunks)
+  # 1562 chunks = ~25k blocks from center
+  world-size-chunks: 1562
+
+  # Special territory names (don't change unless you know what you're doing)
+  special-territories:
+    spawn: "Spawn"
+    warzone: "Warzone"
+    wilderness: "Wilderness"
+
+  # Map display settings
+  map:
+    # Radius for faction map display
+    radius-x: 10
+    radius-z: 7
+
+# Faction Limits
+limits:
+  # Maximum members per faction (-1 for unlimited)
+  max-members: -1
+
+  # Maximum claims per faction (-1 for unlimited)
+  max-claims: -1
+
+  # Default warp limit per faction
+  default-warp-limit: 1
+
+  # Maximum warps per faction (-1 for unlimited)
+  max-warps: 5
+
+# Combat & Teleportation
+combat:
+  # Teleport countdown in seconds
+  teleport-countdown: 5
+
+  # Whether to check combat tag integration
+  check-combat-tag: true
+
+  # Movement tolerance for teleportation (in blocks)
+  movement-tolerance: 0.1
+
+# Relations
+relations:
+  # Relation request expiration time (in days)
+  request-expiration-days: 7
+
+  # Whether relations are bidirectional by default
+  bidirectional-relations: true
+
+  # Cleanup interval for expired requests (in hours)
+  cleanup-interval-hours: 1
+
+# Nametag Settings
+nametags:
+  # Whether to enable faction nametags
+  enabled: true
+
+  # Team name prefix for scoreboard teams
+  team-prefix: "fac_"
+
+  # Maximum team name length
+  max-team-name-length: 16
+
+  # Refresh delay after login (in ticks, 20 = 1 second)
+  login-refresh-delay: 60
+
+  # Refresh delay after faction changes (in ticks)
+  faction-change-delay: 10
+
+  # Refresh delay after relation changes (in ticks)
+  relation-change-delay: 5
+
+  # Suffixes for different relations
+  suffixes:
+    faction: " §aF"      # Green F for same faction
+    ally: " §dA"         # Light purple A for allies
+    truce: " §9T"        # Blue T for truce
+    enemy: " §cE"        # Red E for enemies
+    neutral: ""          # Nothing for neutral/no faction
+
+# GUI Settings
+gui:
+  # Inventory sizes
+  small-size: 9
+  medium-size: 27
+  large-size: 54
+
+  # Pagination settings
+  factions-per-page: 36
+  relations-per-page: 9
+  requests-per-page: 18
+
+  # Whether to clear offhand when opening faction GUIs
+  clear-offhand: true
+
+# Protection Settings
+protection:
+  # Spawn protection
+  spawn:
+    break-blocks: false
+    place-blocks: false
+    interact: false
+    pvp: false
+    mob-damage: false
+    mob-spawning: false
+    container-access: false
+
+  # Warzone protection
+  warzone:
+    break-blocks: false
+    place-blocks: false
+    interact: false
+    pvp: true              # PvP is allowed in warzone
+    mob-damage: false
+    mob-spawning: false
+    container-access: false
+
+  # Wilderness settings
+  wilderness:
+    break-blocks: true
+    place-blocks: true
+    interact: true
+    pvp: true
+    mob-damage: true
+    mob-spawning: true
+    container-access: true
+
+# Chat Integration
+chat:
+  # Whether to modify player display names for chat
+  modify-display-names: false
+
+  # Chat prefix format (use {faction} placeholder)
+  faction-prefix-format: "[{faction}] "
+
+  # Colors for different relations in chat
+  chat-colors:
+    same-faction: "§a"
+    ally: "§d"
+    truce: "§9"
+    enemy: "§c"
+    neutral: "§f"
+
+# Database/Storage Settings
+storage:
+  # Auto-save interval (in minutes)
+  auto-save-interval: 10
+
+  # Whether to save data on server shutdown
+  save-on-shutdown: true
+
+  # Whether to backup data files
+  backup-data: true
+
+  # Number of backup files to keep
+  backup-count: 5
+
+# Performance Settings
+performance:
+  # Chunk processing batch size for wilderness initialization
+  chunk-batch-size: 5000
+
+  # Progress reporting interval for wilderness initialization
+  progress-report-interval: 50000
+
+  # Nametag update batch delay (spread updates to prevent lag)
+  nametag-batch-delay: 1
+
+# Debug Settings
+debug:
+  # Enable debug logging
+  enabled: false
+
+  # Log nametag operations
+  log-nametags: false
+
+  # Log power operations
+  log-power: false
+
+  # Log territory operations
+  log-territory: false
+
+  # Log relation operations
+  log-relations: false
+
+# Messages (you can customize these)
+messages:
+  # Prefix for all faction messages
+  prefix: "&8[&9Factions&8] &r"
+
+  # Common messages
+  no-permission: "&cYou don't have permission to do that."
+  not-in-faction: "&cYou are not in a faction."
+  player-not-found: "&cPlayer not found or not online."
+  faction-not-found: "&cFaction not found."
+
+  # Success messages
+  faction-created: "&aSuccessfully created faction &l{faction}&a!"
+  faction-joined: "&aSuccessfully joined faction &l{faction}&a!"
+  faction-left: "&aYou have left faction {faction}."
+
+  # Error messages
+  faction-exists: "&cA faction with that name already exists."
+  invalid-faction-name: "&cInvalid faction name! Use only letters, numbers, and underscores (max {max-length} characters)."
+  faction-full: "&cThat faction is full! ({current}/{max} members)"
+
+  # Territory messages
+  entering-territory: "&6Entering {faction} territory"
+  entering-spawn: "&bSpawn &a- You're safe here"
+  entering-warzone: "&c&lWarzone &f- PvP is allowed here"
+  entering-wilderness: "&aWilderness &f- Unclaimed land"
+
+# Plugin Integration
+integration:
+  # Combat tag plugin integration
+  combat-tag:
+    enabled: true
+    prevent-teleport: true
+
+  # MultiWorlds plugin integration
+  multiworlds:
+    enabled: true
+    use-display-names: true
+
+  # Economy integration (for future features)
+  economy:
+    enabled: false
+    plugin: "Vault"
+
+# Experimental Features (use at your own risk)
+experimental:
+  # Async chunk loading for better performance
+  async-chunk-loading: false
+
+  # Enhanced relation system
+  enhanced-relations: false
+
+  # Dynamic faction limits based on server population
+  dynamic-limits: false
