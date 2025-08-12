@@ -271,11 +271,7 @@ public class CommandManager implements CommandExecutor {
         sendHelpLine(player, "/f invitations", "View your faction invitations");
         sendHelpLine(player, "/f map", "Display territory map around you");
         sendHelpLine(player, "/f power", "View your faction's power information");
-        sendHelpLine(player, "/f sethome", "Set your faction's home");
-        sendHelpLine(player, "/f delhome", "Delete your faction's home");
         sendHelpLine(player, "/f home", "Teleport to your faction's home");
-        sendHelpLine(player, "/f setwarp <name>", "Set a warp for your faction");
-        sendHelpLine(player, "/f delwarp <name>", "Delete a warp for your faction");
         sendHelpLine(player, "/f warp <name>", "Teleport to a faction warp");
 
         player.sendMessage("");
@@ -286,6 +282,10 @@ public class CommandManager implements CommandExecutor {
         player.sendMessage(ChatColor.AQUA + "Faction Management Commands:");
         player.sendMessage("");
 
+        sendHelpLine(player, "/f sethome", "Set your faction's home");
+        sendHelpLine(player, "/f delhome", "Delete your faction's home");
+        sendHelpLine(player, "/f setwarp <name>", "Set a warp for your faction");
+        sendHelpLine(player, "/f delwarp <name>", "Delete a warp for your faction");
         sendHelpLine(player, "/f invite <player>", "Invite a player to your faction");
         sendHelpLine(player, "/f kick <player>", "Kick a player from your faction");
         sendHelpLine(player, "/f promote <player>", "Promote a faction member");
