@@ -4,6 +4,9 @@ import me.elite.Factions.data.Faction;
 import me.elite.Factions.data.FactionPermission;
 import me.elite.Factions.data.Rank;
 import me.elite.Factions.utils.MessageManager;
+import me.elite.Factions.FactionsPlugin;
+import me.elite.Factions.gui.MenuHandler;
+
 import org.bukkit.Bukkit;
 import org.bukkit.ChatColor;
 import org.bukkit.Material;
@@ -18,7 +21,11 @@ import org.bukkit.scheduler.BukkitRunnable;
 
 import java.util.*;
 
-public class MembersMenuHandler {
+public class MembersMenuHandler extends BaseMenuHandler {
+
+    public MembersMenuHandler(FactionsPlugin plugin, MenuHandler parentHandler) {
+        super(plugin, parentHandler);
+    }
 
     /**
      * Open members list menu with proper navigation
@@ -370,6 +377,10 @@ public class MembersMenuHandler {
         return perms;
     }
 
+    private void openDisbandConfirmation(Player player, String factionName) {
+        parentHandler.confirmationHandler.openDisbandConfirmation(player, factionName);
+    }
+
     /**
      * Check if manager can promote target to a specific rank
      */
@@ -617,7 +628,7 @@ public class MembersMenuHandler {
             // Go back to faction menu
             String factionName = playerFactions.get(player.getUniqueId());
             if (factionName != null) {
-                openFactionMenu(player, factionName);
+                parentHandler.openFactionMenu(player, factionName);
             }
             return;
         }

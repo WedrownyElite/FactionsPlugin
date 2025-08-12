@@ -1,5 +1,7 @@
 package me.elite.Factions.gui.handlers;
 
+import me.elite.Factions.FactionsPlugin;
+import me.elite.Factions.gui.MenuHandler;
 import me.elite.Factions.utils.MessageManager;
 import org.bukkit.Bukkit;
 import org.bukkit.ChatColor;
@@ -12,7 +14,11 @@ import org.bukkit.inventory.meta.SkullMeta;
 
 import java.util.*;
 
-public class SettingsMenuHandler {
+public class SettingsMenuHandler extends BaseMenuHandler {
+
+    public SettingsMenuHandler(FactionsPlugin plugin, MenuHandler parentHandler) {
+        super(plugin, parentHandler);
+    }
 
     /**
      * Open the faction settings menu
@@ -122,9 +128,9 @@ public class SettingsMenuHandler {
         String factionName = playerFactions.get(player.getUniqueId());
 
         if (displayName.equals(ChatColor.GRAY + "← Back")) {
-            openFactionMenu(player, factionName);
+            parentHandler.openFactionMenu(player, factionName);
         } else if (displayName.equals(ChatColor.RED + "Faction Permissions")) {
-            openPermissionsGUI(player, factionName);
+            parentHandler.openPermissionsGUI(player, factionName);
         }
     }
 
@@ -134,7 +140,7 @@ public class SettingsMenuHandler {
     public void handleInvitationMenuClick(Player player, String displayName, String title) {
         if (displayName.equals(ChatColor.GRAY + "← Back")) {
             String factionName = playerFactions.get(player.getUniqueId());
-            openFactionMenu(player, factionName);
+            parentHandler.openFactionMenu(player, factionName);
             return;
         }
 
@@ -144,7 +150,7 @@ public class SettingsMenuHandler {
             Player targetPlayer = Bukkit.getPlayerExact(playerName);
 
             if (targetPlayer == null) {
-                MessageManager.sendError(player,"Player " + playerName + " is no longer online.");
+                MessageManager.sendError(player, "Player " + playerName + " is no longer online.");
                 return;
             }
 
@@ -153,7 +159,7 @@ public class SettingsMenuHandler {
 
             // Check if player is already in a faction
             if (playerFactions.containsKey(targetUUID)) {
-                MessageManager.sendError(player,playerName + " is already in a faction.");
+                MessageManager.sendError(player, playerName + " is already in a faction.");
                 return;
             }
 
@@ -162,7 +168,7 @@ public class SettingsMenuHandler {
             Set<String> invites = playerInvitations.get(targetUUID);
 
             if (invites.contains(factionName)) {
-                MessageManager.sendInfo(player,playerName + " has already been invited to " + factionName + ".");
+                MessageManager.sendInfo(player, playerName + " has already been invited to " + factionName + ".");
                 return;
             }
 

@@ -57,10 +57,10 @@ public class MenuHandler {
     private final Map<UUID, String> pendingOwnershipTransfersGUI = new HashMap<>();
 
     private RTPPlugin rtpPlugin;
-    private final PermissionsMenuHandler permissionsHandler;
-    private final MembersMenuHandler membersHandler;
-    private final ConfirmationMenuHandler confirmationHandler;
-    private final SettingsMenuHandler settingsHandler;
+    public final PermissionsMenuHandler permissionsHandler;
+    public final MembersMenuHandler membersHandler;
+    public final ConfirmationMenuHandler confirmationHandler;
+    public final SettingsMenuHandler settingsHandler;
 
     // Track pending kick confirmations
     private final Map<UUID, UUID> pendingKicks = new HashMap<>(); // kicker -> target

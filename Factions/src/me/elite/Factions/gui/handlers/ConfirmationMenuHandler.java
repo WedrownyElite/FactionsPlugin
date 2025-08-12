@@ -1,7 +1,9 @@
 package me.elite.Factions.gui.handlers;
 
+import me.elite.Factions.FactionsPlugin;
 import me.elite.Factions.data.Faction;
 import me.elite.Factions.data.Rank;
+import me.elite.Factions.gui.MenuHandler;
 import me.elite.Factions.utils.MessageManager;
 import org.bukkit.Bukkit;
 import org.bukkit.ChatColor;
@@ -14,7 +16,11 @@ import org.bukkit.inventory.meta.ItemMeta;
 import java.util.Arrays;
 import java.util.UUID;
 
-public class ConfirmationMenuHandler {
+public class ConfirmationMenuHandler extends BaseMenuHandler {
+
+    public ConfirmationMenuHandler(FactionsPlugin plugin, MenuHandler parentHandler) {
+        super(plugin, parentHandler);
+    }
 
     public void openLeaveConfirmation(Player player, String factionName) {
         Inventory confirmMenu = Bukkit.createInventory(null, 27, ChatColor.DARK_RED + "Leave: " + factionName);
@@ -154,7 +160,7 @@ public class ConfirmationMenuHandler {
 
         } else if (displayName.equals(ChatColor.GREEN + "" + ChatColor.BOLD + "CANCEL")) {
             // Return to faction menu
-            openFactionMenu(player, factionName);
+            parentHandler.openFactionMenu(player, factionName);
         }
     }
 
@@ -168,7 +174,7 @@ public class ConfirmationMenuHandler {
 
         } else if (displayName.equals(ChatColor.GREEN + "" + ChatColor.BOLD + "CANCEL")) {
             // Return to faction menu
-            openFactionMenu(player, factionName);
+            parentHandler.openFactionMenu(player, factionName);
         }
     }
 

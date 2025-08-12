@@ -1,11 +1,13 @@
 package me.elite.Factions.gui.handlers;
 
-import com.mojang.authlib.GameProfile;
-import com.mojang.authlib.properties.Property;
+import me.elite.Factions.FactionsPlugin;
+import me.elite.Factions.gui.MenuHandler;
 import me.elite.Factions.data.*;
 import me.elite.Factions.gui.MenuHandler;
-
 import me.elite.Factions.utils.MessageManager;
+
+import com.mojang.authlib.GameProfile;
+import com.mojang.authlib.properties.Property;
 import org.bukkit.Bukkit;
 import org.bukkit.ChatColor;
 import org.bukkit.Material;
@@ -15,10 +17,15 @@ import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.ItemMeta;
 import org.bukkit.inventory.meta.SkullMeta;
 
+import java.util.EnumSet;
 import java.lang.reflect.Field;
 import java.util.*;
 
-public class PermissionsMenuHandler {
+public class PermissionsMenuHandler extends BaseMenuHandler {
+
+    public PermissionsMenuHandler(FactionsPlugin plugin, MenuHandler parentHandler) {
+        super(plugin, parentHandler);
+    }
 
     /**
      * Open the main permissions GUI with rank and relation sections - Updated with visual indicators
@@ -224,7 +231,7 @@ public class PermissionsMenuHandler {
         String factionName = playerFactions.get(player.getUniqueId());
 
         if (displayName.equals(ChatColor.GRAY + "← Back")) {
-            openFactionSettings(player, factionName);
+            parentHandler.settingsHandler.openFactionSettings(player, factionName);
             return;
         }
 
