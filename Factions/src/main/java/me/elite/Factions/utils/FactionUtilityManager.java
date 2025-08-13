@@ -145,15 +145,35 @@ public class FactionUtilityManager {
     public Map<String, String> getWorldCornerClaims(String worldName) {
         Map<String, String> cornerClaims = new HashMap<>();
 
-        // Calculate corner coordinates (worldborder set to 24991 for chunk alignment)
-        // This creates asymmetrical corners due to chunk boundaries:
-        // Some corners at 12494, others at 12495
+        // Try to get corner coordinates from world config
+        ChunkCoord[] corners = null;
+        try {
+            // Check if this is a MultiWorlds configured world
+            FactionsPlugin factionsPlugin = (FactionsPlugin) Bukkit.getPluginManager().getPlugin("EclipseFactions");
+            if (factionsPlugin != null && factionsPlugin.getConfigManager().getConfiguredWorlds().contains(worldName)) {
+                // Use config-based corner calculation
+                int sizeChunks = factionsPlugin.getConfigManager().getWorldSizeChunks(worldName);
+                int halfSize = sizeChunks / 2;
+                corners = new ChunkCoord[] {
+                        new ChunkCoord(-halfSize, -halfSize),       // Bottom-left (-, -)
+                        new ChunkCoord(-halfSize, halfSize - 1),    // Top-left (-, +)
+                        new ChunkCoord(halfSize - 1, halfSize - 1), // Top-right (+, +)
+                        new ChunkCoord(halfSize - 1, -halfSize)     // Bottom-right (+, -)
+                };
+            }
+        } catch (Exception e) {
+            // Fall back to default if config reading fails
+        }
 
-        // Define the actual 4 corners in chunk coordinates based on your world border
-        ChunkCoord cornerNegNeg = new ChunkCoord(-781, -781); // Bottom-left (-, -) = -12496, -12496
-        ChunkCoord cornerNegPos = new ChunkCoord(-781, 780);  // Top-left (-, +) = -12496, 12480
-        ChunkCoord cornerPosPos = new ChunkCoord(780, 780);   // Top-right (+, +) = 12480, 12480
-        ChunkCoord cornerPosNeg = new ChunkCoord(780, -781);  // Bottom-right (+, -) = 12480, -12496
+        // Fall back to default corner calculation if config method failed
+        if (corners == null) {
+            corners = new ChunkCoord[] {
+                    new ChunkCoord(-781, -781),   // Default corners
+                    new ChunkCoord(-781, 780),
+                    new ChunkCoord(780, 780),
+                    new ChunkCoord(780, -781)
+            };
+        }
 
         // Get claims for this world
         Map<ChunkCoord, String> claims = worldClaims.get(worldName);
@@ -167,10 +187,10 @@ public class FactionUtilityManager {
         }
 
         // Check each corner
-        cornerClaims.put("- -", getClaimOwner(claims, cornerNegNeg));
-        cornerClaims.put("- +", getClaimOwner(claims, cornerNegPos));
-        cornerClaims.put("+ +", getClaimOwner(claims, cornerPosPos));
-        cornerClaims.put("+ -", getClaimOwner(claims, cornerPosNeg));
+        cornerClaims.put("- -", getClaimOwner(claims, corners[0]));
+        cornerClaims.put("- +", getClaimOwner(claims, corners[1]));
+        cornerClaims.put("+ +", getClaimOwner(claims, corners[2]));
+        cornerClaims.put("+ -", getClaimOwner(claims, corners[3]));
 
         return cornerClaims;
     }

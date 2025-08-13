@@ -3,6 +3,9 @@ package me.elite.Factions.config;
 import me.elite.Factions.FactionsPlugin;
 import org.bukkit.configuration.file.FileConfiguration;
 
+import java.util.Set;
+import java.util.HashSet;
+
 public class ConfigManager {
     private final FactionsPlugin plugin;
     private FileConfiguration config;
@@ -347,5 +350,58 @@ public class ConfigManager {
 
     public boolean useMultiWorldsDisplayNames() {
         return config.getBoolean("integration.multiworlds.use-display-names", true);
+    }
+
+    // MultiWorlds GUI Configuration
+    public int getMultiWorldsGuiSize() {
+        return config.getInt("multiworlds-gui.size", 27);
+    }
+
+    public String getMultiWorldsGuiTitle() {
+        return config.getString("multiworlds-gui.title", "Choose a world").replace("&", "§");
+    }
+
+    public int getWorldSlot(String worldName) {
+        return config.getInt("multiworlds-gui.world-slots." + worldName, -1);
+    }
+
+    public Set<String> getConfiguredWorldSlots() {
+        if (config.getConfigurationSection("multiworlds-gui.world-slots") != null) {
+            return config.getConfigurationSection("multiworlds-gui.world-slots").getKeys(false);
+        }
+        return new HashSet<>();
+    }
+
+    // World Configuration
+    public Set<String> getConfiguredWorlds() {
+        if (config.getConfigurationSection("worlds") != null) {
+            return config.getConfigurationSection("worlds").getKeys(false);
+        }
+        return new HashSet<>();
+    }
+
+    public String getWorldDisplayName(String worldName) {
+        return config.getString("worlds." + worldName + ".display-name", worldName);
+    }
+
+    public String getWorldType(String worldName) {
+        return config.getString("worlds." + worldName + ".world-type", "Unknown");
+    }
+
+    public String getWorldItemType(String worldName) {
+        return config.getString("worlds." + worldName + ".item-type", "GRASS_BLOCK");
+    }
+
+    public String getWorldSkullTexture(String worldName) {
+        return config.getString("worlds." + worldName + ".skull-texture", "");
+    }
+
+    public int getWorldSizeBlocks(String worldName) {
+        return config.getInt("worlds." + worldName + ".size-blocks", 25000);
+    }
+
+    public int getWorldSizeChunks(String worldName) {
+        int blocks = getWorldSizeBlocks(worldName);
+        return (blocks + 8) / 16; // Round up to nearest chunk
     }
 }

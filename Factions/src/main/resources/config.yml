@@ -65,6 +65,45 @@ territory:
     radius-x: 10
     radius-z: 7
 
+# MultiWorlds GUI Configuration
+multiworlds-gui:
+  # GUI size (must be multiple of 9: 9, 18, 27, 36, 45, 54)
+  size: 9
+  # GUI title
+  title: "Choose a world"
+  # World slot assignments (0-based indexing)
+  world-slots:
+    world: 1
+    world2: 3
+    world_nether: 5
+    world_the_end: 7
+
+worlds:
+  world:
+    display-name: "§e§l☀ §a§lEarth §e§l☀"
+    world-type: "Overworld"
+    item-type: "PLAYER_HEAD"  # Can be any Material name
+    skull-texture: "eyJ0ZXh0dXJlcyI6eyJTS0lOIjp7InVybCI6Imh0dHA6Ly90ZXh0dXJlcy5taW5lY3JhZnQubmV0L3RleHR1cmUvMTUwMTU0NzBlMjg2ZTRlZDc3YTAzODc2Y2JiZmQ3YjNkMzU4YTYwNjA2YjQ0NmQyYzRiYzhkOGU5YzM3M2VlOSJ9fX0="
+    size-blocks: 25000
+  world2:
+    display-name: "§4§l🔥 F§c§lire P§6§llanet 🔥"
+    world-type: "Overworld"
+    item-type: "PLAYER_HEAD"
+    skull-texture: "eyJ0ZXh0dXJlcyI6eyJTS0lOIjp7InVybCI6Imh0dHA6Ly90ZXh0dXJlcy5taW5lY3JhZnQubmV0L3RleHR1cmUvNGQ4NTlmN2IzY2RmZGFkNDcxODI4ODRlMTI3ZjQ2MWZlOGY5ZmM1MmY3ZDE1MDQyN2MxMTcwNzliMDkyNGUzIn19fQ=="
+    size-blocks: 25000
+  world_nether:
+    display-name: "§4§l☠ Hell ☠"
+    world-type: "Nether"
+    item-type: "PLAYER_HEAD"
+    skull-texture: "eyJ0ZXh0dXJlcyI6eyJTS0lOIjp7InVybCI6Imh0dHA6Ly90ZXh0dXJlcy5taW5lY3JhZnQubmV0L3RleHR1cmUvMzdlMGJmNjI3NTg4MjZhNzc2ODA4YzFkNzViNmM2MGY3MjAzZjA4YTk2ODE0NDgzZmMwZDhkYzBjNTMyZTBjNSJ9fX0="
+    size-blocks: 25000
+  world_the_end:
+    display-name: "§d§l🗡 §5§lEnd §d§l🗡"
+    world-type: "The End"
+    item-type: "PLAYER_HEAD"
+    skull-texture: "eyJ0ZXh0dXJlcyI6eyJTS0lOIjp7InVybCI6Imh0dHA6Ly90ZXh0dXJlcy5taW5lY3JhZnQubmV0L3RleHR1cmUvYzZjYWM1OWIyYWFlNDg5YWEwNjg3YjVkODAyYjI1NTVlYjE0YTQwYmQ2MmIyMWViMTE2ZmE1NjljZGI3NTYifX19"
+    size-blocks: 25000
+
 # Faction Limits
 limits:
   # Maximum members per faction (-1 for unlimited)
