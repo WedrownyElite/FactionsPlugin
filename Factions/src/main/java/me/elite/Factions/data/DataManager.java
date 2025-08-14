@@ -4,6 +4,8 @@ import me.elite.Factions.warps.FactionWarp;
 import me.elite.Factions.homes.FactionHome;
 import me.elite.Factions.territory.ChunkCoord;
 import me.elite.Factions.FactionsPlugin;
+import me.elite.Factions.data.BankLog;
+import me.elite.Factions.economy.BankLogsManager;
 
 import org.bukkit.Bukkit;
 import org.bukkit.World;
@@ -202,6 +204,28 @@ public class DataManager {
             }
 
             writer.println(new JSONObject(data).toString(2));
+
+            Map<String, List<Map<String, Object>>> bankLogsMap = new HashMap<>();
+            for (Map.Entry<String, List<BankLog>> entry : plugin.getBankLogsManager().getAllFactionLogs().entrySet()) {
+                String factionName = entry.getKey();
+                List<BankLog> logs = entry.getValue();
+
+                List<Map<String, Object>> logsList = new ArrayList<>();
+                for (BankLog log : logs) {
+                    Map<String, Object> logData = new HashMap<>();
+                    logData.put("playerUUID", log.playerUUID.toString());
+                    logData.put("playerName", log.playerName);
+                    logData.put("type", log.type.name());
+                    logData.put("amount", log.amount);
+                    logData.put("oldBalance", log.oldBalance);
+                    logData.put("newBalance", log.newBalance);
+                    logData.put("timestamp", log.timestamp);
+                    logsList.add(logData);
+                }
+
+                bankLogsMap.put(factionName, logsList);
+            }
+            data.put("bankLogs", bankLogsMap);
         } catch (IOException e) {
             plugin.getLogger().severe("Failed to save faction data: " + e.getMessage());
             e.printStackTrace();
@@ -494,7 +518,44 @@ public class DataManager {
                 plugin.getLogger().info("Loaded economy data for " + loadedBalances.size() + " players");
             }
 
-            plugin.getLogger().info("Successfully loaded faction data: " + factions.size() + " factions, " +
+            if (data.has("bankLogs")) {
+                JSONObject bankLogsMap = data.getJSONObject("bankLogs");
+                Map<String, List<BankLog>> loadedBankLogs = new HashMap<>();
+
+                for (String factionName : bankLogsMap.keySet()) {
+                    org.json.JSONArray logsArray = bankLogsMap.getJSONArray(factionName);
+                    List<BankLog> logs = new ArrayList<>();
+
+                    for (int i = 0; i < logsArray.length(); i++) {
+                        try {
+                            JSONObject logData = logsArray.getJSONObject(i);
+
+                            UUID playerUUID = UUID.fromString(logData.getString("playerUUID"));
+                            String playerName = logData.getString("playerName");
+                            BankLog.BankLogType type = BankLog.BankLogType.valueOf(logData.getString("type"));
+                            double amount = logData.getDouble("amount");
+                            double oldBalance = logData.getDouble("oldBalance");
+                            double newBalance = logData.getDouble("newBalance");
+                            long timestamp = logData.getLong("timestamp");
+
+                            // Create log with custom timestamp using the new constructor
+                            BankLog log = new BankLog(playerUUID, playerName, type, amount, oldBalance, newBalance, timestamp);
+                            logs.add(log);
+                        } catch (Exception e) {
+                            plugin.getLogger().warning("Failed to load bank log for faction " + factionName + ": " + e.getMessage());
+                        }
+                    }
+
+                    if (!logs.isEmpty()) {
+                        loadedBankLogs.put(factionName, logs);
+                    }
+                }
+
+                plugin.getBankLogsManager().loadFactionLogs(loadedBankLogs);
+            }
+
+
+        plugin.getLogger().info("Successfully loaded faction data: " + factions.size() + " factions, " +
                     playerFactions.size() + " player mappings");
         } catch (Exception e) {
             plugin.getLogger().severe("Failed to load faction data: " + e.getMessage());

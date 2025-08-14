@@ -8,7 +8,10 @@ import org.bukkit.OfflinePlayer;
 import org.bukkit.plugin.Plugin;
 
 import java.math.BigDecimal;
+import java.text.DecimalFormat;
+import java.text.NumberFormat;
 import java.util.HashMap;
+import java.util.Locale;
 import java.util.Map;
 import java.util.UUID;
 
@@ -21,8 +24,19 @@ public class EconomyManager {
     private final Map<UUID, Double> playerBalances = new HashMap<>();
     private static final double STARTING_BALANCE = 10000.0;
 
+    // Number formatter for currency display
+    private final NumberFormat currencyFormatter;
+
     public EconomyManager(FactionsPlugin plugin) {
         this.plugin = plugin;
+
+        // Initialize currency formatter with comma separators
+        currencyFormatter = NumberFormat.getCurrencyInstance(Locale.US);
+
+        // Alternative: Use DecimalFormat for more control
+        // DecimalFormat df = new DecimalFormat("#,##0.00");
+        // currencyFormatter = df;
+
         initializeEconomy();
     }
 
@@ -112,10 +126,27 @@ public class EconomyManager {
     }
 
     /**
-     * Format currency for display
+     * Format currency for display with proper comma separators
      */
     public String format(double amount) {
-        return String.format("$%.2f", amount);
+        return currencyFormatter.format(amount);
+    }
+
+    /**
+     * Format currency for display without the currency symbol (just numbers with commas)
+     */
+    public String formatNumber(double amount) {
+        NumberFormat numberFormatter = NumberFormat.getNumberInstance(Locale.US);
+        numberFormatter.setMinimumFractionDigits(2);
+        numberFormatter.setMaximumFractionDigits(2);
+        return numberFormatter.format(amount);
+    }
+
+    /**
+     * Format currency with custom symbol
+     */
+    public String formatWithSymbol(double amount, String symbol) {
+        return symbol + formatNumber(amount);
     }
 
     /**

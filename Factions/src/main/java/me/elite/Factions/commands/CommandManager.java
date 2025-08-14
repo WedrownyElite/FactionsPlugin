@@ -7,6 +7,8 @@ import me.elite.Factions.data.Rank;
 import me.elite.Factions.data.Relation;
 import me.elite.Factions.data.FactionPermission;
 import me.elite.Factions.utils.MessageManager;
+import me.elite.Factions.data.BankLog;
+
 import org.bukkit.Bukkit;
 import org.bukkit.ChatColor;
 import org.bukkit.World;
@@ -15,6 +17,7 @@ import org.bukkit.command.CommandExecutor;
 import org.bukkit.command.CommandSender;
 import org.bukkit.entity.Player;
 import org.bukkit.scheduler.BukkitRunnable;
+
 import java.util.Set;
 import java.util.HashSet;
 
@@ -151,6 +154,9 @@ public class CommandManager implements CommandExecutor {
             case "recalcworth":
             case "recalc":
                 return handleWithUsage(args[0].toLowerCase(), "handleRecalcWorth", player, args);
+            case "banklogs":
+            case "banklog":
+                return handleWithUsage(args[0].toLowerCase(), "handleBankLogs", player, args);
             default:
                 // Enhanced error message for unknown commands
                 MessageManager.sendError(player, "Unknown command: '" + args[0] + "'");
@@ -206,6 +212,7 @@ public class CommandManager implements CommandExecutor {
         usages.put("bank", "Usage: /f bank <balance/deposit/withdraw> [amount] - Manage faction bank");
         usages.put("worth", "Usage: /f worth - View your faction's total worth");
         usages.put("worthtop", "Usage: /f worthtop [page] - View top factions by worth");
+        usages.put("banklogs", "Usage: /f banklogs [page] - View faction bank transaction history");
 
         String key = subCommand == null ? "" : subCommand.toLowerCase();
         if (usages.containsKey(key)) return usages.get(key);
@@ -363,6 +370,40 @@ public class CommandManager implements CommandExecutor {
 
     private void sendHelpLine(Player player, String command, String description) {
         player.sendMessage(ChatColor.YELLOW + command + ChatColor.GRAY + " - " + ChatColor.WHITE + description);
+    }
+
+    private boolean handleBankLogs(Player player, String[] args) {
+        UUID uuid = player.getUniqueId();
+        String factionName = playerFactions.get(uuid);
+        if (factionName == null) {
+            MessageManager.sendError(player, "You are not in a faction.");
+            return true;
+        }
+
+        Faction faction = factions.get(factionName);
+        Rank playerRank = faction.members.get(uuid);
+
+        // Check permissions
+        if (playerRank != Rank.OWNER && !faction.hasPermission(playerRank, FactionPermission.BANK_LOGS)) {
+            MessageManager.sendError(player, "You lack permission to view bank logs.");
+            return true;
+        }
+
+        // Parse page number
+        int page = 0;
+        if (args.length >= 2) {
+            try {
+                page = Integer.parseInt(args[1]) - 1; // Convert to 0-based
+                if (page < 0) page = 0;
+            } catch (NumberFormatException e) {
+                MessageManager.sendError(player, "Invalid page number: " + args[1]);
+                return true;
+            }
+        }
+
+        // Open bank logs GUI
+        plugin.getBankLogsMenuHandler().openBankLogsGUI(player, factionName, page);
+        return true;
     }
 
     private boolean handleRecalcWorth(Player player, String[] args) {
@@ -1853,7 +1894,16 @@ public class CommandManager implements CommandExecutor {
         }
 
         if (plugin.getEconomyManager().withdraw(player, amount)) {
+            // Store old balance before updating
+            double oldBalance = faction.bankBalance;
             faction.bankBalance += amount;
+            double newBalance = faction.bankBalance;
+
+            // Add bank log
+            String factionName = plugin.getPlayerFactions().get(player.getUniqueId());
+            plugin.getBankLogsManager().addBankLog(factionName, player.getUniqueId(), player.getName(),
+                    BankLog.BankLogType.DEPOSIT, amount, oldBalance, newBalance);
+
             plugin.getDataManager().saveFactionData();
 
             MessageManager.sendSuccess(player, "Deposited " + plugin.getEconomyManager().format(amount) +
@@ -1865,6 +1915,7 @@ public class CommandManager implements CommandExecutor {
         return true;
     }
 
+    // Update the handleBankWithdraw method in FactionsEventListener.java
     private boolean handleBankWithdraw(Player player, Faction faction, Rank playerRank, String amountStr) {
         if (!faction.hasPermission(playerRank, FactionPermission.BANK_WITHDRAW)) {
             MessageManager.sendError(player, "You lack permission to withdraw from the faction bank.");
@@ -1890,7 +1941,16 @@ public class CommandManager implements CommandExecutor {
         }
 
         if (plugin.getEconomyManager().deposit(player, amount)) {
+            // Store old balance before updating
+            double oldBalance = faction.bankBalance;
             faction.bankBalance -= amount;
+            double newBalance = faction.bankBalance;
+
+            // Add bank log
+            String factionName = plugin.getPlayerFactions().get(player.getUniqueId());
+            plugin.getBankLogsManager().addBankLog(factionName, player.getUniqueId(), player.getName(),
+                    BankLog.BankLogType.WITHDRAW, amount, oldBalance, newBalance);
+
             plugin.getDataManager().saveFactionData();
 
             MessageManager.sendSuccess(player, "Withdrew " + plugin.getEconomyManager().format(amount) +
@@ -1901,6 +1961,7 @@ public class CommandManager implements CommandExecutor {
 
         return true;
     }
+
 
     /**
      * Worth Handling

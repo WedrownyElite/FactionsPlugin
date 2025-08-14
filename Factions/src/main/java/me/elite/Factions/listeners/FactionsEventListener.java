@@ -10,6 +10,7 @@ import me.elite.Factions.data.RelationPermission;
 import me.elite.Factions.territory.ChunkCoord;
 import me.elite.Factions.utils.ChatUtils;
 import me.elite.Factions.utils.MessageManager;
+import me.elite.Factions.data.BankLog;
 
 // Bukkit imports
 import org.bukkit.Bukkit;
@@ -761,6 +762,7 @@ public class FactionsEventListener implements Listener {
                 title.startsWith(ChatColor.DARK_GRAY + "Manage: ") ||
                 title.startsWith(ChatColor.DARK_RED + "Remove: ") ||
                 title.startsWith(ChatColor.DARK_GRAY + "Faction Bank:") ||
+                title.startsWith(ChatColor.DARK_GRAY + "Bank Logs:") ||
                 title.contains(" Permissions")) {
 
             // Cancel ALL clicks in faction GUIs
@@ -854,8 +856,11 @@ public class FactionsEventListener implements Listener {
                 if (event.getClick() == ClickType.LEFT) {
                     plugin.getMenuHandler().handleBankGUIClick(player, displayName, title);
                 }
+            } else if (title.startsWith(ChatColor.DARK_GRAY + "Bank Logs:")) {
+                if (event.getClick() == ClickType.LEFT) {
+                    plugin.getBankLogsMenuHandler().handleBankLogsClick(player, displayName, title);
+                }
             }
-
             return;
         }
 
@@ -1080,11 +1085,19 @@ public class FactionsEventListener implements Listener {
                         }
 
                         if (plugin.getEconomyManager().withdraw(player, amount)) {
+                            // Store old balance before updating
+                            double oldBalance = faction.bankBalance;
                             faction.bankBalance += amount;
+                            double newBalance = faction.bankBalance;
+
+                            // Add bank log
+                            plugin.getBankLogsManager().addBankLog(factionName, uuid, player.getName(),
+                                    BankLog.BankLogType.DEPOSIT, amount, oldBalance, newBalance);
+
                             plugin.getDataManager().saveFactionData();
 
                             MessageManager.sendSuccess(player, "Deposited " + plugin.getEconomyManager().format(amount) +
-                                    " to faction bank. New bank balance: " + plugin.getEconomyManager().format(faction.bankBalance));
+                                    " to faction bank. New bank balance: " + plugin.getEconomyManager().format(newBalance));
                             pendingBankOperations.remove(uuid);
                         } else {
                             MessageManager.sendError(player, "Failed to process deposit.");
@@ -1107,11 +1120,19 @@ public class FactionsEventListener implements Listener {
                         }
 
                         if (plugin.getEconomyManager().deposit(player, amount)) {
+                            // Store old balance before updating
+                            double oldBalance = faction.bankBalance;
                             faction.bankBalance -= amount;
+                            double newBalance = faction.bankBalance;
+
+                            // Add bank log
+                            plugin.getBankLogsManager().addBankLog(factionName, uuid, player.getName(),
+                                    BankLog.BankLogType.WITHDRAW, amount, oldBalance, newBalance);
+
                             plugin.getDataManager().saveFactionData();
 
                             MessageManager.sendSuccess(player, "Withdrew " + plugin.getEconomyManager().format(amount) +
-                                    " from faction bank. New bank balance: " + plugin.getEconomyManager().format(faction.bankBalance));
+                                    " from faction bank. New bank balance: " + plugin.getEconomyManager().format(newBalance));
                             pendingBankOperations.remove(uuid);
                         } else {
                             MessageManager.sendError(player, "Failed to process withdrawal.");
@@ -1327,6 +1348,9 @@ public class FactionsEventListener implements Listener {
             invites.remove(factionName);
         }
         playerInvitations.entrySet().removeIf(entry -> entry.getValue().isEmpty());
+
+        // Clear bank logs for disbanded faction
+        plugin.getBankLogsManager().clearFactionLogs(factionName);
 
         // Remove faction
         factions.remove(factionName);

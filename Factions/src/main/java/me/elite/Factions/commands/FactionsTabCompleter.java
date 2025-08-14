@@ -35,7 +35,7 @@ public class FactionsTabCompleter implements TabCompleter {
                     "claim", "home", "sethome", "map", "m", "warp", "warps",
 
                     // Economy and bank
-                    "bank", "worth", "worthtop", "wtop",
+                    "bank", "worth", "worthtop", "wtop", "banklog"
 
                     // Member management
                     "kick", "promote", "demote", "privacy",

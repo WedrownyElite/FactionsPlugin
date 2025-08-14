@@ -526,7 +526,7 @@ public class WorthCalculator {
     }
 
     /**
-     * Format worth for display
+     * Format worth for display with proper comma separators
      */
     public String formatWorth(double worth) {
         return plugin.getEconomyManager().format(worth);
