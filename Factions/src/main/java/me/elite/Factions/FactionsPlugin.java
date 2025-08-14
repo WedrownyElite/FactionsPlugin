@@ -18,6 +18,8 @@ import me.elite.Factions.power.PowerManager;
 import me.elite.Factions.homes.HomeManager;
 import me.elite.Factions.warps.WarpManager;
 import me.elite.Factions.config.ConfigManager;
+import me.elite.Factions.economy.EconomyManager;
+import me.elite.Factions.economy.WorthCalculator;
 
 import org.bukkit.Bukkit;
 import org.bukkit.Chunk;
@@ -56,6 +58,8 @@ public class FactionsPlugin extends JavaPlugin implements Listener {
     private WarpManager warpManager;
     private HomeManager homeManager;
     private ConfigManager configManager;
+    private EconomyManager economyManager;
+    private WorthCalculator worthCalculator;
 
     @Override
     public void onEnable() {
@@ -78,6 +82,8 @@ public class FactionsPlugin extends JavaPlugin implements Listener {
         warpManager = new WarpManager(this);
         homeManager = new HomeManager(this);
         configManager = new ConfigManager(this);
+        economyManager = new EconomyManager(this);
+        worthCalculator = new WorthCalculator(this);
 
         // Load data
         dataManager.loadFactionData();
@@ -122,6 +128,14 @@ public class FactionsPlugin extends JavaPlugin implements Listener {
 
     public Map<UUID, Set<String>> getPlayerInvitations() {
         return playerInvitations;
+    }
+
+    public EconomyManager getEconomyManager() {
+        return economyManager;
+    }
+
+    public WorthCalculator getWorthCalculator() {
+        return worthCalculator;
     }
 
     public ConfigManager getConfigManager() {

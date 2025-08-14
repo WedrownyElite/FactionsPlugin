@@ -55,6 +55,7 @@ public class FactionsEventListener implements Listener {
     private final Map<UUID, Boolean> playerInFactionGUI = new HashMap<>();
     private final Map<UUID, Set<String>> playerInvitations;
     private final Map<UUID, Map<String, Long>> playerMessageCooldowns = new HashMap<>();
+    private final Map<UUID, String> pendingBankOperations = new HashMap<>();
 
     public FactionsEventListener(FactionsPlugin plugin) {
         this.plugin = plugin;
@@ -382,6 +383,9 @@ public class FactionsEventListener implements Listener {
         plugin.getPowerManager().onPlayerLogin(player.getUniqueId());
 
         plugin.getNametagManager().onPlayerJoin(player);
+
+        // Initialize economy for new players
+        plugin.getEconomyManager().initializePlayer(player.getUniqueId());
     }
 
     @EventHandler(priority = EventPriority.MONITOR)
@@ -756,6 +760,7 @@ public class FactionsEventListener implements Listener {
                 title.equals(ChatColor.DARK_GRAY + "Homes & Warps") ||
                 title.startsWith(ChatColor.DARK_GRAY + "Manage: ") ||
                 title.startsWith(ChatColor.DARK_RED + "Remove: ") ||
+                title.startsWith(ChatColor.DARK_GRAY + "Faction Bank:") ||
                 title.contains(" Permissions")) {
 
             // Cancel ALL clicks in faction GUIs
@@ -845,7 +850,12 @@ public class FactionsEventListener implements Listener {
                 if (event.getClick() == ClickType.LEFT) {
                     plugin.getMenuHandler().handleRankManagementClick(player, displayName, title);
                 }
+            } else if (title.startsWith(ChatColor.DARK_GRAY + "Faction Bank:")) {
+                if (event.getClick() == ClickType.LEFT) {
+                    plugin.getMenuHandler().handleBankGUIClick(player, displayName, title);
+                }
             }
+
             return;
         }
 
@@ -990,6 +1000,128 @@ public class FactionsEventListener implements Listener {
                 }
             }.runTask(plugin);
         }
+
+        // Check if player is pending bank operation
+        String bankOperation = pendingBankOperations.get(uuid);
+        if (bankOperation != null) {
+            event.setCancelled(true); // Cancel the chat message
+
+            String message = event.getMessage().trim();
+
+            // Handle cancel
+            if (message.equalsIgnoreCase("cancel")) {
+                pendingBankOperations.remove(uuid);
+
+                new BukkitRunnable() {
+                    @Override
+                    public void run() {
+                        MessageManager.sendError(player, "Bank operation cancelled.");
+                        String factionName = playerFactions.get(uuid);
+                        if (factionName != null) {
+                            plugin.getMenuHandler().openBankGUI(player, factionName);
+                        }
+                    }
+                }.runTask(plugin);
+                return;
+            }
+
+            // Validate amount
+            double amount;
+            try {
+                amount = Double.parseDouble(message);
+                if (amount <= 0) {
+                    new BukkitRunnable() {
+                        @Override
+                        public void run() {
+                            MessageManager.sendError(player, "Amount must be positive!");
+                            promptForBankAmount(player, bankOperation);
+                        }
+                    }.runTask(plugin);
+                    return;
+                }
+            } catch (NumberFormatException e) {
+                new BukkitRunnable() {
+                    @Override
+                    public void run() {
+                        MessageManager.sendError(player, "Invalid amount: " + message);
+                        promptForBankAmount(player, bankOperation);
+                    }
+                }.runTask(plugin);
+                return;
+            }
+
+            // Process the bank operation
+            new BukkitRunnable() {
+                @Override
+                public void run() {
+                    String factionName = playerFactions.get(uuid);
+                    if (factionName == null) {
+                        MessageManager.sendError(player, "You are not in a faction.");
+                        pendingBankOperations.remove(uuid);
+                        return;
+                    }
+
+                    Faction faction = factions.get(factionName);
+                    Rank playerRank = faction.members.get(uuid);
+
+                    if (bankOperation.equals("deposit")) {
+                        // Handle deposit
+                        if (!faction.hasPermission(playerRank, FactionPermission.BANK_DEPOSIT)) {
+                            MessageManager.sendError(player, "You lack permission to deposit to the faction bank.");
+                            pendingBankOperations.remove(uuid);
+                            return;
+                        }
+
+                        if (!plugin.getEconomyManager().hasBalance(player, amount)) {
+                            MessageManager.sendError(player, "You don't have enough money. Your balance: " +
+                                    plugin.getEconomyManager().format(plugin.getEconomyManager().getBalance(player)));
+                            promptForBankAmount(player, bankOperation);
+                            return;
+                        }
+
+                        if (plugin.getEconomyManager().withdraw(player, amount)) {
+                            faction.bankBalance += amount;
+                            plugin.getDataManager().saveFactionData();
+
+                            MessageManager.sendSuccess(player, "Deposited " + plugin.getEconomyManager().format(amount) +
+                                    " to faction bank. New bank balance: " + plugin.getEconomyManager().format(faction.bankBalance));
+                            pendingBankOperations.remove(uuid);
+                        } else {
+                            MessageManager.sendError(player, "Failed to process deposit.");
+                            promptForBankAmount(player, bankOperation);
+                        }
+
+                    } else if (bankOperation.equals("withdraw")) {
+                        // Handle withdraw
+                        if (!faction.hasPermission(playerRank, FactionPermission.BANK_WITHDRAW)) {
+                            MessageManager.sendError(player, "You lack permission to withdraw from the faction bank.");
+                            pendingBankOperations.remove(uuid);
+                            return;
+                        }
+
+                        if (faction.bankBalance < amount) {
+                            MessageManager.sendError(player, "Insufficient faction bank balance. Available: " +
+                                    plugin.getEconomyManager().format(faction.bankBalance));
+                            promptForBankAmount(player, bankOperation);
+                            return;
+                        }
+
+                        if (plugin.getEconomyManager().deposit(player, amount)) {
+                            faction.bankBalance -= amount;
+                            plugin.getDataManager().saveFactionData();
+
+                            MessageManager.sendSuccess(player, "Withdrew " + plugin.getEconomyManager().format(amount) +
+                                    " from faction bank. New bank balance: " + plugin.getEconomyManager().format(faction.bankBalance));
+                            pendingBankOperations.remove(uuid);
+                        } else {
+                            MessageManager.sendError(player, "Failed to process withdrawal.");
+                            promptForBankAmount(player, bankOperation);
+                        }
+                    }
+                }
+            }.runTask(plugin);
+            return;
+        }
     }
 
     @EventHandler(priority = EventPriority.MONITOR)
@@ -1033,6 +1165,28 @@ public class FactionsEventListener implements Listener {
             plugin.getHomeManager().cancelTeleport(victim);
             plugin.getWarpManager().cancelTeleport(attacker);
             plugin.getWarpManager().cancelTeleport(victim);
+        }
+    }
+
+    /**
+     * Prompt player for bank amount
+     */
+    private void promptForBankAmount(Player player, String operation) {
+        UUID uuid = player.getUniqueId();
+        String factionName = playerFactions.get(uuid);
+        if (factionName == null) return;
+
+        Faction faction = factions.get(factionName);
+        if (faction == null) return;
+
+        if (operation.equals("deposit")) {
+            MessageManager.sendInfo(player, "Please enter the amount to deposit or type 'cancel':");
+            MessageManager.sendInfo(player, "Your balance: " + ChatColor.GREEN +
+                    plugin.getEconomyManager().format(plugin.getEconomyManager().getBalance(player)));
+        } else if (operation.equals("withdraw")) {
+            MessageManager.sendInfo(player, "Please enter the amount to withdraw or type 'cancel':");
+            MessageManager.sendInfo(player, "Bank balance: " + ChatColor.GREEN +
+                    plugin.getEconomyManager().format(faction.bankBalance));
         }
     }
 
@@ -1250,5 +1404,26 @@ public class FactionsEventListener implements Listener {
                 material == Material.DAYLIGHT_DETECTOR ||
                 material == Material.REDSTONE_TORCH ||
                 material == Material.REDSTONE_WALL_TORCH;
+    }
+
+    /**
+     * Set pending bank operation for a player
+     */
+    public void setPendingBankOperation(UUID playerUUID, String operation) {
+        pendingBankOperations.put(playerUUID, operation);
+    }
+
+    /**
+     * Clear pending bank operation for a player
+     */
+    public void clearPendingBankOperation(UUID playerUUID) {
+        pendingBankOperations.remove(playerUUID);
+    }
+
+    /**
+     * Get pending bank operation for a player
+     */
+    public String getPendingBankOperation(UUID playerUUID) {
+        return pendingBankOperations.get(playerUUID);
     }
 }

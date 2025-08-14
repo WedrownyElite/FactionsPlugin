@@ -292,6 +292,40 @@ public class MenuHandler {
         claims.setItemMeta(claimsMeta);
         menu.setItem(16, claims);
 
+        // Bank chest item
+        ItemStack bankChest = new ItemStack(Material.CHEST);
+        ItemMeta bankMeta = bankChest.getItemMeta();
+        bankMeta.setDisplayName(ChatColor.GOLD + "Faction Bank");
+
+        double bankBalance = faction.bankBalance;
+        String balanceFormatted = plugin.getEconomyManager().format(bankBalance);
+
+        List<String> bankLore = new ArrayList<>();
+        bankLore.add(ChatColor.GRAY + "Manage your faction's shared funds");
+        bankLore.add(ChatColor.GRAY + "Current Balance: " + ChatColor.GREEN + balanceFormatted);
+        bankLore.add("");
+
+        // Check permissions to show what user can do
+        boolean canDeposit = faction.hasPermission(playerRank, FactionPermission.BANK_DEPOSIT);
+        boolean canWithdraw = faction.hasPermission(playerRank, FactionPermission.BANK_WITHDRAW);
+
+        if (canDeposit && canWithdraw) {
+            bankLore.add(ChatColor.GREEN + "✓ You can deposit and withdraw");
+        } else if (canDeposit) {
+            bankLore.add(ChatColor.YELLOW + "⚠ You can only deposit");
+        } else if (canWithdraw) {
+            bankLore.add(ChatColor.YELLOW + "⚠ You can only withdraw");
+        } else {
+            bankLore.add(ChatColor.RED + "✗ You can only view the balance");
+        }
+
+        bankLore.add("");
+        bankLore.add(ChatColor.YELLOW + "Click to access bank options!");
+
+        bankMeta.setLore(bankLore);
+        bankChest.setItemMeta(bankMeta);
+        menu.setItem(22, bankChest); // Center slot
+
         ItemStack homesWarps = new ItemStack(Material.COMPASS);
         ItemMeta homesWarpsMeta = homesWarps.getItemMeta();
         homesWarpsMeta.setDisplayName(ChatColor.LIGHT_PURPLE + "Homes & Warps");
@@ -943,6 +977,169 @@ public class MenuHandler {
 
     // Menu click handlers
 
+    /**
+     * Open the bank management GUI
+     */
+    public void openBankGUI(Player player, String factionName) {
+        Faction faction = factions.get(factionName);
+        if (faction == null) return;
+
+        Rank playerRank = faction.members.get(player.getUniqueId());
+        double bankBalance = faction.bankBalance;
+        String balanceFormatted = plugin.getEconomyManager().format(bankBalance);
+
+        Inventory bankMenu = Bukkit.createInventory(null, 9, ChatColor.DARK_GRAY + "Faction Bank: " + ChatColor.GREEN + balanceFormatted);
+
+        // Fill with black glass
+        ItemStack blackGlass = new ItemStack(Material.BLACK_STAINED_GLASS_PANE);
+        ItemMeta glassMeta = blackGlass.getItemMeta();
+        glassMeta.setDisplayName(" ");
+        blackGlass.setItemMeta(glassMeta);
+
+        for (int i = 0; i < 9; i++) {
+            bankMenu.setItem(i, blackGlass);
+        }
+
+        // Deposit item (slot 2)
+        ItemStack depositItem;
+        ItemMeta depositMeta;
+
+        if (faction.hasPermission(playerRank, FactionPermission.BANK_DEPOSIT)) {
+            depositItem = new ItemStack(Material.GREEN_CONCRETE);
+            depositMeta = depositItem.getItemMeta();
+            depositMeta.setDisplayName(ChatColor.GREEN + "" + ChatColor.BOLD + "DEPOSIT");
+            depositMeta.setLore(Arrays.asList(
+                    ChatColor.GRAY + "Add money to faction bank",
+                    ChatColor.GRAY + "Current Balance: " + ChatColor.GREEN + balanceFormatted,
+                    "",
+                    ChatColor.YELLOW + "Click to deposit money!"
+            ));
+        } else {
+            depositItem = new ItemStack(Material.RED_CONCRETE);
+            depositMeta = depositItem.getItemMeta();
+            depositMeta.setDisplayName(ChatColor.RED + "" + ChatColor.BOLD + "DEPOSIT");
+            depositMeta.setLore(Arrays.asList(
+                    ChatColor.GRAY + "Add money to faction bank",
+                    "",
+                    ChatColor.RED + "✗ You lack permission to deposit",
+                    ChatColor.GRAY + "Ask a higher rank for access"
+            ));
+        }
+
+        depositItem.setItemMeta(depositMeta);
+        bankMenu.setItem(2, depositItem);
+
+        // Withdraw item (slot 6)
+        ItemStack withdrawItem;
+        ItemMeta withdrawMeta;
+
+        if (faction.hasPermission(playerRank, FactionPermission.BANK_WITHDRAW)) {
+            withdrawItem = new ItemStack(Material.YELLOW_CONCRETE);
+            withdrawMeta = withdrawItem.getItemMeta();
+            withdrawMeta.setDisplayName(ChatColor.YELLOW + "" + ChatColor.BOLD + "WITHDRAW");
+            withdrawMeta.setLore(Arrays.asList(
+                    ChatColor.GRAY + "Take money from faction bank",
+                    ChatColor.GRAY + "Current Balance: " + ChatColor.GREEN + balanceFormatted,
+                    "",
+                    ChatColor.YELLOW + "Click to withdraw money!"
+            ));
+        } else {
+            withdrawItem = new ItemStack(Material.RED_CONCRETE);
+            withdrawMeta = withdrawItem.getItemMeta();
+            withdrawMeta.setDisplayName(ChatColor.RED + "" + ChatColor.BOLD + "WITHDRAW");
+            withdrawMeta.setLore(Arrays.asList(
+                    ChatColor.GRAY + "Take money from faction bank",
+                    "",
+                    ChatColor.RED + "✗ You lack permission to withdraw",
+                    ChatColor.GRAY + "Ask a higher rank for access"
+            ));
+        }
+
+        withdrawItem.setItemMeta(withdrawMeta);
+        bankMenu.setItem(6, withdrawItem);
+
+        // Bank info item (center slot 4)
+        ItemStack bankInfo = new ItemStack(Material.GOLD_INGOT);
+        ItemMeta bankInfoMeta = bankInfo.getItemMeta();
+        bankInfoMeta.setDisplayName(ChatColor.GOLD + "Bank Balance");
+        bankInfoMeta.setLore(Arrays.asList(
+                ChatColor.GRAY + "Current Balance:",
+                ChatColor.GREEN + "" + ChatColor.BOLD + balanceFormatted,
+                "",
+                ChatColor.GRAY + "Faction: " + ChatColor.WHITE + factionName
+        ));
+        bankInfo.setItemMeta(bankInfoMeta);
+        bankMenu.setItem(4, bankInfo);
+
+        // Back button (slot 0)
+        ItemStack backButton = createBackButton();
+        bankMenu.setItem(0, backButton);
+
+        player.openInventory(bankMenu);
+    }
+
+    /**
+     * Handle bank GUI clicks
+     */
+    public void handleBankGUIClick(Player player, String displayName, String title) {
+        String factionName = playerFactions.get(player.getUniqueId());
+
+        if (displayName.equals(ChatColor.GRAY + "← Back")) {
+            openFactionMenu(player, factionName);
+            return;
+        }
+
+        Faction faction = factions.get(factionName);
+        if (faction == null) return;
+
+        Rank playerRank = faction.members.get(player.getUniqueId());
+
+        if (displayName.equals(ChatColor.GREEN + "" + ChatColor.BOLD + "DEPOSIT")) {
+            // Check permission
+            if (!faction.hasPermission(playerRank, FactionPermission.BANK_DEPOSIT)) {
+                MessageManager.sendError(player, "You lack permission to deposit to the faction bank.");
+                return;
+            }
+
+            // Close GUI and prompt for amount
+            player.closeInventory();
+            plugin.getEventListener().setPendingBankOperation(player.getUniqueId(), "deposit");
+
+            MessageManager.sendBlankMessage(player, "");
+            MessageManager.sendBlankMessage(player, ChatColor.YELLOW + "═══════════════════════════════════");
+            MessageManager.sendBlankMessage(player, ChatColor.GREEN + "" + ChatColor.BOLD + "BANK DEPOSIT");
+            MessageManager.sendBlankMessage(player, ChatColor.YELLOW + "═══════════════════════════════════");
+            MessageManager.sendBlankMessage(player, ChatColor.WHITE + "Enter the amount you want to deposit:");
+            MessageManager.sendBlankMessage(player, ChatColor.WHITE + "• Your balance: " + ChatColor.GREEN +
+                    plugin.getEconomyManager().format(plugin.getEconomyManager().getBalance(player)));
+            MessageManager.sendBlankMessage(player, ChatColor.WHITE + "• Type the amount in chat");
+            MessageManager.sendBlankMessage(player, ChatColor.WHITE + "• Type " + ChatColor.RED + "cancel" + ChatColor.WHITE + " to abort");
+            MessageManager.sendBlankMessage(player, ChatColor.YELLOW + "═══════════════════════════════════");
+
+        } else if (displayName.equals(ChatColor.YELLOW + "" + ChatColor.BOLD + "WITHDRAW")) {
+            // Check permission
+            if (!faction.hasPermission(playerRank, FactionPermission.BANK_WITHDRAW)) {
+                MessageManager.sendError(player, "You lack permission to withdraw from the faction bank.");
+                return;
+            }
+
+            // Close GUI and prompt for amount
+            player.closeInventory();
+            plugin.getEventListener().setPendingBankOperation(player.getUniqueId(), "withdraw");
+
+            MessageManager.sendBlankMessage(player, "");
+            MessageManager.sendBlankMessage(player, ChatColor.YELLOW + "═══════════════════════════════════");
+            MessageManager.sendBlankMessage(player, ChatColor.GOLD + "" + ChatColor.BOLD + "BANK WITHDRAW");
+            MessageManager.sendBlankMessage(player, ChatColor.YELLOW + "═══════════════════════════════════");
+            MessageManager.sendBlankMessage(player, ChatColor.WHITE + "Enter the amount you want to withdraw:");
+            MessageManager.sendBlankMessage(player, ChatColor.WHITE + "• Bank balance: " + ChatColor.GREEN +
+                    plugin.getEconomyManager().format(faction.bankBalance));
+            MessageManager.sendBlankMessage(player, ChatColor.WHITE + "• Type the amount in chat");
+            MessageManager.sendBlankMessage(player, ChatColor.WHITE + "• Type " + ChatColor.RED + "cancel" + ChatColor.WHITE + " to abort");
+            MessageManager.sendBlankMessage(player, ChatColor.YELLOW + "═══════════════════════════════════");
+        }
+    }
+
     public void handleNoFactionMenuClick(Player player, String displayName) {
         if (displayName.equals(ChatColor.GREEN + "Create Faction")) {
             player.closeInventory();
@@ -1007,6 +1204,9 @@ public class MenuHandler {
             openRelationsViewMenu(player, factionName);
         } else if (displayName.equals(ChatColor.BLUE + "View Relations")) {
             openRelationsViewMenu(player, factionName);
+        } else if (displayName.equals(ChatColor.GOLD + "Faction Bank")) {
+            // Open bank GUI
+            openBankGUI(player, factionName);
         }
     }
 

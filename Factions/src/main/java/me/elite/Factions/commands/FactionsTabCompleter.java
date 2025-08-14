@@ -33,6 +33,9 @@ public class FactionsTabCompleter implements TabCompleter {
                     // Territory and navigation
                     "claim", "home", "sethome", "map", "m", "warp",
 
+                    // Economy and bank
+                    "bank", "worth", "worthtop",
+
                     // Member management
                     "kick", "promote", "demote", "privacy",
 
@@ -225,6 +228,28 @@ public class FactionsTabCompleter implements TabCompleter {
                 return Collections.emptyList();
             case "debuginfo":
                 // No arguments needed
+                return Collections.emptyList();
+            case "bank":
+                // Tab completion for bank subcommands
+                if (args.length == 2) {
+                    List<String> bankCommands = Arrays.asList("balance", "bal", "deposit", "withdraw");
+                    return bankCommands.stream()
+                            .filter(cmd -> cmd.toLowerCase().startsWith(partial))
+                            .collect(Collectors.toList());
+                }
+                // For deposit/withdraw amounts, no tab completion needed
+                return Collections.emptyList();
+
+            case "worth":
+                // No arguments needed for worth command
+                return Collections.emptyList();
+
+            case "worthtop":
+            case "wtop":
+                // Only tab complete page numbers if they haven't typed anything yet
+                if (args.length == 2 && partial.isEmpty()) {
+                    return Arrays.asList("1", "2", "3", "4", "5");
+                }
                 return Collections.emptyList();
 
             default:

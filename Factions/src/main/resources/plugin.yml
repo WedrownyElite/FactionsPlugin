@@ -3,6 +3,7 @@ main: me.elite.Factions.FactionsPlugin
 version: 1.0
 api-version: 1.16
 author: WedrownyElite
+softdepend: [RoseStacker, Essentials]
 commands:
   f:
     description: Main factions command
@@ -11,8 +12,26 @@ commands:
   f.reload:
     description: Allows reloading the plugin configuration
     default: op
+    f.recalcworth:
+      description: Allows manual recalculation of faction worth
+      default: op
 
 permissions:
+  factions.bank.deposit:
+    description: Allows depositing to faction bank
+    default: true
+  factions.bank.withdraw:
+    description: Allows withdrawing from faction bank
+    default: false
+  factions.bank.balance:
+    description: Allows viewing faction bank balance
+    default: true
+  factions.worth:
+    description: Allows viewing faction worth
+    default: true
+  factions.worthtop:
+    description: Allows viewing faction worth leaderboard
+    default: true
   factions.adminclaim:
     description: Allows claiming chunks for special factions
     default: op

@@ -21,6 +21,9 @@ public class Faction {
     public Map<String, FactionWarp> warps = new HashMap<>();
     public FactionHome home = null;
 
+    // Bank system
+    public double bankBalance = 0.0;
+
     public Faction(String name, UUID owner) {
         this.name = name;
         this.owner = owner;

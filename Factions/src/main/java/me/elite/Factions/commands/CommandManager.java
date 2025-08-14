@@ -141,6 +141,16 @@ public class CommandManager implements CommandExecutor {
             case "reload":
             case "rl":
                 return handleWithUsage(args[0].toLowerCase(), "handleReload", player, args);
+            case "bank":
+                return handleWithUsage(args[0].toLowerCase(), "handleBank", player, args);
+            case "worth":
+                return handleWithUsage(args[0].toLowerCase(), "handleWorth", player, args);
+            case "worthtop":
+            case "wtop":
+                return handleWithUsage(args[0].toLowerCase(), "handleWorthTop", player, args);
+            case "recalcworth":
+            case "recalc":
+                return handleWithUsage(args[0].toLowerCase(), "handleRecalcWorth", player, args);
             default:
                 // Enhanced error message for unknown commands
                 MessageManager.sendError(player, "Unknown command: '" + args[0] + "'");
@@ -193,6 +203,9 @@ public class CommandManager implements CommandExecutor {
         usages.put("delwarp", "Usage: /f delwarp <name> - Delete a faction warp.");
         usages.put("warp", "Usage: /f warp <name> - Teleport to a faction warp.");
         usages.put("reload", "Usage: /f reload - Reload the plugin configuration");
+        usages.put("bank", "Usage: /f bank <balance/deposit/withdraw> [amount] - Manage faction bank");
+        usages.put("worth", "Usage: /f worth - View your faction's total worth");
+        usages.put("worthtop", "Usage: /f worthtop [page] - View top factions by worth");
 
         String key = subCommand == null ? "" : subCommand.toLowerCase();
         if (usages.containsKey(key)) return usages.get(key);
@@ -273,6 +286,10 @@ public class CommandManager implements CommandExecutor {
         sendHelpLine(player, "/f power", "View your faction's power information");
         sendHelpLine(player, "/f home", "Teleport to your faction's home");
         sendHelpLine(player, "/f warp <name>", "Teleport to a faction warp");
+        sendHelpLine(player, "/f bank <balance/deposit/withdraw>", "Manage faction bank");
+        sendHelpLine(player, "/f worth", "View your faction's total worth");
+        sendHelpLine(player, "/f worthtop [page]", "View top factions by worth");
+
 
         player.sendMessage("");
         player.sendMessage(ChatColor.GRAY + "Tip: Use " + ChatColor.WHITE + "/f menu" + ChatColor.GRAY + " for an easy-to-use interface!");
@@ -346,6 +363,33 @@ public class CommandManager implements CommandExecutor {
 
     private void sendHelpLine(Player player, String command, String description) {
         player.sendMessage(ChatColor.YELLOW + command + ChatColor.GRAY + " - " + ChatColor.WHITE + description);
+    }
+
+    private boolean handleRecalcWorth(Player player, String[] args) {
+        if (!player.isOp() && !player.hasPermission("factions.recalcworth")) {
+            MessageManager.sendError(player, "You lack permission to recalculate faction worth.");
+            return true;
+        }
+
+        if (args.length >= 2) {
+            // Recalculate specific faction
+            String targetFaction = args[1];
+            if (!factions.containsKey(targetFaction)) {
+                MessageManager.sendError(player, "Faction '" + targetFaction + "' does not exist.");
+                return true;
+            }
+
+            MessageManager.sendInfo(player, "Recalculating worth for faction: " + targetFaction);
+            plugin.getWorthCalculator().recalculateFactionWorth(targetFaction);
+            MessageManager.sendSuccess(player, "Triggered worth recalculation for " + targetFaction + "!");
+        } else {
+            // Recalculate all factions
+            MessageManager.sendInfo(player, "Recalculating worth for all " + factions.size() + " factions...");
+            plugin.getWorthCalculator().recalculateAllWorth();
+            MessageManager.sendSuccess(player, "Triggered worth recalculation for all factions!");
+        }
+
+        return true;
     }
 
     private boolean handleReload(Player player, String[] args) {
@@ -1733,6 +1777,261 @@ public class CommandManager implements CommandExecutor {
             case TRUCE: return ChatColor.BLUE + "Blue T (truce)";
             case ENEMY: return ChatColor.RED + "Red E (enemy)";
             default: return "None (neutral)";
+        }
+    }
+
+    /**
+     * Bank system handling
+     */
+    private boolean handleBank(Player player, String[] args) {
+        if (args.length < 2) {
+            MessageManager.sendError(player, "Usage: /f bank <balance/deposit/withdraw> [amount]");
+            return true;
+        }
+
+        UUID uuid = player.getUniqueId();
+        String factionName = playerFactions.get(uuid);
+        if (factionName == null) {
+            MessageManager.sendError(player, "You are not in a faction.");
+            return true;
+        }
+
+        Faction faction = factions.get(factionName);
+        Rank playerRank = faction.members.get(uuid);
+
+        String subCommand = args[1].toLowerCase();
+        switch (subCommand) {
+            case "balance":
+            case "bal":
+                return handleBankBalance(player, faction);
+            case "deposit":
+                if (args.length < 3) {
+                    MessageManager.sendError(player, "Usage: /f bank deposit <amount>");
+                    return true;
+                }
+                return handleBankDeposit(player, faction, playerRank, args[2]);
+            case "withdraw":
+                if (args.length < 3) {
+                    MessageManager.sendError(player, "Usage: /f bank withdraw <amount>");
+                    return true;
+                }
+                return handleBankWithdraw(player, faction, playerRank, args[2]);
+            default:
+                MessageManager.sendError(player, "Usage: /f bank <balance/deposit/withdraw> [amount]");
+                return true;
+        }
+    }
+
+    private boolean handleBankBalance(Player player, Faction faction) {
+        double balance = faction.bankBalance;
+        MessageManager.sendInfo(player, "Faction bank balance: " + plugin.getEconomyManager().format(balance));
+        return true;
+    }
+
+    private boolean handleBankDeposit(Player player, Faction faction, Rank playerRank, String amountStr) {
+        if (!faction.hasPermission(playerRank, FactionPermission.BANK_DEPOSIT)) {
+            MessageManager.sendError(player, "You lack permission to deposit to the faction bank.");
+            return true;
+        }
+
+        double amount;
+        try {
+            amount = Double.parseDouble(amountStr);
+            if (amount <= 0) {
+                MessageManager.sendError(player, "Amount must be positive.");
+                return true;
+            }
+        } catch (NumberFormatException e) {
+            MessageManager.sendError(player, "Invalid amount: " + amountStr);
+            return true;
+        }
+
+        if (!plugin.getEconomyManager().hasBalance(player, amount)) {
+            MessageManager.sendError(player, "You don't have enough money. Your balance: " +
+                    plugin.getEconomyManager().format(plugin.getEconomyManager().getBalance(player)));
+            return true;
+        }
+
+        if (plugin.getEconomyManager().withdraw(player, amount)) {
+            faction.bankBalance += amount;
+            plugin.getDataManager().saveFactionData();
+
+            MessageManager.sendSuccess(player, "Deposited " + plugin.getEconomyManager().format(amount) +
+                    " to faction bank. New bank balance: " + plugin.getEconomyManager().format(faction.bankBalance));
+        } else {
+            MessageManager.sendError(player, "Failed to process deposit.");
+        }
+
+        return true;
+    }
+
+    private boolean handleBankWithdraw(Player player, Faction faction, Rank playerRank, String amountStr) {
+        if (!faction.hasPermission(playerRank, FactionPermission.BANK_WITHDRAW)) {
+            MessageManager.sendError(player, "You lack permission to withdraw from the faction bank.");
+            return true;
+        }
+
+        double amount;
+        try {
+            amount = Double.parseDouble(amountStr);
+            if (amount <= 0) {
+                MessageManager.sendError(player, "Amount must be positive.");
+                return true;
+            }
+        } catch (NumberFormatException e) {
+            MessageManager.sendError(player, "Invalid amount: " + amountStr);
+            return true;
+        }
+
+        if (faction.bankBalance < amount) {
+            MessageManager.sendError(player, "Insufficient faction bank balance. Available: " +
+                    plugin.getEconomyManager().format(faction.bankBalance));
+            return true;
+        }
+
+        if (plugin.getEconomyManager().deposit(player, amount)) {
+            faction.bankBalance -= amount;
+            plugin.getDataManager().saveFactionData();
+
+            MessageManager.sendSuccess(player, "Withdrew " + plugin.getEconomyManager().format(amount) +
+                    " from faction bank. New bank balance: " + plugin.getEconomyManager().format(faction.bankBalance));
+        } else {
+            MessageManager.sendError(player, "Failed to process withdrawal.");
+        }
+
+        return true;
+    }
+
+    /**
+     * Worth Handling
+     */
+    private boolean handleWorth(Player player, String[] args) {
+        UUID uuid = player.getUniqueId();
+        String factionName = playerFactions.get(uuid);
+        if (factionName == null) {
+            MessageManager.sendError(player, "You are not in a faction.");
+            return true;
+        }
+
+        plugin.getLogger().info("=== WORTH COMMAND DEBUG FOR " + player.getName() + " ===");
+        plugin.getLogger().info("Player UUID: " + uuid);
+        plugin.getLogger().info("Faction Name: " + factionName);
+
+        double worth = plugin.getWorthCalculator().getFactionWorth(factionName);
+        plugin.getLogger().info("Cached worth from calculator: " + worth);
+
+        Faction faction = factions.get(factionName);
+        plugin.getLogger().info("Faction object exists: " + (faction != null));
+
+        if (faction != null) {
+            plugin.getLogger().info("Bank balance from faction object: " + faction.bankBalance);
+        }
+
+        MessageManager.sendBlankMessage(player, "");
+        MessageManager.sendBlankMessage(player, "§6§l=== FACTION WORTH ===");
+        MessageManager.sendBlankMessage(player, "§eFaction: §f" + factionName);
+        MessageManager.sendBlankMessage(player, "§eTotal Worth: §a" + plugin.getWorthCalculator().formatWorth(worth));
+        MessageManager.sendBlankMessage(player, "");
+        MessageManager.sendBlankMessage(player, "§eBreakdown:");
+        MessageManager.sendBlankMessage(player, "§7• Bank Balance: §a" + plugin.getEconomyManager().format(faction.bankBalance));
+
+        double spawnerWorth = worth - faction.bankBalance;
+        MessageManager.sendBlankMessage(player, "§7• Spawner Value: §a" + plugin.getWorthCalculator().formatWorth(spawnerWorth));
+
+        plugin.getLogger().info("Calculated spawner worth (total - bank): " + spawnerWorth);
+
+        long lastCalc = plugin.getWorthCalculator().getLastCalculationTime();
+        if (lastCalc > 0) {
+            long timeSince = System.currentTimeMillis() - lastCalc;
+            String timeString = formatTime(timeSince);
+            MessageManager.sendBlankMessage(player, "§7• Last Updated: §f" + timeString + " ago");
+            plugin.getLogger().info("Last calculation: " + timeString + " ago");
+        } else {
+            plugin.getLogger().info("No previous calculation found");
+        }
+
+        MessageManager.sendBlankMessage(player, "§6§l==================");
+
+        plugin.getLogger().info("=== END WORTH COMMAND DEBUG ===");
+
+        return true;
+    }
+
+    private boolean handleWorthTop(Player player, String[] args) {
+        int page = 1;
+        if (args.length >= 2) {
+            try {
+                page = Integer.parseInt(args[1]);
+                if (page < 1) page = 1;
+            } catch (NumberFormatException e) {
+                MessageManager.sendError(player, "Invalid page number.");
+                return true;
+            }
+        }
+
+        List<Map.Entry<String, Double>> sortedWorth = plugin.getWorthCalculator().getSortedFactionWorth();
+
+        if (sortedWorth.isEmpty()) {
+            MessageManager.sendError(player, "No faction worth data available. Worth is calculated hourly.");
+            return true;
+        }
+
+        int pageSize = 10;
+        int totalPages = (sortedWorth.size() - 1) / pageSize + 1;
+
+        if (page > totalPages) {
+            MessageManager.sendError(player, "Page " + page + " doesn't exist. Maximum page: " + totalPages);
+            return true;
+        }
+
+        int startIndex = (page - 1) * pageSize;
+        int endIndex = Math.min(startIndex + pageSize, sortedWorth.size());
+
+        MessageManager.sendBlankMessage(player, "");
+        MessageManager.sendBlankMessage(player, "§6§l=== FACTION WORTH TOP ===");
+        MessageManager.sendBlankMessage(player, "§7Page " + page + " of " + totalPages);
+        MessageManager.sendBlankMessage(player, "");
+
+        for (int i = startIndex; i < endIndex; i++) {
+            Map.Entry<String, Double> entry = sortedWorth.get(i);
+            String factionName = entry.getKey();
+            double worth = entry.getValue();
+
+            String rank = "§7" + (i + 1) + ".";
+            if (i == 0) rank = "§6🥇";
+            else if (i == 1) rank = "§7🥈";
+            else if (i == 2) rank = "§c🥉";
+
+            MessageManager.sendBlankMessage(player, rank + " §e" + factionName + "§7: §a" +
+                    plugin.getWorthCalculator().formatWorth(worth));
+        }
+
+        MessageManager.sendBlankMessage(player, "");
+        MessageManager.sendBlankMessage(player, "§7Use §f/f worthtop <page>§7 to view other pages");
+
+        long lastCalc = plugin.getWorthCalculator().getLastCalculationTime();
+        if (lastCalc > 0) {
+            long timeSince = System.currentTimeMillis() - lastCalc;
+            String timeString = formatTime(timeSince);
+            MessageManager.sendBlankMessage(player, "§7Last updated: §f" + timeString + " ago");
+        }
+
+        MessageManager.sendBlankMessage(player, "§6§l=======================");
+
+        return true;
+    }
+
+    private String formatTime(long milliseconds) {
+        long seconds = milliseconds / 1000;
+        long minutes = seconds / 60;
+        long hours = minutes / 60;
+
+        if (hours > 0) {
+            return hours + " hour" + (hours == 1 ? "" : "s");
+        } else if (minutes > 0) {
+            return minutes + " minute" + (minutes == 1 ? "" : "s");
+        } else {
+            return seconds + " second" + (seconds == 1 ? "" : "s");
         }
     }
 }

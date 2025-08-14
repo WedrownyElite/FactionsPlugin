@@ -113,6 +113,9 @@ public class DataManager {
                     fdata.put("warps", warpsData);
                 }
 
+                // Save bank balance
+                fdata.put("bankBalance", f.bankBalance);
+
                 factionMap.put(entry.getKey(), fdata);
             }
             data.put("factions", factionMap);
@@ -189,6 +192,15 @@ public class DataManager {
             }
             data.put("playerPowerData", powerDataMap);
 
+            // Save economy data (if using internal economy)
+            if (!plugin.getEconomyManager().isUsingEssentials()) {
+                Map<String, Double> balancesMap = new HashMap<>();
+                for (Map.Entry<UUID, Double> entry : plugin.getEconomyManager().getAllBalances().entrySet()) {
+                    balancesMap.put(entry.getKey().toString(), entry.getValue());
+                }
+                data.put("economyBalances", balancesMap);
+            }
+
             writer.println(new JSONObject(data).toString(2));
         } catch (IOException e) {
             plugin.getLogger().severe("Failed to save faction data: " + e.getMessage());
@@ -217,6 +229,11 @@ public class DataManager {
 
                     if (fdata.has("isPublic")) {
                         f.isPublic = fdata.getBoolean("isPublic");
+                    }
+
+                    // Load bank balance
+                    if (fdata.has("bankBalance")) {
+                        f.bankBalance = fdata.getDouble("bankBalance");
                     }
 
                     JSONObject members = fdata.getJSONObject("members");
@@ -456,6 +473,25 @@ public class DataManager {
 
                 plugin.getPowerManager().loadPlayerPowerData(loadedPowerData);
                 plugin.getLogger().info("Loaded power data for " + loadedPowerData.size() + " players");
+            }
+
+            // Load economy data (if using internal economy)
+            if (data.has("economyBalances") && !plugin.getEconomyManager().isUsingEssentials()) {
+                JSONObject balancesMap = data.getJSONObject("economyBalances");
+                Map<UUID, Double> loadedBalances = new HashMap<>();
+
+                for (String uuidStr : balancesMap.keySet()) {
+                    try {
+                        UUID playerUUID = UUID.fromString(uuidStr);
+                        double balance = balancesMap.getDouble(uuidStr);
+                        loadedBalances.put(playerUUID, balance);
+                    } catch (Exception e) {
+                        plugin.getLogger().warning("Failed to load economy balance for player: " + uuidStr + " - " + e.getMessage());
+                    }
+                }
+
+                plugin.getEconomyManager().loadBalances(loadedBalances);
+                plugin.getLogger().info("Loaded economy data for " + loadedBalances.size() + " players");
             }
 
             plugin.getLogger().info("Successfully loaded faction data: " + factions.size() + " factions, " +

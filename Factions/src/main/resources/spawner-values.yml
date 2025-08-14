@@ -1,0 +1,52 @@
+# Spawner Values Configuration
+# Set the worth of each spawner type in dollars
+# These values are used to calculate faction worth
+
+# Hostile Mobs (Higher value due to danger/drops)
+ZOMBIE: 500.0
+SKELETON: 600.0
+CREEPER: 800.0
+SPIDER: 400.0
+ENDERMAN: 2000.0
+BLAZE: 1500.0
+MAGMA_CUBE: 1200.0
+GHAST: 3000.0
+WITHER_SKELETON: 5000.0
+WITCH: 1000.0
+SLIME: 300.0
+
+# Passive Mobs (Lower value, easier to obtain)
+PIG: 200.0
+COW: 300.0
+CHICKEN: 150.0
+SHEEP: 250.0
+RABBIT: 100.0
+HORSE: 400.0
+DONKEY: 350.0
+MULE: 350.0
+
+# Special/Rare Mobs (Very high value)
+IRON_GOLEM: 10000.0
+VILLAGER: 2500.0
+WITHER: 50000.0
+ENDER_DRAGON: 100000.0
+
+# Neutral Mobs
+WOLF: 500.0
+OCELOT: 400.0
+PARROT: 300.0
+
+# Nether Mobs
+ZOMBIFIED_PIGLIN: 700.0
+PIGLIN: 800.0
+HOGLIN: 900.0
+STRIDER: 600.0
+
+# Ocean Mobs
+GUARDIAN: 1200.0
+ELDER_GUARDIAN: 5000.0
+SQUID: 200.0
+DOLPHIN: 800.0
+
+# Default value for any spawner type not listed above
+DEFAULT: 100.0
