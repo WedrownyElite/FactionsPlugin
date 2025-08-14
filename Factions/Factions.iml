@@ -45,7 +45,7 @@
     <orderEntry type="module-library" scope="PROVIDED">
       <library>
         <CLASSES>
-          <root url="jar://$MODULE_DIR$/../../../Test/plugins/RoseStacker-1.5.35.jar!/" />
+          <root url="jar://$MODULE_DIR$/../../../Test/plugins/RoseStacker-1.4.13.jar!/" />
         </CLASSES>
         <JAVADOC />
         <SOURCES />
