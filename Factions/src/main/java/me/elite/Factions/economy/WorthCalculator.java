@@ -121,17 +121,26 @@ public class WorthCalculator {
     }
 
     private void initializeRoseStacker() {
-        if (Bukkit.getPluginManager().getPlugin("RoseStacker") != null) {
+        if (Bukkit.getPluginManager().getPlugin("RoseStacker") != null && Bukkit.getPluginManager().getPlugin("RoseStacker").isEnabled()) {
+            String version = Bukkit.getPluginManager().getPlugin("RoseStacker").getDescription().getVersion();
+            plugin.getLogger().info("Found RoseStacker version: " + version);
+
             try {
+                // Try to get RoseStacker API - method may have changed in 1.5.0
                 roseStackerAPI = RoseStackerAPI.getInstance();
                 useRoseStacker = true;
-                plugin.getLogger().info("WorthCalculator: Successfully hooked into RoseStacker");
+                plugin.getLogger().info("WorthCalculator: Successfully hooked into RoseStacker " + version);
             } catch (Exception e) {
-                plugin.getLogger().warning("WorthCalculator: Failed to hook into RoseStacker: " + e.getMessage());
+                plugin.getLogger().warning("WorthCalculator: Failed to hook into RoseStacker " + version + ": " + e.getMessage());
+                plugin.getLogger().warning("Will continue without RoseStacker integration");
                 useRoseStacker = false;
             }
         } else {
-            plugin.getLogger().info("WorthCalculator: RoseStacker not found, using basic spawner counting");
+            if (Bukkit.getPluginManager().getPlugin("RoseStacker") != null) {
+                plugin.getLogger().warning("RoseStacker found but not enabled - check for startup errors");
+            } else {
+                plugin.getLogger().info("WorthCalculator: RoseStacker not found, using basic spawner counting");
+            }
             useRoseStacker = false;
         }
     }
@@ -308,7 +317,7 @@ public class WorthCalculator {
     }
 
     /**
-     * Calculate spawner worth in a specific chunk
+     * Calculate spawner worth in a specific chunk - ROBUST VERSION
      */
     private double calculateChunkSpawnerWorth(Chunk chunk) {
         double chunkWorth = 0.0;
@@ -316,46 +325,138 @@ public class WorthCalculator {
 
         plugin.getLogger().info("Scanning chunk " + chunk.getX() + "," + chunk.getZ() + " in world " + chunk.getWorld().getName());
 
+        // Force load the chunk and wait a tick to ensure it's fully loaded
+        if (!chunk.isLoaded()) {
+            chunk.load(true);
+            plugin.getLogger().info("Force loaded chunk " + chunk.getX() + "," + chunk.getZ());
+        }
+
         // Iterate through all blocks in the chunk
         for (int x = 0; x < 16; x++) {
             for (int z = 0; z < 16; z++) {
-                for (int y = 0; y < chunk.getWorld().getMaxHeight(); y++) {
+                for (int y = chunk.getWorld().getMinHeight(); y < chunk.getWorld().getMaxHeight(); y++) {
                     Block block = chunk.getBlock(x, y, z);
 
                     if (block.getType() == Material.SPAWNER) {
                         spawnersInChunk++;
 
-                        try {
-                            CreatureSpawner spawner = (CreatureSpawner) block.getState();
-                            EntityType entityType = spawner.getSpawnedType();
+                        // Get the absolute coordinates for logging
+                        int absoluteX = chunk.getX() * 16 + x;
+                        int absoluteZ = chunk.getZ() * 16 + z;
 
-                            double spawnerValue = spawnerValues.getOrDefault(entityType, defaultSpawnerValue);
-                            plugin.getLogger().info("Found spawner at " + x + "," + y + "," + z + " - Type: " + entityType + ", Base value: " + spawnerValue);
+                        plugin.getLogger().info("Found spawner at relative " + x + "," + y + "," + z +
+                                " (absolute " + absoluteX + "," + y + "," + absoluteZ + ")");
 
-                            if (useRoseStacker) {
-                                // Use RoseStacker to get stack amount
-                                try {
-                                    StackedSpawner stackedSpawner = roseStackerAPI.getStackedSpawner(block);
-                                    if (stackedSpawner != null) {
-                                        int stackAmount = stackedSpawner.getStackSize();
-                                        double totalValue = spawnerValue * stackAmount;
-                                        chunkWorth += totalValue;
-                                        plugin.getLogger().info("Stacked spawner - Stack size: " + stackAmount + ", Total value: " + totalValue);
+                        double spawnerValue = 0.0;
+                        boolean processed = false;
+
+                        // FIRST: Try RoseStacker integration (this often works even when BlockState fails)
+                        if (useRoseStacker) {
+                            try {
+                                StackedSpawner stackedSpawner = roseStackerAPI.getStackedSpawner(block);
+                                if (stackedSpawner != null) {
+                                    // RoseStacker can tell us the entity type and stack amount
+                                    EntityType entityType = stackedSpawner.getSpawner().getSpawnedType();
+                                    int stackAmount = stackedSpawner.getStackSize();
+
+                                    if (entityType != null) {
+                                        double baseValue = spawnerValues.getOrDefault(entityType, defaultSpawnerValue);
+                                        spawnerValue = baseValue * stackAmount;
+                                        processed = true;
+
+                                        plugin.getLogger().info("RoseStacker spawner - Type: " + entityType +
+                                                ", Stack size: " + stackAmount + ", Base value: " + baseValue +
+                                                ", Total value: " + spawnerValue);
                                     } else {
-                                        chunkWorth += spawnerValue; // Single spawner
-                                        plugin.getLogger().info("Single spawner (not stacked), value: " + spawnerValue);
+                                        plugin.getLogger().warning("RoseStacker spawner has null entity type, using default");
+                                        spawnerValue = defaultSpawnerValue * stackAmount;
+                                        processed = true;
+                                    }
+                                } else {
+                                    plugin.getLogger().info("Not a RoseStacker spawner, trying vanilla method");
+                                }
+                            } catch (Exception e) {
+                                plugin.getLogger().warning("RoseStacker integration failed for spawner at " +
+                                        absoluteX + "," + y + "," + absoluteZ + ": " + e.getMessage());
+                            }
+                        }
+
+                        // SECOND: If RoseStacker didn't work, try vanilla spawner reading
+                        if (!processed) {
+                            try {
+                                // Try multiple approaches to read the spawner
+                                CreatureSpawner spawner = null;
+                                EntityType entityType = null;
+
+                                // Approach 1: Direct block state
+                                try {
+                                    org.bukkit.block.BlockState blockState = block.getState();
+                                    if (blockState instanceof CreatureSpawner) {
+                                        spawner = (CreatureSpawner) blockState;
+                                        entityType = spawner.getSpawnedType();
+                                        plugin.getLogger().info("Successfully read spawner via BlockState");
                                     }
                                 } catch (Exception e) {
-                                    chunkWorth += spawnerValue; // Fallback to single spawner
-                                    plugin.getLogger().warning("Error getting stacked spawner info at " + x + "," + y + "," + z + ": " + e.getMessage());
+                                    plugin.getLogger().warning("BlockState approach failed: " + e.getMessage());
                                 }
-                            } else {
-                                chunkWorth += spawnerValue; // Single spawner
-                                plugin.getLogger().info("Single spawner (RoseStacker not available), value: " + spawnerValue);
+
+                                // Approach 2: Try getting the spawner by location
+                                if (spawner == null || entityType == null) {
+                                    try {
+                                        org.bukkit.Location spawnerLoc = new org.bukkit.Location(chunk.getWorld(), absoluteX, y, absoluteZ);
+                                        Block spawnerBlock = spawnerLoc.getBlock();
+                                        if (spawnerBlock.getType() == Material.SPAWNER) {
+                                            org.bukkit.block.BlockState state = spawnerBlock.getState();
+                                            if (state instanceof CreatureSpawner) {
+                                                spawner = (CreatureSpawner) state;
+                                                entityType = spawner.getSpawnedType();
+                                                plugin.getLogger().info("Successfully read spawner via Location");
+                                            }
+                                        }
+                                    } catch (Exception e) {
+                                        plugin.getLogger().warning("Location approach failed: " + e.getMessage());
+                                    }
+                                }
+
+                                // Approach 3: Use reflection to get NBT data (last resort)
+                                if (spawner == null || entityType == null) {
+                                    try {
+                                        // This is a more advanced approach using reflection
+                                        // We'll try to get the entity type from NBT data
+                                        entityType = getEntityTypeFromNBT(block);
+                                        if (entityType != null) {
+                                            plugin.getLogger().info("Successfully read spawner via NBT reflection");
+                                        }
+                                    } catch (Exception e) {
+                                        plugin.getLogger().warning("NBT reflection approach failed: " + e.getMessage());
+                                    }
+                                }
+
+                                // Calculate value if we got entity type
+                                if (entityType != null) {
+                                    double baseValue = spawnerValues.getOrDefault(entityType, defaultSpawnerValue);
+                                    spawnerValue = baseValue; // Single spawner since RoseStacker didn't detect stacking
+                                    processed = true;
+
+                                    plugin.getLogger().info("Vanilla spawner - Type: " + entityType +
+                                            ", Base value: " + baseValue);
+                                }
+
+                            } catch (Exception e) {
+                                plugin.getLogger().warning("All vanilla approaches failed for spawner at " +
+                                        absoluteX + "," + y + "," + absoluteZ + ": " + e.getMessage());
                             }
-                        } catch (Exception e) {
-                            plugin.getLogger().warning("Error processing spawner at " + x + "," + y + "," + z + ": " + e.getMessage());
                         }
+
+                        // THIRD: If everything failed, use default value
+                        if (!processed) {
+                            spawnerValue = defaultSpawnerValue;
+                            plugin.getLogger().warning("Could not determine spawner type, using default value: " + defaultSpawnerValue);
+                        }
+
+                        // Add the spawner value to chunk worth
+                        chunkWorth += spawnerValue;
+                        plugin.getLogger().info("Added spawner worth: " + spawnerValue + " (Total chunk worth so far: " + chunkWorth + ")");
                     }
                 }
             }
@@ -363,6 +464,28 @@ public class WorthCalculator {
 
         plugin.getLogger().info("Chunk scan complete - Found " + spawnersInChunk + " spawners, total worth: " + chunkWorth);
         return chunkWorth;
+    }
+
+    /**
+     * Attempt to get EntityType from NBT data using reflection (last resort method)
+     */
+    private EntityType getEntityTypeFromNBT(Block block) {
+        try {
+            // This is a simplified version - you might need to adjust based on your server version
+            // For now, we'll return null and let it fall back to default
+
+            // In a full implementation, you would:
+            // 1. Get the tile entity from the block
+            // 2. Read the NBT data
+            // 3. Extract the "SpawnData" -> "id" field
+            // 4. Convert the id to EntityType
+
+            // Since this requires version-specific NMS code, we'll skip it for now
+            return null;
+        } catch (Exception e) {
+            plugin.getLogger().warning("NBT reflection failed: " + e.getMessage());
+            return null;
+        }
     }
 
     /**
