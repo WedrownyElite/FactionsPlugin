@@ -45,6 +45,11 @@ It keeps the core mechanics you know and love while adding modern conveniences a
 - 1 faction warp by default (upgradeable)
 - GUI warp list with teleport buttons
 
+#### Faction Bank
+- `/f bank` command
+- Withdraw & deposit money
+- Bank transaction logs (player, amount, date/time)
+
 #### GUI Management
 - Faction creation
 - Permission management
@@ -54,15 +59,11 @@ It keeps the core mechanics you know and love while adding modern conveniences a
 - Faction info display
 - Toggle visibility (public/private)
 - Home & warp display + teleport buttons
+- Bank interface with deposit/withdraw options
 
 ---
 
 ## 🛠 Planned Features
-
-### Faction Bank
-- `/f bank` command
-- Withdraw & deposit money
-- Bank transaction logs (player, amount, date/time)
 
 ### Faction Discord Integration
 - `/f setdiscord` command to store faction Discord invite link
@@ -119,9 +120,9 @@ Upgrades can be unlocked via **Faction Leveling** or purchased with in-game mone
 | `/f warp` | Teleport to a faction warp |
 | `/f setwarp <name>` | Set a faction warp |
 | `/f ally/truce/enemy/neutral <faction>` | Manage faction relations |
-| `/f bank` | Open faction bank menu (Coming soon) |
+| `/f bank` | Open faction bank menu |
 | `/f announcements` | View faction announcements (Coming soon) |
-| `/f discord` | View and set the factions discord link (Coming soon) |
+| `/f discord` | View and set the faction's Discord link (Coming soon) |
 
 ---
 
