@@ -8,6 +8,8 @@ import org.bukkit.command.CommandSender;
 import org.bukkit.command.TabCompleter;
 import org.bukkit.entity.Player;
 import me.elite.Factions.data.Faction;
+import me.elite.Factions.data.Rank;
+import me.elite.Factions.data.FactionPermission;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -35,7 +37,7 @@ public class FactionsTabCompleter implements TabCompleter {
                     "claim", "home", "sethome", "map", "m", "warp", "warps",
 
                     // Economy and bank
-                    "bank", "worth", "worthtop", "wtop", "banklog"
+                    "bank", "worth", "worthtop", "wtop", "banklogs",
 
                     // Member management
                     "kick", "promote", "demote", "privacy",
@@ -365,6 +367,30 @@ public class FactionsTabCompleter implements TabCompleter {
             case "disband":
                 if (args.length == 2 && args[1].isEmpty()) {
                     return Arrays.asList("confirm");
+                }
+                return Collections.emptyList();
+
+            case "banklogs":
+                // Only show if player has permission and is in a faction
+                if (sender instanceof Player && args.length == 2) {
+                    Player player = (Player) sender;
+                    FactionsPlugin bankLogsPlugin = (FactionsPlugin) Bukkit.getPluginManager().getPlugin("Factions");
+                    if (bankLogsPlugin != null) {
+                        String playerFaction = bankLogsPlugin.getPlayerFactions().get(player.getUniqueId());
+                        if (playerFaction != null) {
+                            Faction faction = bankLogsPlugin.getFactions().get(playerFaction);
+                            if (faction != null) {
+                                Rank playerRank = faction.members.get(player.getUniqueId());
+                                // Check if player has permission to view bank logs
+                                if (playerRank == Rank.OWNER || faction.hasPermission(playerRank, FactionPermission.BANK_LOGS)) {
+                                    // Tab complete page numbers
+                                    return Arrays.asList("1", "2", "3", "4", "5").stream()
+                                            .filter(page -> page.startsWith(partial))
+                                            .collect(Collectors.toList());
+                                }
+                            }
+                        }
+                    }
                 }
                 return Collections.emptyList();
 

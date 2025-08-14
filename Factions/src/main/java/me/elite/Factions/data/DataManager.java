@@ -203,8 +203,7 @@ public class DataManager {
                 data.put("economyBalances", balancesMap);
             }
 
-            writer.println(new JSONObject(data).toString(2));
-
+            // FIXED: Save bank logs - add to main data object BEFORE writing JSON
             Map<String, List<Map<String, Object>>> bankLogsMap = new HashMap<>();
             for (Map.Entry<String, List<BankLog>> entry : plugin.getBankLogsManager().getAllFactionLogs().entrySet()) {
                 String factionName = entry.getKey();
@@ -226,6 +225,10 @@ public class DataManager {
                 bankLogsMap.put(factionName, logsList);
             }
             data.put("bankLogs", bankLogsMap);
+
+            // Write the complete JSON data
+            writer.println(new JSONObject(data).toString(2));
+
         } catch (IOException e) {
             plugin.getLogger().severe("Failed to save faction data: " + e.getMessage());
             e.printStackTrace();
@@ -518,6 +521,7 @@ public class DataManager {
                 plugin.getLogger().info("Loaded economy data for " + loadedBalances.size() + " players");
             }
 
+            // FIXED: Load bank logs properly
             if (data.has("bankLogs")) {
                 JSONObject bankLogsMap = data.getJSONObject("bankLogs");
                 Map<String, List<BankLog>> loadedBankLogs = new HashMap<>();
@@ -538,7 +542,7 @@ public class DataManager {
                             double newBalance = logData.getDouble("newBalance");
                             long timestamp = logData.getLong("timestamp");
 
-                            // Create log with custom timestamp using the new constructor
+                            // Create log with custom timestamp using the constructor with timestamp
                             BankLog log = new BankLog(playerUUID, playerName, type, amount, oldBalance, newBalance, timestamp);
                             logs.add(log);
                         } catch (Exception e) {
@@ -552,10 +556,10 @@ public class DataManager {
                 }
 
                 plugin.getBankLogsManager().loadFactionLogs(loadedBankLogs);
+                plugin.getLogger().info("Loaded bank logs for " + loadedBankLogs.size() + " factions");
             }
 
-
-        plugin.getLogger().info("Successfully loaded faction data: " + factions.size() + " factions, " +
+            plugin.getLogger().info("Successfully loaded faction data: " + factions.size() + " factions, " +
                     playerFactions.size() + " player mappings");
         } catch (Exception e) {
             plugin.getLogger().severe("Failed to load faction data: " + e.getMessage());
