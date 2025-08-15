@@ -500,13 +500,13 @@ public class WorthCalculator {
             }
         }.runTaskTimerAsynchronously(plugin, 20L * 60 * 60, 20L * 60 * 60); // 1 hour interval
 
-        // Initial calculation after 1 minute
+        // Initial calculation
         new BukkitRunnable() {
             @Override
             public void run() {
                 recalculateAllWorth();
             }
-        }.runTaskLaterAsynchronously(plugin, 20L * 60); // 1 minute delay
+        }.runTaskLaterAsynchronously(plugin, 20L); // 1 minute delay
     }
 
     /**

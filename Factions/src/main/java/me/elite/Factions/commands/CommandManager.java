@@ -786,7 +786,7 @@ public class CommandManager implements CommandExecutor {
             int memberCount = random.nextInt(7) + 2; // 2-8 members
             for (int j = 1; j < memberCount; j++) {
                 UUID fakeMemberUUID = UUID.nameUUIDFromBytes(("TestMember:" + factionName + ":" + j).getBytes());
-                Rank[] ranks = {Rank.RECRUIT, Rank.MEMBER, Rank.ADMIN};
+                Rank[] ranks = {Rank.RECRUIT, Rank.MEMBER, Rank.MOD, Rank.ADMIN};
                 Rank memberRank = ranks[random.nextInt(ranks.length)];
                 faction.members.put(fakeMemberUUID, memberRank);
             }
@@ -1370,7 +1370,7 @@ public class CommandManager implements CommandExecutor {
 
         Faction f = factions.get(factionName);
         Rank rank = f.members.get(uuid);
-        if (rank != Rank.OWNER && rank != Rank.ADMIN) {
+        if (rank != Rank.OWNER && !f.hasPermission(rank, FactionPermission.CLAIM_LAND)){
             MessageManager.sendError(player,"You lack permission.");
             return true;
         }
@@ -1407,7 +1407,7 @@ public class CommandManager implements CommandExecutor {
 
         Faction f = factions.get(factionName);
         Rank rank = f.members.get(uuid);
-        if (rank != Rank.OWNER && rank != Rank.ADMIN) {
+        if (rank != Rank.OWNER && !f.hasPermission(rank, FactionPermission.UNCLAIM_LAND)) {
             MessageManager.sendError(player,"You lack permission.");
             return true;
         }
@@ -1434,7 +1434,7 @@ public class CommandManager implements CommandExecutor {
 
         Faction f = factions.get(factionName);
         Rank rank = f.members.get(uuid);
-        if (rank != Rank.OWNER && rank != Rank.ADMIN) {
+        if (rank != Rank.OWNER && !f.hasPermission(rank, FactionPermission.UNCLAIM_ALL)) {
             MessageManager.sendError(player,"You lack permission.");
             return true;
         }
@@ -1509,7 +1509,7 @@ public class CommandManager implements CommandExecutor {
 
         Faction f = factions.get(factionName);
         Rank rank = f.members.get(uuid);
-        if (rank != Rank.OWNER && rank != Rank.ADMIN) {
+        if (rank != Rank.OWNER && !f.hasPermission(rank, FactionPermission.INVITE_MEMBERS)) {
             MessageManager.sendError(player,"You lack permission to invite players.");
             return true;
         }
@@ -1988,6 +1988,27 @@ public class CommandManager implements CommandExecutor {
             plugin.getLogger().info("Bank balance from faction object: " + faction.bankBalance);
         }
 
+        long lastCalc = plugin.getWorthCalculator().getLastCalculationTime();
+
+        // Check if worth has never been calculated
+        if (lastCalc == 0) {
+            MessageManager.sendBlankMessage(player, "");
+            MessageManager.sendBlankMessage(player, "§6§l=== FACTION WORTH ===");
+            MessageManager.sendBlankMessage(player, "§eFaction: §f" + factionName);
+            MessageManager.sendBlankMessage(player, "");
+            MessageManager.sendBlankMessage(player, "§e⏳ Calculating faction worth...");
+            MessageManager.sendBlankMessage(player, "§7Please wait a moment and try again.");
+            MessageManager.sendBlankMessage(player, "");
+            MessageManager.sendBlankMessage(player, "§eBank Balance: §a" + plugin.getEconomyManager().format(faction.bankBalance));
+            MessageManager.sendBlankMessage(player, "§7Spawner worth is being calculated...");
+            MessageManager.sendBlankMessage(player, "§6§l==================");
+
+            // Trigger immediate calculation for this faction
+            plugin.getWorthCalculator().recalculateFactionWorth(factionName);
+            plugin.getLogger().info("No previous calculation found - triggered immediate recalculation");
+            return true;
+        }
+
         MessageManager.sendBlankMessage(player, "");
         MessageManager.sendBlankMessage(player, "§6§l=== FACTION WORTH ===");
         MessageManager.sendBlankMessage(player, "§eFaction: §f" + factionName);
@@ -1996,20 +2017,16 @@ public class CommandManager implements CommandExecutor {
         MessageManager.sendBlankMessage(player, "§eBreakdown:");
         MessageManager.sendBlankMessage(player, "§7• Bank Balance: §a" + plugin.getEconomyManager().format(faction.bankBalance));
 
-        double spawnerWorth = worth - faction.bankBalance;
+        // Calculate spawner worth with safety check to prevent negative values
+        double spawnerWorth = Math.max(0, worth - faction.bankBalance);
         MessageManager.sendBlankMessage(player, "§7• Spawner Value: §a" + plugin.getWorthCalculator().formatWorth(spawnerWorth));
 
         plugin.getLogger().info("Calculated spawner worth (total - bank): " + spawnerWorth);
 
-        long lastCalc = plugin.getWorthCalculator().getLastCalculationTime();
-        if (lastCalc > 0) {
-            long timeSince = System.currentTimeMillis() - lastCalc;
-            String timeString = formatTime(timeSince);
-            MessageManager.sendBlankMessage(player, "§7• Last Updated: §f" + timeString + " ago");
-            plugin.getLogger().info("Last calculation: " + timeString + " ago");
-        } else {
-            plugin.getLogger().info("No previous calculation found");
-        }
+        long timeSince = System.currentTimeMillis() - lastCalc;
+        String timeString = formatTime(timeSince);
+        MessageManager.sendBlankMessage(player, "§7• Last Updated: §f" + timeString + " ago");
+        plugin.getLogger().info("Last calculation: " + timeString + " ago");
 
         MessageManager.sendBlankMessage(player, "§6§l==================");
 

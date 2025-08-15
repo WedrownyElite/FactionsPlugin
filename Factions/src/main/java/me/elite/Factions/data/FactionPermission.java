@@ -18,7 +18,6 @@ public enum FactionPermission {
     SET_HOME("Set Home"),
     USE_HOME("Use Home"),
     CHANGE_NAME("Change Name"),
-    SET_TITLES("Set Titles"),
     BANK_DEPOSIT("Bank Deposit"),
     BANK_WITHDRAW("Bank Withdraw"),
     BANK_LOGS("Bank Logs"),
