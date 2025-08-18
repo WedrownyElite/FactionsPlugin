@@ -50,6 +50,11 @@ It keeps the core mechanics you know and love while adding modern conveniences a
 - Withdraw & deposit money
 - Bank transaction logs (player, amount, date/time)
 
+### Faction Discord Integration
+- `/f setdiscord` command to store faction Discord invite links (requires permissions)
+- `/f discord` command to display faction Discord invite links (requires permissions)
+- `/f unsetdiscord` command to remove faction Discord invite links (requires permissions)
+
 #### GUI Management
 - Faction creation
 - Permission management
@@ -66,7 +71,6 @@ It keeps the core mechanics you know and love while adding modern conveniences a
 ## 🛠 Planned Features
 
 ### Faction Discord Integration
-- `/f setdiscord` command to store faction Discord invite link
 - Clickable link in faction info
 
 ### Faction Announcements
