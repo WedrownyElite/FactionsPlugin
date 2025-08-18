@@ -80,7 +80,7 @@ public class WarpManager {
             return false;
         }
 
-        // FIXED: Warps can be set anywhere (removed faction territory requirement)
+        //  Warps can be set anywhere
         Location location = player.getLocation();
 
         // Create and add the warp

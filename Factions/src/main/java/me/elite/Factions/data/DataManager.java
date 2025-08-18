@@ -119,6 +119,11 @@ public class DataManager {
                 fdata.put("bankBalance", f.bankBalance);
 
                 factionMap.put(entry.getKey(), fdata);
+
+                // Save discord link
+                if (f.discord != null && !f.discord.isEmpty()) {
+                    fdata.put("discordLink", f.discord);
+                }
             }
             data.put("factions", factionMap);
 
@@ -356,6 +361,11 @@ public class DataManager {
                                 plugin.getLogger().warning("Failed to load warp " + warpName + " for faction " + name + ": " + e.getMessage());
                             }
                         }
+                    }
+
+                    // Load discord link
+                    if (fdata.has("discordLink")) {
+                        f.discord = fdata.getString("discordLink");
                     }
 
                     factions.put(name, f);

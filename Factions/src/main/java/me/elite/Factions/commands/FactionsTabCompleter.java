@@ -127,6 +127,16 @@ public class FactionsTabCompleter implements TabCompleter {
                         commands.addAll(Arrays.asList("banklogs", "banklog"));
                     }
 
+                    // View discord (if player has permission)
+                    if (playerRank == Rank.OWNER || faction.hasPermission(playerRank, FactionPermission.VIEW_DISCORD)) {
+                        commands.add("discord");
+                    }
+
+                    // Set discord (if player has permission
+                    if (playerRank == Rank.OWNER || faction.hasPermission(playerRank, FactionPermission.SET_DISCORD)) {
+                        commands.addAll(Arrays.asList("setdiscord", "unsetdiscord"));
+                    }
+
                     // Owner-only commands
                     if (playerRank == Rank.OWNER) {
                         commands.addAll(Arrays.asList("disband", "confirm", "cancel"));
@@ -418,7 +428,6 @@ public class FactionsTabCompleter implements TabCompleter {
                             .collect(Collectors.toList());
                 }
                 return Collections.emptyList();
-
             case "banklogs":
             case "banklog":
                 // Only allow if player has permission

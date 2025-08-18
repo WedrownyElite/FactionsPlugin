@@ -157,6 +157,12 @@ public class CommandManager implements CommandExecutor {
             case "banklogs":
             case "banklog":
                 return handleWithUsage(args[0].toLowerCase(), "handleBankLogs", player, args);
+            case "discord":
+                return handleWithUsage(args[0].toLowerCase(), "handleDiscord", player, args);
+            case "setdiscord":
+                return handleWithUsage(args[0].toLowerCase(), "handleSetDiscord", player, args);
+            case "unsetdiscord":
+                return handleWithUsage(args[0].toLowerCase(), "handleUnsetDiscord", player, args);
             default:
                 // Enhanced error message for unknown commands
                 MessageManager.sendError(player, "Unknown command: '" + args[0] + "'");
@@ -213,6 +219,8 @@ public class CommandManager implements CommandExecutor {
         usages.put("worth", "Usage: /f worth - View your faction's total worth");
         usages.put("worthtop", "Usage: /f worthtop [page] - View top factions by worth");
         usages.put("banklogs", "Usage: /f banklogs [page] - View faction bank transaction history");
+        usages.put("discord", "Usage: /f discord - View your factions discord server link");
+        usages.put("setdiscord", "Usage: /f setdiscord <link> - Set your factions discord server link");
 
         String key = subCommand == null ? "" : subCommand.toLowerCase();
         if (usages.containsKey(key)) return usages.get(key);
@@ -296,7 +304,7 @@ public class CommandManager implements CommandExecutor {
         sendHelpLine(player, "/f bank <balance/deposit/withdraw>", "Manage faction bank");
         sendHelpLine(player, "/f worth", "View your faction's total worth");
         sendHelpLine(player, "/f worthtop [page]", "View top factions by worth");
-
+        sendHelpLine(player, "/f discord", "View your factions discord server link");
 
         player.sendMessage("");
         player.sendMessage(ChatColor.GRAY + "Tip: Use " + ChatColor.WHITE + "/f menu" + ChatColor.GRAY + " for an easy-to-use interface!");
@@ -317,6 +325,8 @@ public class CommandManager implements CommandExecutor {
         sendHelpLine(player, "/f desc <text>", "Set faction description");
         sendHelpLine(player, "/f privacy <public|private>", "Change faction privacy settings");
         sendHelpLine(player, "/f disband", "Disband your faction (owner only)");
+        sendHelpLine(player, "/f setdiscord <link>", "Set your factions discord server link");
+        sendHelpLine(player, "/f unsetdiscord", "Remove your factions discord server link");
 
         player.sendMessage("");
         player.sendMessage(ChatColor.GRAY + "Note: Most management commands require " + ChatColor.YELLOW + "Admin" + ChatColor.GRAY + " or " + ChatColor.RED + "Owner" + ChatColor.GRAY + " rank");
@@ -370,6 +380,117 @@ public class CommandManager implements CommandExecutor {
 
     private void sendHelpLine(Player player, String command, String description) {
         player.sendMessage(ChatColor.YELLOW + command + ChatColor.GRAY + " - " + ChatColor.WHITE + description);
+    }
+
+    private boolean handleDiscord(Player player, String[] args) {
+        UUID uuid = player.getUniqueId();
+        String factionName = playerFactions.get(uuid);
+        Faction faction = factions.get(factionName);
+        Rank playerRank = faction.members.get(uuid);
+
+        // Is the player in a faction
+        if (factionName == null) {
+            MessageManager.sendError(player, "You are not in a faction.");
+            return true;
+        }
+
+        // Does the player have the necessary permissions to see the discord link
+        if (playerRank != Rank.OWNER && !faction.hasPermission(playerRank, FactionPermission.VIEW_DISCORD)) {
+            MessageManager.sendError(player, "You don't have permission to view the factions discord link.");
+            return true;
+        }
+
+        // Has the discord been set?
+        String discord = faction.discord;
+        if (discord == null || discord == "") {
+            MessageManager.sendError(player, "Faction discord is empty.");
+            return true;
+        }
+
+        MessageManager.sendInfo(player, "§n" + discord);
+        return true;
+    }
+
+    private boolean handleSetDiscord(Player player, String[] args) {
+        UUID uuid = player.getUniqueId();
+        String factionName = playerFactions.get(uuid);
+        Faction faction = factions.get(factionName);
+        Rank playerRank = faction.members.get(uuid);
+
+        // Check usage: must have exactly 2 arguments (/f setdiscord <link>)
+        if (args.length < 2) {
+            MessageManager.sendError(player, "Usage: /f setdiscord <discord link>");
+            return true;
+        }
+
+        // Is the player in a faction
+        if (factionName == null) {
+            MessageManager.sendError(player, "You are not in a faction.");
+            return true;
+        }
+
+        // Does the player have the necessary permissions to set the discord
+        if (playerRank != Rank.OWNER && !faction.hasPermission(playerRank, FactionPermission.SET_DISCORD)) {
+            MessageManager.sendError(player, "You don't have permission to set the factions discord link.");
+            return true;
+        }
+
+        String link = args[1];
+
+        // Validate discord link
+        if (!link.matches("^(https?://)?(www\\.)?(discord\\.gg|discord(app)?\\.com/invite)/[A-Za-z0-9]+$")) {
+            MessageManager.sendError(player, "Invalid Discord link. Please provide a valid invite link.");
+            return true;
+        }
+
+        // Notify other online faction members
+        for (UUID memberUUID : faction.members.keySet()) {
+            Player member = Bukkit.getPlayer(memberUUID);
+            if (member != null && !member.equals(player)) {
+                MessageManager.sendMemberDiscordSet(member, player, link);
+            }
+        }
+
+        faction.discord = link;
+        MessageManager.sendSuccess(player, "Faction Discord link set to: §n" + link);
+
+        // Save data
+        plugin.getDataManager().saveFactionData();
+        return true;
+    }
+
+    private boolean handleUnsetDiscord(Player player, String[] args) {
+        UUID uuid = player.getUniqueId();
+        String factionName = playerFactions.get(uuid);
+        Faction faction = factions.get(factionName);
+        Rank playerRank = faction.members.get(uuid);
+
+        // Is the player in a faction
+        if (factionName == null) {
+            MessageManager.sendError(player, "You are not in a faction.");
+            return true;
+        }
+
+        // Does the player have the necessary permissions to set the discord
+        if (playerRank != Rank.OWNER && !faction.hasPermission(playerRank, FactionPermission.SET_DISCORD)) {
+            MessageManager.sendError(player, "You don't have permission to set the factions discord link.");
+            return true;
+        }
+
+        faction.discord = null;
+        MessageManager.sendSuccess(player, "Faction Discord link has been removed");
+
+        // Notify other online faction members
+        for (UUID memberUUID : faction.members.keySet()) {
+            Player member = Bukkit.getPlayer(memberUUID);
+            if (member != null && !member.equals(player)) {
+                MessageManager.sendMemberDiscordSet(member, player,  null);
+            }
+        }
+
+        // Save data
+        plugin.getDataManager().saveFactionData();
+        return true;
     }
 
     private boolean handleBankLogs(Player player, String[] args) {

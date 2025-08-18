@@ -11,6 +11,7 @@ public class Faction {
     public String description = "";
     public UUID owner;
     public Map<UUID, Rank> members = new HashMap<>();
+    public String discord;
     public boolean isPublic = false;
 
     // Permission system
@@ -90,7 +91,6 @@ public class Faction {
     private Set<FactionPermission> getDefaultAdminPermissions() {
         Set<FactionPermission> perms = EnumSet.copyOf(getDefaultModPermissions());
         perms.addAll(EnumSet.of(
-                FactionPermission.SET_TITLES,
                 FactionPermission.BANK_LOGS,
                 FactionPermission.SET_RELATIONS,
                 FactionPermission.UNCLAIM_ALL,
@@ -101,6 +101,14 @@ public class Faction {
                 FactionPermission.MANAGE_PERMISSIONS
         ));
         return perms;
+    }
+
+    public void setDiscordLink(String link) {
+        this.discord = link;
+    }
+
+    public String getDiscordLink() {
+        return discord;
     }
 
     private Set<FactionPermission> getDefaultOwnerPermissions() {

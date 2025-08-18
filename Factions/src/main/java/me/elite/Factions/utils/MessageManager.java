@@ -113,6 +113,15 @@ public final class MessageManager {
         member.sendMessage(PREFIX + message);
     }
 
+    public static void sendMemberDiscordSet(Player member, Player player, String link) {
+        if (link == null) {
+            member.sendMessage(PREFIX + ChatColor.YELLOW + player.getName() + " has removed the factions discord link");
+        }
+        else {
+            member.sendMessage(PREFIX + ChatColor.YELLOW + player.getName() + " has set the factions discord link to: " + ChatColor.UNDERLINE + link);
+        }
+    }
+
     // Faction disbanding
     public static void sendMemberFactionDisbanded(Player member, String factionName, String disbander) {
         member.sendMessage(PREFIX + ChatColor.RED + ChatColor.BOLD + factionName + ChatColor.RESET + ChatColor.RED + " has been disbanded by " + disbander + "!");

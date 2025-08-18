@@ -898,7 +898,6 @@ public class PermissionsMenuHandler extends BaseMenuHandler {
                         FactionPermission.FACTION_CHEST_LOGS
                 );
                 adminPerms.addAll(EnumSet.of(
-                        FactionPermission.SET_TITLES,
                         FactionPermission.BANK_LOGS,
                         FactionPermission.SET_RELATIONS,
                         FactionPermission.UNCLAIM_ALL,
